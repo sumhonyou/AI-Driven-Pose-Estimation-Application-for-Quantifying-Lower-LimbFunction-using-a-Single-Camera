@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: fyp_postgres
+    environment:
+      POSTGRES_USER: fyp_user
+      POSTGRES_PASSWORD: fyp_password
+      POSTGRES_DB: fyp_rehab_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

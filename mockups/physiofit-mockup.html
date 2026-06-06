@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PhysioFit — AI Lower-Limb Function</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   PhysioFit — design mockup
+   Brand: Deep Dark Green #051D0C · Neon Lime #9BFF00 · Emerald #00AE54
+   Type:  Inter
+   ============================================================ */
+
+:root {
+  --lime: #9BFF00;
+  --emerald: #00AE54;
+  --ink-dark: #051D0C;
+
+  --amber: #F5B731;
+  --coral: #FF6B5E;
+
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --r-xl: 30px;
+
+  --maxw: 1240px;
+  --ease: cubic-bezier(.22,.61,.36,1);
+  --font: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+/* ---------- DARK (default) ---------- */
+html[data-theme="dark"] {
+  --bg: #04160A;
+  --bg-2: #051D0C;
+  --surface: #0A2914;
+  --surface-2: #0E331B;
+  --surface-hi: #12401F;
+  --border: rgba(155,255,0,.10);
+  --border-soft: rgba(234,247,236,.07);
+  --text: #EAF7EC;
+  --text-2: #B6CDBD;
+  --text-3: #7E9A87;
+  --accent-text: var(--lime);
+  --glow-a: rgba(155,255,0,.16);
+  --glow-b: rgba(0,174,84,.18);
+  --grid: rgba(155,255,0,.045);
+  --shadow: 0 24px 60px -28px rgba(0,0,0,.85);
+  --on-accent: #04160A;
+  --good: var(--lime);
+  --good-bg: rgba(155,255,0,.13);
+  color-scheme: dark;
+}
+
+/* ---------- LIGHT ---------- */
+html[data-theme="light"] {
+  --bg: #EEF4EC;
+  --bg-2: #F5F9F3;
+  --surface: #FFFFFF;
+  --surface-2: #F4F9F2;
+  --surface-hi: #ECF6E8;
+  --border: rgba(5,29,12,.10);
+  --border-soft: rgba(5,29,12,.07);
+  --text: #062012;
+  --text-2: #3C5447;
+  --text-3: #6A8172;
+  --accent-text: var(--emerald);
+  --glow-a: rgba(155,255,0,.30);
+  --glow-b: rgba(0,174,84,.16);
+  --grid: rgba(5,29,12,.04);
+  --shadow: 0 22px 50px -30px rgba(5,29,12,.30);
+  --on-accent: #04160A;
+  --good: var(--emerald);
+  --good-bg: rgba(0,174,84,.12);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.011em;
+  overflow-x: hidden;
+  transition: background .5s var(--ease), color .5s var(--ease);
+}
+
+/* Atmosphere: subtle grid + soft green glows */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 50% 30%, #000 0%, transparent 80%);
+  pointer-events: none; z-index: 0;
+}
+body::after {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(620px 480px at 8% -6%, var(--glow-a), transparent 60%),
+    radial-gradient(680px 520px at 100% 4%, var(--glow-b), transparent 62%);
+}
+
+img { display: block; max-width: 100%; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+::selection { background: var(--lime); color: var(--ink-dark); }
+
+:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; border-radius: 6px; }
+
+.wrap { max-width: var(--maxw); margin-inline: auto; padding-inline: 28px; }
+.view { display: none; position: relative; z-index: 1; }
+.view.active { display: block; }
+
+/* ===========================================================
+   TOP NAV
+   =========================================================== */
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: blur(16px) saturate(140%);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  border-bottom: 1px solid var(--border-soft);
+}
+.nav-inner { display: flex; align-items: center; justify-content: space-between; height: 74px; gap: 20px; }
+.brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 19px; letter-spacing: -0.03em; }
+.brand .logo {
+  width: 38px; height: 38px; border-radius: 11px; flex: none;
+  background: linear-gradient(145deg, var(--lime), var(--emerald));
+  display: grid; place-items: center; box-shadow: 0 6px 20px -6px var(--glow-a);
+}
+.brand .logo svg { width: 22px; height: 22px; }
+.brand b { color: var(--text); }
+.brand span { color: var(--accent-text); }
+
+.nav-links { display: flex; gap: 6px; margin-left: 10px; }
+.nav-links a {
+  padding: 9px 15px; border-radius: 999px; font-size: 14.5px; font-weight: 500;
+  color: var(--text-2); transition: color .25s, background .25s;
+}
+.nav-links a:hover { color: var(--text); background: var(--surface-2); }
+
+.nav-actions { display: flex; align-items: center; gap: 10px; }
+
+.theme-toggle {
+  width: 42px; height: 42px; border-radius: 12px; flex: none;
+  display: grid; place-items: center;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-2);
+  transition: transform .35s var(--ease), color .25s, border-color .25s;
+}
+.theme-toggle:hover { color: var(--accent-text); border-color: var(--accent-text); transform: rotate(-18deg); }
+.theme-toggle svg { width: 19px; height: 19px; }
+html[data-theme="dark"] .icon-sun { display: block; }
+html[data-theme="dark"] .icon-moon { display: none; }
+html[data-theme="light"] .icon-sun { display: none; }
+html[data-theme="light"] .icon-moon { display: block; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-weight: 600; font-size: 14.5px; padding: 11px 20px; border-radius: 999px;
+  transition: transform .25s var(--ease), box-shadow .3s var(--ease), background .25s, color .25s, border-color .25s;
+  white-space: nowrap;
+}
+.btn-ghost { color: var(--text); border: 1px solid var(--border); background: var(--surface); }
+.btn-ghost:hover { border-color: var(--accent-text); color: var(--accent-text); }
+.btn-primary {
+  background: var(--lime); color: var(--on-accent);
+  box-shadow: 0 10px 26px -10px var(--glow-a);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 34px -10px var(--glow-a); }
+.btn-lg { padding: 15px 28px; font-size: 16px; }
+.btn svg { width: 17px; height: 17px; }
+
+.nav-toggle { display: none; }
+
+/* ===========================================================
+   HERO
+   =========================================================== */
+.hero { padding: 84px 0 56px; position: relative; }
+.hero-grid {
+  display: grid; grid-template-columns: 1.05fr .95fr; gap: 56px; align-items: center;
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 13px; font-weight: 600; letter-spacing: .01em;
+  padding: 8px 15px 8px 11px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-2);
+}
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 4px var(--good-bg); animation: pulse 2.4s infinite; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 3px var(--good-bg); } 50% { box-shadow: 0 0 0 7px transparent; } }
+.pill b { color: var(--accent-text); font-weight: 700; }
+
+.hero h1 {
+  font-size: clamp(40px, 5.6vw, 66px); line-height: 1.02; font-weight: 800;
+  letter-spacing: -0.035em; margin: 22px 0 0; color: var(--text);
+}
+.hero h1 .hl { color: var(--accent-text); position: relative; white-space: nowrap; }
+.hero h1 .hl::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 6px; height: 11px;
+  background: var(--lime); opacity: .22; border-radius: 4px; z-index: -1;
+}
+.hero p.lead { font-size: clamp(16.5px, 1.5vw, 19px); color: var(--text-2); margin-top: 22px; max-width: 33em; }
+.hero-cta { display: flex; gap: 13px; margin-top: 32px; flex-wrap: wrap; }
+
+.hero-stats { display: flex; gap: 30px; margin-top: 42px; padding-top: 30px; border-top: 1px solid var(--border-soft); }
+.hero-stats .stat b { display: block; font-size: 28px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
+.hero-stats .stat span { font-size: 13.5px; color: var(--text-3); }
+.hero-stats .stat b em { font-style: normal; color: var(--accent-text); }
+
+/* Hero device / pose visual */
+.hero-visual { position: relative; }
+.device {
+  position: relative; border-radius: var(--r-xl); padding: 18px;
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.device-screen {
+  position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 4/3.4;
+  background:
+    radial-gradient(120% 90% at 70% 0%, color-mix(in srgb, var(--emerald) 22%, transparent), transparent 60%),
+    var(--bg-2);
+  border: 1px solid var(--border-soft);
+}
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--lime), transparent);
+  opacity: .55; animation: scan 4.5s var(--ease) infinite;
+}
+@keyframes scan { 0%,100% { top: 8%; opacity: 0; } 10% { opacity: .6; } 50% { top: 92%; opacity: .6; } 60% { opacity: 0; } }
+.device-screen svg.pose { position: absolute; inset: 0; width: 100%; height: 100%; }
+.joint { fill: var(--lime); }
+.bone { stroke: var(--emerald); stroke-width: 2.4; stroke-linecap: round; opacity: .9; }
+.bone.lime { stroke: var(--lime); }
+
+.float-card {
+  position: absolute; border-radius: var(--r-md); padding: 13px 16px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(10px); border: 1px solid var(--border);
+  box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px;
+  animation: floaty 5s ease-in-out infinite;
+}
+@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+.float-card.tl { top: 34px; left: -26px; animation-delay: .3s; }
+.float-card.br { bottom: 30px; right: -22px; animation-delay: 1.2s; }
+.float-card .ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.float-card .ic.lime { background: var(--good-bg); color: var(--accent-text); }
+.float-card .ic.em { background: rgba(0,174,84,.14); color: var(--emerald); }
+.float-card .ic svg { width: 19px; height: 19px; }
+.float-card small { display: block; color: var(--text-3); font-size: 11.5px; font-weight: 500; }
+.float-card strong { font-size: 15px; font-weight: 700; color: var(--text); }
+.band-good { color: var(--good) !important; }
+
+/* ===========================================================
+   DISCLAIMER BANNER
+   =========================================================== */
+.disclaimer {
+  display: flex; align-items: flex-start; gap: 14px;
+  border: 1px solid var(--border); border-left: 3px solid var(--emerald);
+  background: var(--surface); border-radius: var(--r-md);
+  padding: 16px 20px; margin: 24px 0; color: var(--text-2); font-size: 14.5px;
+}
+.disclaimer svg { width: 21px; height: 21px; flex: none; color: var(--emerald); margin-top: 1px; }
+.disclaimer b { color: var(--text); font-weight: 700; }
+
+/* ===========================================================
+   SECTION SHELL
+   =========================================================== */
+.section { padding: 70px 0; }
+.sec-head { max-width: 660px; margin-bottom: 44px; }
+.eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-text); }
+.sec-head h2 { font-size: clamp(28px, 3.6vw, 42px); font-weight: 800; letter-spacing: -0.032em; margin-top: 14px; color: var(--text); line-height: 1.08; }
+.sec-head p { color: var(--text-2); font-size: 17px; margin-top: 14px; }
+
+/* Modules */
+.modules { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.module-card {
+  position: relative; border-radius: var(--r-lg); padding: 32px;
+  background: var(--surface); border: 1px solid var(--border);
+  overflow: hidden; transition: transform .4s var(--ease), border-color .3s, box-shadow .4s;
+}
+.module-card::before {
+  content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity .4s;
+  background: radial-gradient(120% 100% at 100% 0%, var(--good-bg), transparent 55%);
+}
+.module-card:hover { transform: translateY(-5px); border-color: var(--accent-text); box-shadow: var(--shadow); }
+.module-card:hover::before { opacity: 1; }
+.module-tag { font-size: 12.5px; font-weight: 700; letter-spacing: .04em; color: var(--accent-text); }
+.module-card h3 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin: 10px 0 8px; color: var(--text); position: relative; }
+.module-card > p { color: var(--text-2); font-size: 15.5px; position: relative; }
+.checks { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; position: relative; }
+.check-row {
+  display: flex; align-items: center; gap: 13px; padding: 13px 15px;
+  border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border-soft);
+  transition: transform .25s var(--ease), background .25s;
+}
+.check-row:hover { transform: translateX(5px); background: var(--surface-hi); }
+.check-row .num { width: 28px; height: 28px; border-radius: 8px; background: var(--good-bg); color: var(--accent-text); font-weight: 800; font-size: 13px; display: grid; place-items: center; flex: none; }
+.check-row .txt b { display: block; font-size: 15px; font-weight: 600; color: var(--text); }
+.check-row .txt span { font-size: 13px; color: var(--text-3); }
+.badge-soon { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; background: rgba(0,174,84,.14); color: var(--emerald); }
+
+/* How it works */
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; counter-reset: step; }
+.step {
+  position: relative; padding: 26px; border-radius: var(--r-lg);
+  background: var(--surface); border: 1px solid var(--border);
+  transition: transform .35s var(--ease), border-color .3s;
+}
+.step:hover { transform: translateY(-4px); border-color: var(--accent-text); }
+.step .si { width: 46px; height: 46px; border-radius: 13px; background: var(--good-bg); display: grid; place-items: center; color: var(--accent-text); margin-bottom: 18px; }
+.step .si svg { width: 23px; height: 23px; }
+.step .sn { position: absolute; top: 22px; right: 24px; font-size: 40px; font-weight: 800; color: var(--border); letter-spacing: -0.04em; }
+.step h4 { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 7px; }
+.step p { font-size: 14px; color: var(--text-2); }
+
+/* CTA strip */
+.cta-strip {
+  margin: 26px 0; border-radius: var(--r-xl); padding: 56px 48px;
+  background: linear-gradient(135deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--border); position: relative; overflow: hidden;
+  text-align: center;
+}
+.cta-strip::after { content:""; position:absolute; inset:0; background: radial-gradient(80% 120% at 50% 0%, var(--good-bg), transparent 60%); pointer-events:none; }
+.cta-strip h2 { font-size: clamp(28px, 4vw, 44px); font-weight: 800; letter-spacing: -0.034em; color: var(--text); position: relative; }
+.cta-strip p { color: var(--text-2); font-size: 17px; margin: 14px auto 28px; max-width: 40em; position: relative; }
+.cta-strip .hero-cta { justify-content: center; position: relative; }
+
+/* Footer */
+.footer { border-top: 1px solid var(--border-soft); padding: 50px 0 40px; margin-top: 30px; }
+.foot-grid { display: flex; justify-content: space-between; gap: 30px; flex-wrap: wrap; }
+.foot-grid p { color: var(--text-3); font-size: 14px; max-width: 30em; margin-top: 14px; }
+.foot-links { display: flex; gap: 40px; }
+.foot-col b { font-size: 13px; color: var(--text); display: block; margin-bottom: 12px; }
+.foot-col a { display: block; font-size: 14px; color: var(--text-3); padding: 4px 0; transition: color .2s; }
+.foot-col a:hover { color: var(--accent-text); }
+.foot-base { margin-top: 36px; padding-top: 22px; border-top: 1px solid var(--border-soft); font-size: 13px; color: var(--text-3); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+/* ===========================================================
+   DASHBOARD
+   =========================================================== */
+.app { display: grid; grid-template-columns: 256px 1fr; min-height: 100vh; position: relative; z-index: 1; }
+.side {
+  position: sticky; top: 0; height: 100vh; padding: 26px 18px;
+  border-right: 1px solid var(--border-soft); background: color-mix(in srgb, var(--bg) 60%, transparent);
+  backdrop-filter: blur(10px); display: flex; flex-direction: column;
+}
+.side .brand { padding: 4px 8px 26px; }
+.side-group { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); padding: 16px 12px 8px; }
+.side-nav a {
+  display: flex; align-items: center; gap: 13px; padding: 11px 13px; border-radius: 12px;
+  font-size: 14.5px; font-weight: 500; color: var(--text-2); margin-bottom: 3px;
+  transition: background .2s, color .2s;
+}
+.side-nav a svg { width: 19px; height: 19px; opacity: .85; }
+.side-nav a:hover { background: var(--surface-2); color: var(--text); }
+.side-nav a.active { background: var(--good-bg); color: var(--accent-text); font-weight: 600; }
+.side-nav a.active svg { opacity: 1; }
+.side-foot { margin-top: auto; padding-top: 16px; }
+.side-card { border-radius: var(--r-md); padding: 16px; background: var(--surface-2); border: 1px solid var(--border); }
+.side-card b { font-size: 14px; color: var(--text); }
+.side-card p { font-size: 12.5px; color: var(--text-3); margin: 6px 0 12px; }
+
+.main { padding: 26px 34px 60px; min-width: 0; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 30px; }
+.topbar h1 { font-size: 27px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
+.topbar p { font-size: 14.5px; color: var(--text-3); margin-top: 2px; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(145deg, var(--emerald), var(--lime)); display: grid; place-items: center; font-weight: 800; color: var(--on-accent); font-size: 15px; }
+
+/* metric cards */
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 22px; }
+.metric {
+  border-radius: var(--r-lg); padding: 22px; background: var(--surface);
+  border: 1px solid var(--border); transition: transform .35s var(--ease), border-color .3s, box-shadow .35s;
+}
+.metric:hover { transform: translateY(-4px); border-color: var(--accent-text); box-shadow: var(--shadow); }
+.metric .mh { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.metric .mi { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; background: var(--good-bg); color: var(--accent-text); }
+.metric .mi svg { width: 20px; height: 20px; }
+.metric .mi.em { background: rgba(0,174,84,.14); color: var(--emerald); }
+.metric .trend { font-size: 12.5px; font-weight: 700; padding: 4px 9px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
+.trend.up { background: var(--good-bg); color: var(--good); }
+.trend.down { background: rgba(255,107,94,.13); color: var(--coral); }
+.metric .mv { font-size: 34px; font-weight: 800; letter-spacing: -0.035em; color: var(--text); font-variant-numeric: tabular-nums; }
+.metric .mv small { font-size: 17px; font-weight: 700; color: var(--text-3); }
+.metric .ml { font-size: 13.5px; color: var(--text-3); margin-top: 2px; }
+
+/* dashboard grid */
+.dash-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 18px; margin-bottom: 18px; }
+.panel { border-radius: var(--r-lg); padding: 24px; background: var(--surface); border: 1px solid var(--border); }
+.panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 12px; }
+.panel-head h3 { font-size: 17px; font-weight: 700; color: var(--text); }
+.panel-head .sub { font-size: 13px; color: var(--text-3); }
+.seg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border-soft); }
+.seg button { font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 999px; color: var(--text-3); transition: .2s; }
+.seg button.on { background: var(--lime); color: var(--on-accent); }
+
+/* chart */
+.chart { width: 100%; height: 220px; }
+.chart .grid-l { stroke: var(--border-soft); stroke-width: 1; }
+.chart .area { fill: url(#areaFill); }
+.chart .line { fill: none; stroke: var(--lime); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.chart .pt { fill: var(--bg); stroke: var(--lime); stroke-width: 2.6; }
+.chart .lbl { fill: var(--text-3); font-size: 11px; font-weight: 600; }
+
+/* band distribution */
+.bands { display: flex; flex-direction: column; gap: 16px; }
+.band-row .bt { display: flex; justify-content: space-between; font-size: 13.5px; margin-bottom: 7px; }
+.band-row .bt b { font-weight: 600; color: var(--text); }
+.band-row .bt span { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.track { height: 9px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.track .fill { height: 100%; border-radius: 999px; transform-origin: left; animation: grow 1s var(--ease) both; }
+@keyframes grow { from { transform: scaleX(0); } }
+.fill.good { background: linear-gradient(90deg, var(--emerald), var(--lime)); }
+.fill.fair { background: var(--amber); }
+.fill.poor { background: var(--coral); }
+
+/* sessions table */
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { text-align: left; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); padding: 0 12px 14px; }
+.tbl td { padding: 14px 12px; border-top: 1px solid var(--border-soft); font-size: 14px; color: var(--text-2); }
+.tbl tr { transition: background .2s; }
+.tbl tbody tr:hover { background: var(--surface-2); }
+.tbl td b { color: var(--text); font-weight: 600; }
+.ex-cell { display: flex; align-items: center; gap: 12px; }
+.ex-ic { width: 36px; height: 36px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border-soft); display: grid; place-items: center; color: var(--accent-text); flex: none; }
+.ex-ic svg { width: 18px; height: 18px; }
+.mode-tag { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 7px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border-soft); }
+.band {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700;
+  padding: 5px 12px; border-radius: 999px;
+}
+.band::before { content:""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.band.good { background: var(--good-bg); color: var(--good); }
+.band.fair { background: rgba(245,183,49,.14); color: var(--amber); }
+.band.poor { background: rgba(255,107,94,.14); color: var(--coral); }
+.score-cell { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+
+/* error tags + reminders row */
+.dash-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.tags { display: flex; flex-wrap: wrap; gap: 10px; }
+.tag {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500;
+  padding: 9px 14px; border-radius: 999px; background: var(--surface-2);
+  border: 1px solid var(--border-soft); color: var(--text-2);
+  transition: transform .25s var(--ease), border-color .25s;
+}
+.tag:hover { transform: translateY(-2px); border-color: var(--accent-text); }
+.tag .ct { font-weight: 800; color: var(--accent-text); }
+.sev { width: 8px; height: 8px; border-radius: 50%; }
+.sev.low { background: var(--emerald); }
+.sev.med { background: var(--amber); }
+.sev.high { background: var(--coral); }
+
+.rem-item { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: 1px solid var(--border-soft); }
+.rem-item:first-of-type { border-top: none; }
+.rem-check { width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--border); flex: none; display: grid; place-items: center; transition: .2s; cursor: pointer; }
+.rem-check.done { background: var(--lime); border-color: var(--lime); color: var(--on-accent); }
+.rem-check svg { width: 14px; height: 14px; opacity: 0; transition: .2s; }
+.rem-check.done svg { opacity: 1; }
+.rem-body b { font-size: 14.5px; font-weight: 600; color: var(--text); }
+.rem-item.is-done .rem-body b { text-decoration: line-through; color: var(--text-3); }
+.rem-body span { font-size: 12.5px; color: var(--text-3); }
+.rem-time { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--accent-text); }
+
+/* dashboard disclaimer */
+.dash-note { display: flex; align-items: center; gap: 12px; font-size: 13.5px; color: var(--text-3); margin-top: 22px; padding: 14px 18px; border-radius: var(--r-md); border: 1px dashed var(--border); }
+.dash-note svg { width: 18px; height: 18px; color: var(--emerald); flex: none; }
+
+/* ===========================================================
+   PREVIEW SWITCHER (mockup helper)
+   =========================================================== */
+.preview-switch {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 100;
+  display: flex; gap: 4px; padding: 5px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(14px);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.preview-switch button { font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 999px; color: var(--text-2); transition: .2s; }
+.preview-switch button.on { background: var(--lime); color: var(--on-accent); }
+
+/* reveal animation */
+.reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+.reveal.in { opacity: 1; transform: none; }
+
+/* ===========================================================
+   RESPONSIVE
+   =========================================================== */
+@media (max-width: 1000px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+  .hero-visual { max-width: 460px; }
+  .modules { grid-template-columns: 1fr; }
+  .steps { grid-template-columns: 1fr 1fr; }
+  .dash-grid, .dash-grid-2 { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: 1fr 1fr; }
+  .app { grid-template-columns: 1fr; }
+  .side { display: none; }
+}
+@media (max-width: 760px) {
+  .nav-links { display: none; }
+  .nav-toggle { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--border); }
+  .nav-toggle svg { width: 20px; height: 20px; }
+  .hero-stats { flex-wrap: wrap; gap: 22px; }
+  .steps { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: 1fr; }
+  .foot-links { gap: 26px; }
+  .main { padding: 22px 18px 80px; }
+  .btn-ghost.hide-sm { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================== LANDING ============================== -->
+<div class="view active" id="view-landing">
+
+  <nav class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#" onclick="return false">
+        <span class="logo">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l3.5 3.5L19 6" stroke="#04160A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6" r="2" fill="#04160A"/></svg>
+        </span>
+        <span style="color:var(--text)">Physio<span>Fit</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="#modules">Modules</a>
+        <a href="#how">How it works</a>
+        <a href="#" onclick="return false">For clinicians</a>
+        <a href="#" onclick="return false">About</a>
+      </div>
+      <div class="nav-actions">
+        <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle colour theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <a class="btn btn-ghost hide-sm" href="#" onclick="go('dashboard');return false">Log in</a>
+        <a class="btn btn-primary" href="#" onclick="go('dashboard');return false">Start a check
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <button class="nav-toggle" aria-label="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <span class="pill reveal"><span class="dot"></span> Single camera · <b>Browser-based pose AI</b></span>
+        <h1 class="reveal">Quantify lower-limb function with <span class="hl">just your webcam</span></h1>
+        <p class="lead reveal">PhysioFit turns an ordinary camera into a movement-quality coach. Run guided functional checks and rehab-grading sessions, then get clear Good / Fair / Poor feedback and progress you can track over time.</p>
+        <div class="hero-cta reveal">
+          <a class="btn btn-primary btn-lg" href="#" onclick="go('dashboard');return false">Start a free check
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="btn btn-ghost btn-lg" href="#how" >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z" fill="currentColor" stroke="none"/></svg>
+            See how it works
+          </a>
+        </div>
+        <div class="hero-stats reveal">
+          <div class="stat"><b>3</b><span>Functional checks</span></div>
+          <div class="stat"><b>33</b><span>Pose landmarks tracked</span></div>
+          <div class="stat"><b><em>On-device</em></b><span>Video never leaves your browser</span></div>
+        </div>
+      </div>
+
+      <div class="hero-visual reveal">
+        <div class="device">
+          <div class="device-screen">
+            <div class="scan-line"></div>
+            <svg class="pose" viewBox="0 0 300 260" preserveAspectRatio="xMidYMid meet">
+              <g class="bones">
+                <line class="bone lime" x1="150" y1="48" x2="150" y2="120"/>
+                <line class="bone" x1="150" y1="70" x2="112" y2="104"/>
+                <line class="bone" x1="150" y1="70" x2="188" y2="104"/>
+                <line class="bone" x1="112" y1="104" x2="100" y2="150"/>
+                <line class="bone" x1="188" y1="104" x2="200" y2="150"/>
+                <line class="bone lime" x1="150" y1="120" x2="124" y2="170"/>
+                <line class="bone lime" x1="150" y1="120" x2="176" y2="170"/>
+                <line class="bone lime" x1="124" y1="170" x2="116" y2="224"/>
+                <line class="bone lime" x1="176" y1="170" x2="184" y2="224"/>
+              </g>
+              <g class="joints">
+                <circle class="joint" cx="150" cy="40" r="9"/>
+                <circle class="joint" cx="150" cy="70" r="4.5"/>
+                <circle class="joint" cx="112" cy="104" r="4.5"/>
+                <circle class="joint" cx="188" cy="104" r="4.5"/>
+                <circle class="joint" cx="100" cy="150" r="4.5"/>
+                <circle class="joint" cx="200" cy="150" r="4.5"/>
+                <circle class="joint" cx="150" cy="120" r="5.5"/>
+                <circle class="joint" cx="124" cy="170" r="6.5"/>
+                <circle class="joint" cx="176" cy="170" r="6.5"/>
+                <circle class="joint" cx="116" cy="224" r="5"/>
+                <circle class="joint" cx="184" cy="224" r="5"/>
+              </g>
+            </svg>
+          </div>
+          <div class="float-card tl">
+            <span class="ic lime">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+            </span>
+            <div><small>Knee ROM</small><strong>108° · <span class="band-good">Good</span></strong></div>
+          </div>
+          <div class="float-card br">
+            <span class="ic em">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M22 4 12 14l-3-3"/></svg>
+            </span>
+            <div><small>Capture quality</small><strong>92%</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="disclaimer reveal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <span><b>Non-diagnostic tool.</b> PhysioFit provides movement-quality feedback only. It is not a medical device and does not diagnose, treat, or give medical clearance. If you feel pain or are unsure, stop and consult a qualified healthcare professional.</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MODULES -->
+  <section class="section" id="modules">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Two ways to move better</span>
+        <h2>One platform, two modes of guided assessment</h2>
+        <p>Start with a quick functional self-check, or run an exercise-specific rehab-grading session that blends transparent rules with machine-learning scoring.</p>
+      </div>
+      <div class="modules">
+        <article class="module-card reveal">
+          <span class="module-tag">MODULE A</span>
+          <h3>Functional Checking</h3>
+          <p>Deterministic, rule-based self-checks for everyday knee and ankle function — no setup beyond your camera.</p>
+          <div class="checks">
+            <div class="check-row"><span class="num">1</span><div class="txt"><b>Sit-to-Stand</b><span>Side view · 5 reps · knee ROM &amp; trunk-lean</span></div></div>
+            <div class="check-row"><span class="num">2</span><div class="txt"><b>Supported Single-Leg Stance</b><span>Front view · 30s hold · sway &amp; stability</span></div></div>
+            <div class="check-row"><span class="num">3</span><div class="txt"><b>Weight-Bearing Lunge Test</b><span>Side view · 3 trials · dorsiflexion &amp; symmetry</span></div></div>
+          </div>
+        </article>
+        <article class="module-card reveal">
+          <span class="module-tag">MODULE B</span>
+          <h3>Rehab Grading</h3>
+          <p>Hybrid rule-based + Extra Trees scoring grades the quality of a rehab exercise and explains every sub-score.</p>
+          <div class="checks">
+            <div class="check-row"><span class="num">◷</span><div class="txt"><b>ROM completeness</b><span>How fully you move through range</span></div><span class="badge-soon">AI</span></div>
+            <div class="check-row"><span class="num">◷</span><div class="txt"><b>Tempo consistency</b><span>Smoothness &amp; control of each rep</span></div><span class="badge-soon">AI</span></div>
+            <div class="check-row"><span class="num">◷</span><div class="txt"><b>Stability control</b><span>Balance and sway throughout the set</span></div><span class="badge-soon">AI</span></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW -->
+  <section class="section" id="how">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">How it works</span>
+        <h2>From camera to clear feedback in four steps</h2>
+      </div>
+      <div class="steps">
+        <div class="step reveal">
+          <span class="sn">01</span>
+          <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>
+          <h4>Set up your camera</h4>
+          <p>Guided framing tells you the right distance and side / front view for each exercise.</p>
+        </div>
+        <div class="step reveal">
+          <span class="sn">02</span>
+          <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>
+          <h4>Move with live cues</h4>
+          <p>MediaPipe Pose tracks 33 landmarks in your browser and counts reps or hold time as you go.</p>
+        </div>
+        <div class="step reveal">
+          <span class="sn">03</span>
+          <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></span>
+          <h4>Get a scored report</h4>
+          <p>A Good / Fair / Poor band with sub-scores, error tags, and plain-language coaching after every set.</p>
+        </div>
+        <div class="step reveal">
+          <span class="sn">04</span>
+          <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg></span>
+          <h4>Track your progress</h4>
+          <p>Every session is saved so you can watch trends and set reminders to keep moving.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="cta-strip reveal">
+        <h2>Ready to see how you move?</h2>
+        <p>No download, no wearable. Open your camera and complete your first functional check in under three minutes.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary btn-lg" href="#" onclick="go('dashboard');return false">Open the dashboard
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="btn btn-ghost btn-lg" href="#modules">Explore the modules</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div class="foot-grid">
+        <div style="max-width:340px">
+          <a class="brand" href="#" onclick="return false">
+            <span class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l3.5 3.5L19 6" stroke="#04160A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6" r="2" fill="#04160A"/></svg></span>
+            <span style="color:var(--text)">Physio<span>Fit</span></span>
+          </a>
+          <p>AI-driven lower-limb function and rehabilitation grading from a single camera. Built for home use, designed to be clear, calm, and trustworthy.</p>
+        </div>
+        <div class="foot-links">
+          <div class="foot-col"><b>Product</b><a href="#modules">Functional checks</a><a href="#modules">Rehab grading</a><a href="#how">How it works</a><a href="#" onclick="return false">Dashboard</a></div>
+          <div class="foot-col"><b>Company</b><a href="#" onclick="return false">About</a><a href="#" onclick="return false">For clinicians</a><a href="#" onclick="return false">Privacy</a><a href="#" onclick="return false">Contact</a></div>
+        </div>
+      </div>
+      <div class="foot-base">
+        <span>© 2026 PhysioFit · Non-diagnostic movement-quality tool.</span>
+        <span>Made for older adults &amp; athletes alike.</span>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- ============================== DASHBOARD ============================== -->
+<div class="view" id="view-dashboard">
+  <div class="app">
+    <aside class="side">
+      <a class="brand" href="#" onclick="go('landing');return false">
+        <span class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l3.5 3.5L19 6" stroke="#04160A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6" r="2" fill="#04160A"/></svg></span>
+        <span style="color:var(--text)">Physio<span>Fit</span></span>
+      </a>
+      <div class="side-group">Overview</div>
+      <nav class="side-nav">
+        <a class="active" href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</a>
+        <a href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>New session</a>
+        <a href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/></svg>Session history</a>
+        <a href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Progress</a>
+      </nav>
+      <div class="side-group">Account</div>
+      <nav class="side-nav">
+        <a href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 1 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Reminders</a>
+        <a href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profile</a>
+      </nav>
+      <div class="side-foot">
+        <div class="side-card">
+          <b>Daily check due</b>
+          <p>Keep your streak going — run today's Sit-to-Stand.</p>
+          <a class="btn btn-primary" style="width:100%; justify-content:center" href="#" onclick="return false">Start now</a>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1>Good morning, Sarah</h1>
+          <p>Friday, 5 June · Here's how your lower-limb function is trending.</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle colour theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          </button>
+          <a class="btn btn-primary" href="#" onclick="return false">New session
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          </a>
+          <div class="avatar">SM</div>
+        </div>
+      </div>
+
+      <!-- metrics -->
+      <div class="metrics">
+        <div class="metric reveal">
+          <div class="mh"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></span><span class="trend up">▲ 6%</span></div>
+          <div class="mv">7.4<small>/10</small></div>
+          <div class="ml">Average score · last 14 days</div>
+        </div>
+        <div class="metric reveal">
+          <div class="mh"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M22 4 12 14l-3-3"/></svg></span><span class="band good" style="padding:4px 10px">Good</span></div>
+          <div class="mv">Good</div>
+          <div class="ml">Latest band · Sit-to-Stand</div>
+        </div>
+        <div class="metric reveal">
+          <div class="mh"><span class="mi em"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span><span class="trend up">▲ 2</span></div>
+          <div class="mv">18</div>
+          <div class="ml">Sessions completed</div>
+        </div>
+        <div class="metric reveal">
+          <div class="mh"><span class="mi em"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span><span class="trend down">▼ 3%</span></div>
+          <div class="mv">89<small>%</small></div>
+          <div class="ml">Avg. capture quality</div>
+        </div>
+      </div>
+
+      <!-- chart + bands -->
+      <div class="dash-grid">
+        <div class="panel reveal">
+          <div class="panel-head">
+            <div><h3>Score trend</h3><span class="sub">Final score across recent sessions</span></div>
+            <div class="seg"><button class="on">14d</button><button>30d</button><button>All</button></div>
+          </div>
+          <svg class="chart" viewBox="0 0 720 220" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--lime)" stop-opacity="0.28"/>
+                <stop offset="100%" stop-color="var(--lime)" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <line class="grid-l" x1="0" y1="40" x2="720" y2="40"/>
+            <line class="grid-l" x1="0" y1="90" x2="720" y2="90"/>
+            <line class="grid-l" x1="0" y1="140" x2="720" y2="140"/>
+            <line class="grid-l" x1="0" y1="190" x2="720" y2="190"/>
+            <path class="area" d="M0,150 L90,138 L180,150 L270,110 L360,120 L450,86 L540,96 L630,64 L720,72 L720,220 L0,220 Z"/>
+            <path class="line" d="M0,150 L90,138 L180,150 L270,110 L360,120 L450,86 L540,96 L630,64 L720,72"/>
+            <g>
+              <circle class="pt" cx="0" cy="150" r="4.5"/><circle class="pt" cx="90" cy="138" r="4.5"/>
+              <circle class="pt" cx="180" cy="150" r="4.5"/><circle class="pt" cx="270" cy="110" r="4.5"/>
+              <circle class="pt" cx="360" cy="120" r="4.5"/><circle class="pt" cx="450" cy="86" r="4.5"/>
+              <circle class="pt" cx="540" cy="96" r="4.5"/><circle class="pt" cx="630" cy="64" r="4.5"/>
+              <circle class="pt" cx="720" cy="72" r="4.5"/>
+            </g>
+          </svg>
+          <div style="display:flex; justify-content:space-between; margin-top:10px;">
+            <span class="sub" style="font-size:12px;color:var(--text-3)">May 23</span>
+            <span class="sub" style="font-size:12px;color:var(--text-3)">May 30</span>
+            <span class="sub" style="font-size:12px;color:var(--text-3)">Jun 5</span>
+          </div>
+        </div>
+
+        <div class="panel reveal">
+          <div class="panel-head"><div><h3>Band distribution</h3><span class="sub">Last 18 sessions</span></div></div>
+          <div class="bands">
+            <div class="band-row"><div class="bt"><b>Good</b><span>11 · 61%</span></div><div class="track"><div class="fill good" style="width:61%"></div></div></div>
+            <div class="band-row"><div class="bt"><b>Fair</b><span>5 · 28%</span></div><div class="track"><div class="fill fair" style="width:28%"></div></div></div>
+            <div class="band-row"><div class="bt"><b>Poor</b><span>2 · 11%</span></div><div class="track"><div class="fill poor" style="width:11%"></div></div></div>
+          </div>
+          <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border-soft)">
+            <div class="panel-head" style="margin-bottom:14px"><div><h3 style="font-size:15px">Confidence</h3></div></div>
+            <div class="band-row"><div class="bt"><b>Moderate–high</b><span>Reliable feedback</span></div><div class="track"><div class="fill good" style="width:78%"></div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- recent sessions -->
+      <div class="panel reveal" style="margin-bottom:18px">
+        <div class="panel-head">
+          <div><h3>Recent sessions</h3><span class="sub">Your latest checks and rehab sets</span></div>
+          <a class="btn btn-ghost" href="#" onclick="return false" style="padding:8px 16px">View all</a>
+        </div>
+        <table class="tbl">
+          <thead><tr><th>Exercise</th><th>Mode</th><th>Date</th><th>Quality</th><th>Band</th><th style="text-align:right">Score</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="ex-cell"><span class="ex-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span><b>Sit-to-Stand</b></div></td>
+              <td><span class="mode-tag">Functional</span></td>
+              <td>Jun 5, 08:12</td>
+              <td>92%</td>
+              <td><span class="band good">Good</span></td>
+              <td class="score-cell" style="text-align:right">7.8</td>
+            </tr>
+            <tr>
+              <td><div class="ex-cell"><span class="ex-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="3"/><path d="M12 9v7M9 22l3-6 3 6"/></svg></span><b>Single-Leg Stance</b></div></td>
+              <td><span class="mode-tag">Functional</span></td>
+              <td>Jun 3, 19:40</td>
+              <td>85%</td>
+              <td><span class="band fair">Fair</span></td>
+              <td class="score-cell" style="text-align:right">6.4</td>
+            </tr>
+            <tr>
+              <td><div class="ex-cell"><span class="ex-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l6-6M14 4l6 6M9 9l6 6"/></svg></span><b>Knee Rehab Set</b></div></td>
+              <td><span class="mode-tag">Rehab · AI</span></td>
+              <td>Jun 2, 09:05</td>
+              <td>90%</td>
+              <td><span class="band good">Good</span></td>
+              <td class="score-cell" style="text-align:right">7.1</td>
+            </tr>
+            <tr>
+              <td><div class="ex-cell"><span class="ex-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></span><b>Lunge Test</b></div></td>
+              <td><span class="mode-tag">Functional</span></td>
+              <td>May 31, 18:22</td>
+              <td>71%</td>
+              <td><span class="band poor">Poor</span></td>
+              <td class="score-cell" style="text-align:right">4.6</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- tags + reminders -->
+      <div class="dash-grid-2">
+        <div class="panel reveal">
+          <div class="panel-head"><div><h3>Common error tags</h3><span class="sub">What to focus on next</span></div></div>
+          <div class="tags">
+            <span class="tag"><span class="sev low"></span>Limited range of motion <span class="ct">4</span></span>
+            <span class="tag"><span class="sev med"></span>Unstable tempo <span class="ct">3</span></span>
+            <span class="tag"><span class="sev low"></span>Trunk lean <span class="ct">3</span></span>
+            <span class="tag"><span class="sev high"></span>Low capture quality <span class="ct">2</span></span>
+            <span class="tag"><span class="sev med"></span>Asymmetry (L/R) <span class="ct">2</span></span>
+            <span class="tag"><span class="sev low"></span>Partial visibility <span class="ct">1</span></span>
+          </div>
+        </div>
+        <div class="panel reveal">
+          <div class="panel-head"><div><h3>Reminders</h3><span class="sub">Stay consistent</span></div><a class="btn btn-ghost" href="#" onclick="return false" style="padding:8px 16px">+ Add</a></div>
+          <div class="rem-item is-done" onclick="toggleRem(this)">
+            <span class="rem-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></span>
+            <div class="rem-body"><b>Morning Sit-to-Stand</b><span>Daily · functional check</span></div>
+            <span class="rem-time">08:00</span>
+          </div>
+          <div class="rem-item" onclick="toggleRem(this)">
+            <span class="rem-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></span>
+            <div class="rem-body"><b>Knee rehab set</b><span>Mon · Wed · Fri</span></div>
+            <span class="rem-time">18:30</span>
+          </div>
+          <div class="rem-item" onclick="toggleRem(this)">
+            <span class="rem-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></span>
+            <div class="rem-body"><b>Weekly lunge test</b><span>Every Sunday</span></div>
+            <span class="rem-time">10:00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <span>These results describe movement quality only and are not a medical diagnosis. Consult a healthcare professional for pain, injury, or clinical decisions.</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- preview switcher (mockup helper only) -->
+<div class="preview-switch">
+  <button id="sw-landing" class="on" onclick="go('landing')">Landing</button>
+  <button id="sw-dashboard" onclick="go('dashboard')">Dashboard</button>
+</div>
+
+<script>
+  // theme
+  function toggleTheme() {
+    const html = document.documentElement;
+    html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  }
+  // view switching
+  function go(view) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+    document.getElementById('sw-landing').classList.toggle('on', view === 'landing');
+    document.getElementById('sw-dashboard').classList.toggle('on', view === 'dashboard');
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    // Reveal the target view's elements with a gentle stagger. (IntersectionObserver
+    // can't re-fire reliably for elements first seen while their view was display:none.)
+    const items = document.querySelectorAll('#view-' + view + ' .reveal');
+    items.forEach((el, i) => {
+      el.classList.remove('in');
+      el.style.transitionDelay = Math.min(i * 45, 320) + 'ms';
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+    });
+  }
+  // reminders toggle
+  function toggleRem(el) {
+    el.classList.toggle('is-done');
+    el.querySelector('.rem-check').classList.toggle('done');
+  }
+  // scroll reveal
+  let io;
+  function runReveal() {
+    const items = document.querySelectorAll('.view.active .reveal');
+    if (!io) {
+      io = new IntersectionObserver((entries) => {
+        entries.forEach((e, i) => {
+          if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+        });
+      }, { threshold: 0.12 });
+    }
+    items.forEach((el, i) => {
+      if (!el.classList.contains('in')) {
+        el.style.transitionDelay = Math.min(i * 60, 360) + 'ms';
+        io.observe(el);
+      }
+    });
+  }
+  runReveal();
+</script>
+</body>
+</html>

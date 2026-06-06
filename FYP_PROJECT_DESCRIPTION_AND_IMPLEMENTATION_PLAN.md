@@ -244,6 +244,16 @@ Avoid storing detailed medical diagnosis unless truly necessary. If any self-rep
 
 ## 8. Application Pages
 
+### 8.0 Phase 1 Development Approach
+
+Phase 1 is split into two steps (see **[task.md](./task.md)**):
+
+1. **Phase 1A — UI clickable prototype (do first):** Build all pages listed in §8.1 as a frontend-only prototype. Use React Router, Tailwind, mock/placeholder data, and wired navigation. No real API calls, JWT, or database integration yet. Camera and pose pages use placeholder UI only (real webcam/MediaPipe comes in Phase 2).
+
+2. **Phase 1B — Full-stack integration (after prototype):** Implement register/login, JWT, session APIs, exercise catalog seed data, and connect the existing UI to the FastAPI backend and PostgreSQL.
+
+The prototype validates layout, user flow, and page content before backend work begins.
+
 ### 8.1 Required Pages
 
 1. **Landing Page**
@@ -1042,6 +1052,8 @@ volumes:
 The phased development plan (Phase 0–9), recommended start order, and milestones are maintained in **[task.md](./task.md)**.
 
 Use that file to track task progress. This document keeps architecture, design, and technical specifications only.
+
+**Current Phase 1 order:** Phase 1A (UI clickable prototype) → Phase 1B (register/login, JWT, sessions, backend wiring). See §8.0 and [task.md](./task.md) Phase 1.
 
 ---
 

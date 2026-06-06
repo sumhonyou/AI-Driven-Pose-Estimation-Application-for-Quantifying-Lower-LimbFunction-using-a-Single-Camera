@@ -1,7 +1,7 @@
 # FYP Development Tasks
 
 **Project:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Status:** 0% coding progress  
+**Status:** Phase 0 complete · Phase 1A (UI clickable prototype) complete · Phase 1B (backend integration) implemented pending end-to-end local verification  
 **Related docs:** [FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md](./FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md) (architecture & design), [rules.md](./rules.md) (coding agent rules)
 
 ---
@@ -14,20 +14,23 @@ Since the project is at 0 progress, do **not** start with ML first. Work in this
 2. Create FastAPI backend
 3. Create PostgreSQL Docker setup
 4. Make backend connect to PostgreSQL
-5. Implement register/login
-6. Implement session start/end
-7. Build dashboard and mode selection
-8. Add webcam and MediaPipe Pose
-9. Implement Module A simple rule-based checking
-10. Then start Module B placeholder pipeline
-11. Only after that, train/integrate Extra Trees model
-12. Deploy after core flow works locally
+5. **Phase 1A:** Build UI clickable prototype (all main pages, mock data, wired navigation)
+6. **Phase 1B:** Implement register/login, JWT, session APIs, and connect UI to backend
+7. Add webcam and MediaPipe Pose
+8. Implement Module A simple rule-based checking
+9. Then start Module B placeholder pipeline
+10. Only after that, train/integrate Extra Trees model
+11. Deploy after core flow works locally
 
 ---
 
 ## Milestones
 
-### First Milestone
+### Phase 1A Milestone (UI Prototype)
+
+> A user can click through all main application pages with placeholder data and understand the full app flow (no real backend yet).
+
+### First Milestone (Phase 1B)
 
 > A user can register, login, start a session, end a session, and see that session saved in PostgreSQL.
 
@@ -47,13 +50,13 @@ Since the project is at 0 progress, do **not** start with ML first. Work in this
 
 **Tasks:**
 
-- [ ] Create frontend folder using React + TypeScript + Vite
-- [ ] Install Tailwind CSS
-- [ ] Create backend folder using FastAPI
-- [ ] Add Docker Compose for PostgreSQL
-- [ ] Connect FastAPI to PostgreSQL
-- [ ] Create `.env.example` files
-- [ ] Add basic README
+- [x] Create frontend folder using React + TypeScript + Vite
+- [x] Install Tailwind CSS
+- [x] Create backend folder using FastAPI
+- [x] Add Docker Compose for PostgreSQL
+- [x] Connect FastAPI to PostgreSQL
+- [x] Create `.env.example` files
+- [x] Add basic README
 
 **Deliverable:**
 
@@ -68,15 +71,56 @@ Since the project is at 0 progress, do **not** start with ML first. Work in this
 
 **Goal:** Build the minimum working application structure.
 
+**Approach:** Complete **Phase 1A (UI clickable prototype)** first. Only after the prototype is done, start **Phase 1B (backend integration)**.
+
+---
+
+### Phase 1A: UI Clickable Prototype *(current focus)*
+
+**Goal:** Build all main pages as a clickable frontend prototype with mock/placeholder data. No real API calls, auth, or database yet.
+
 **Tasks:**
 
-- [ ] Implement register/login
-- [ ] Implement JWT authentication
-- [ ] Create user profile page
-- [ ] Create dashboard page with placeholder data
-- [ ] Create exercise catalog seed data
-- [ ] Create session start/end APIs
-- [ ] Create session history page
+- [x] Set up React Router and shared app layout (nav, footer, disclaimer)
+- [x] Landing Page — intro, non-diagnostic disclaimer, login/register links
+- [x] Register Page — email, password, basic profile form (UI only)
+- [x] Login Page — email, password form (UI only)
+- [x] Dashboard Page — summary cards, recent sessions, chart, error tags (mock data)
+- [x] Mode Selection Page — Functional Checking / Rehab Grading
+- [x] Exercise Selection Page — Module A checks + Module B placeholder
+- [x] Camera Setup Page — layout, guidance text, placeholder preview area
+- [x] Live Session Page — timer, rep/hold progress, band indicator (mock)
+- [x] Post-Performance Report Page — score, band, sub-scores, feedback (mock)
+- [x] Session History Page — mock session list with filters (UI only)
+- [x] Reminder Page — add/view/complete reminders (mock)
+- [x] Wire clickable navigation across the full user flow
+
+**Phase 1A extras delivered:** dark/light theme toggle (light default), 4-language i18n
+(English, 中文, Bahasa Malaysia, हिन्दी), accessibility text-size control (A/A+/A++),
+fully responsive layouts (desktop / tablet / mobile drawer). Design language first
+prototyped in `mockups/physiofit-mockup.html`, then implemented in the React app.
+
+**Deliverable:**
+
+- All 11 required pages exist and are reachable
+- User can click through the full app journey using placeholder data
+- Non-diagnostic disclaimer visible on key pages
+
+---
+
+### Phase 1B: Full-Stack Integration *(after Phase 1A)*
+
+**Goal:** Connect the prototype to the FastAPI backend and PostgreSQL.
+
+**Tasks:**
+
+- [x] Implement register/login
+- [x] Implement JWT authentication
+- [x] Create user profile page (connect to backend)
+- [x] Replace dashboard placeholder data with API-driven data
+- [x] Create exercise catalog seed data
+- [x] Create session start/end APIs
+- [x] Connect session history page to backend
 
 **Deliverable:**
 
