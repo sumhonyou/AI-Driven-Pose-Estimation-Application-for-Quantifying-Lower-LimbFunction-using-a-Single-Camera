@@ -23,7 +23,9 @@ The AI coding agent must follow these rules strictly on every request and modifi
 19. Do not add too much unnecessary code; just execute what requirements are asked for.
 20. After completing work, report to the user what was done or modified (files changed, features added, how to run or test).
 21. Always show to-do list progress when executing the task 
-22. Remember these rules whenever starting to execute a request or making any modification.
+22. Always put simple and straightforward comment on the code, so it easier for me to refer what it does. but do not add too many of comments.
+23. Put console message on the output, so that easier for me to find bug and track. But do not put too many, put on those important process like connection, output, and etc.
+24. Remember these rules whenever starting to execute a request or making any modification.
 
 **Most importantly:** Do not assume clear goals and instructions — ask questions for clarity when needed.
 
