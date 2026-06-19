@@ -3,13 +3,15 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { usePreferences } from "../preferences";
 import { LANGUAGES } from "../i18n";
-import { Sun, Moon, Globe, Check, LogoMark } from "./Icons";
+import { Sun, Moon, Globe, Check } from "./Icons";
+import logoImg from "../assets/Physiofit_Logo-removebg-preview.png";
 
-export function Logo({ to = "/" }: { to?: string }) {
+export function Logo({ to = "/", size = "nav" }: { to?: string; size?: "nav" | "footer" }) {
   return (
-    <Link className="brand" to={to} aria-label="PhysioFit home">
-      <span className="logo"><LogoMark width={22} height={22} /></span>
-      <span style={{ color: "var(--text)" }}>Physio<span>Fit</span></span>
+    <Link className={"brand" + (size === "footer" ? " brand--footer" : "")} to={to} aria-label="PhysioFit home">
+      <span className="logo">
+        <img src={logoImg} alt="PhysioFit" />
+      </span>
     </Link>
   );
 }

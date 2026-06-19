@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Logo, ThemeToggle, FontSizeControl, LanguageSwitcher } from "../components/Controls";
-import { Menu, Close, ArrowRight, LogoMark } from "../components/Icons";
+import { Menu, Close, ArrowRight } from "../components/Icons";
 import { useReveal } from "../useReveal";
 
 export default function PublicLayout() {
@@ -60,7 +60,7 @@ function Footer() {
       <div className="wrap">
         <div className="foot-grid">
           <div style={{ maxWidth: 340 }}>
-            <Link className="brand" to="/"><span className="logo"><LogoMark width={22} height={22} /></span><span style={{ color: "var(--text)" }}>Physio<span>Fit</span></span></Link>
+            <Logo size="footer" />
             <p>{t("landing.footTagline")}</p>
           </div>
           <div className="foot-links">
