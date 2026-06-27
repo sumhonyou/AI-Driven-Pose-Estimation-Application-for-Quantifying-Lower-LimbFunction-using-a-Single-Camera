@@ -2,13 +2,85 @@
 
 **Project Title:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
 **Current Recommended Architecture:** React + TypeScript frontend, MediaPipe Pose in browser, FastAPI backend, PostgreSQL database, Google Cloud deployment  
-**Project Status:** 0% coding progress; this document is written to guide AI coding agents and future development decisions.
+**Project Status:** Phase 0–1B complete · Phase 2 (MediaPipe) next · on track  
+**Last progression log update:** June 2026
 
 **Related files:**
 - [task.md](./task.md) — phased tasks, deliverables, and milestones
 - [rules.md](./rules.md) — coding agent rules (must be followed on every development request)
 
 ---
+- [FYP Project Description and Implementation Plan](#fyp-project-description-and-implementation-plan)
+  - [1. Short Project Summary](#1-short-project-summary)
+  - [2. Current High-Level Goal](#2-current-high-level-goal)
+  - [3. Recommended Final Tech Stack](#3-recommended-final-tech-stack)
+    - [3.1 Frontend](#31-frontend)
+    - [3.2 Backend](#32-backend)
+    - [3.3 Database](#33-database)
+    - [3.4 Deployment](#34-deployment)
+  - [4. Why This Architecture Is Recommended](#4-why-this-architecture-is-recommended)
+  - [5. Recommended System Architecture](#5-recommended-system-architecture)
+    - [5.1 Main Architecture](#51-main-architecture)
+    - [5.2 Important Architecture Decision](#52-important-architecture-decision)
+  - [6. Non-Diagnostic Boundary](#6-non-diagnostic-boundary)
+  - [7. User Roles and Target Users](#7-user-roles-and-target-users)
+    - [7.1 User Type](#71-user-type)
+    - [7.2 User Account Data](#72-user-account-data)
+  - [8. Application Pages](#8-application-pages)
+    - [8.0 Phase 1 Development Approach](#80-phase-1-development-approach)
+    - [8.1 Required Pages](#81-required-pages)
+  - [9. Module A: Functional Checking](#9-module-a-functional-checking)
+    - [9.1 Functional Checks](#91-functional-checks)
+    - [9.2 Module A Output](#92-module-a-output)
+    - [9.3 Conservative Banding](#93-conservative-banding)
+  - [10. Module B: Rehabilitation Grading](#10-module-b-rehabilitation-grading)
+    - [10.1 Module B Pipeline](#101-module-b-pipeline)
+    - [10.2 Module B Output](#102-module-b-output)
+    - [10.3 Why Extra Trees Classifier](#103-why-extra-trees-classifier)
+    - [10.4 Fusion Scoring](#104-fusion-scoring)
+  - [11. Live Feedback Strategy](#11-live-feedback-strategy)
+    - [11.1 Recommended MVP Strategy](#111-recommended-mvp-strategy)
+    - [11.2 Optional Enhancement](#112-optional-enhancement)
+  - [12. Pose Processing and Feature Pipeline](#12-pose-processing-and-feature-pipeline)
+    - [12.1 Frontend Processing](#121-frontend-processing)
+    - [12.2 Backend Processing](#122-backend-processing)
+    - [12.3 Preprocessing Methods](#123-preprocessing-methods)
+  - [13. PostgreSQL Database Design](#13-postgresql-database-design)
+    - [13.1 Why PostgreSQL](#131-why-postgresql)
+    - [13.2 Recommended Tables](#132-recommended-tables)
+      - [users](#users)
+      - [user\_profiles](#user_profiles)
+      - [exercise\_catalog](#exercise_catalog)
+      - [sessions](#sessions)
+      - [module\_a\_results](#module_a_results)
+      - [module\_b\_results](#module_b_results)
+      - [error\_tags](#error_tags)
+      - [feedback\_texts](#feedback_texts)
+      - [reminders](#reminders)
+  - [14. Backend API Design](#14-backend-api-design)
+    - [14.1 Auth APIs](#141-auth-apis)
+    - [14.2 User Profile APIs](#142-user-profile-apis)
+    - [14.3 Exercise APIs](#143-exercise-apis)
+    - [14.4 Session APIs](#144-session-apis)
+    - [14.5 Module A APIs](#145-module-a-apis)
+    - [14.6 Module B APIs](#146-module-b-apis)
+    - [14.7 Report APIs](#147-report-apis)
+    - [14.8 Dashboard APIs](#148-dashboard-apis)
+    - [14.9 Reminder APIs](#149-reminder-apis)
+  - [15. External LLM API Usage](#15-external-llm-api-usage)
+  - [16. Suggested Project Folder Structure](#16-suggested-project-folder-structure)
+  - [17. Environment Variables](#17-environment-variables)
+    - [Backend `.env`](#backend-env)
+    - [Frontend `.env`](#frontend-env)
+  - [18. Local Development Setup Plan](#18-local-development-setup-plan)
+    - [18.1 Tools to Install](#181-tools-to-install)
+    - [18.2 Local PostgreSQL with Docker](#182-local-postgresql-with-docker)
+  - [19. Development Plan from 0 Progress](#19-development-plan-from-0-progress)
+  - [20. What to Start With Right Now](#20-what-to-start-with-right-now)
+  - [21. Coding Agent Rules](#21-coding-agent-rules)
+  - [Coding agent rules are maintained in **rules.md**. They must be followed on every development request.](#coding-agent-rules-are-maintained-in-rulesmd-they-must-be-followed-on-every-development-request)
+  - [22. Future Enhancements](#22-future-enhancements)
+  - [23. Final Implementation Priority](#23-final-implementation-priority)
 
 ## 1. Short Project Summary
 
@@ -109,8 +181,7 @@ The current recommendation is to use a **FastAPI-only backend** instead of addin
 
 Reason:
 
-- The project has not started coding yet.
-- The main contribution is AI-based rehab grading, not enterprise microservice architecture.
+- Phase 0–1B baseline is now implemented; the main contribution remains AI-based rehab grading (Phases 2–5).
 - Python is more direct for MediaPipe, NumPy, pandas, scikit-learn, and Extra Trees.
 - Deployment is already an added complexity, so keeping one backend service reduces risk.
 - A completed, deployed, evaluated project will score better than an overcomplicated unfinished project.
@@ -1051,7 +1122,7 @@ volumes:
 
 The phased development plan (Phase 0–9), recommended start order, and milestones are maintained in **[task.md](./task.md)**.
 
-Use that file to track task progress. This document keeps architecture, design, and technical specifications only.
+Use that file to track task progress. This document keeps architecture, design, technical specifications, and the supervisor progression log (§24).
 
 **Current Phase 1 order:** Phase 1A (UI clickable prototype) → Phase 1B (register/login, JWT, sessions, backend wiring). See §8.0 and [task.md](./task.md) Phase 1.
 
