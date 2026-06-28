@@ -9,7 +9,7 @@ The AI coding agent must follow these rules strictly on every request and modifi
 5. Use PostgreSQL as the main database.
 6. Use FastAPI as the backend framework.
 7. Use React + TypeScript + Tailwind for frontend.
-8. Run MediaPipe Pose in browser if possible.
+8. Run MediaPipe Pose in browser.
 9. Prioritize a working local full-stack system before deployment.
 10. Prioritize Module B rehab grading if time becomes limited, but keep Module A structure with 3 checks.
 11. Keep the Module B exercise configurable because the exact exercise will be decided later.
