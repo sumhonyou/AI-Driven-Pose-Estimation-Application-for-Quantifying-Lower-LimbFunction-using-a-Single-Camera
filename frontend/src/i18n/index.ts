@@ -4,13 +4,11 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import en from "./en";
 import zh from "./zh";
 import ms from "./ms";
-import hi from "./hi";
 
 export const LANGUAGES = [
   { code: "en", label: "English", flag: "🇬🇧" },
   { code: "zh", label: "中文", flag: "🇨🇳" },
   { code: "ms", label: "Bahasa Malaysia", flag: "🇲🇾" },
-  { code: "hi", label: "हिन्दी", flag: "🇮🇳" },
 ] as const;
 
 i18n
@@ -21,10 +19,9 @@ i18n
       en: { translation: en },
       zh: { translation: zh },
       ms: { translation: ms },
-      hi: { translation: hi },
     },
     fallbackLng: "en",
-    supportedLngs: ["en", "zh", "ms", "hi"],
+    supportedLngs: ["en", "zh", "ms"],
     interpolation: { escapeValue: false },
     detection: {
       order: ["localStorage", "navigator"],

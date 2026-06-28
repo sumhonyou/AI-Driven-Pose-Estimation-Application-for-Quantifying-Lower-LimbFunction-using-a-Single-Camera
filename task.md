@@ -75,7 +75,7 @@ Since the project is at 0 progress, do **not** start with ML first. Work in this
 
 ---
 
-### Phase 1A: UI Clickable Prototype *(current focus)*
+### Phase 1A: UI Clickable Prototype _(current focus)_
 
 **Goal:** Build all main pages as a clickable frontend prototype with mock/placeholder data. No real API calls, auth, or database yet.
 
@@ -108,7 +108,7 @@ prototyped in `mockups/physiofit-mockup.html`, then implemented in the React app
 
 ---
 
-### Phase 1B: Full-Stack Integration *(after Phase 1A)*
+### Phase 1B: Full-Stack Integration _(after Phase 1A)_
 
 **Goal:** Connect the prototype to the FastAPI backend and PostgreSQL.
 
@@ -136,19 +136,23 @@ prototyped in `mockups/physiofit-mockup.html`, then implemented in the React app
 
 **Tasks:**
 
-- [ ] Build Camera Setup page
-- [ ] Access webcam using Browser MediaDevices API
-- [ ] Integrate MediaPipe Pose
-- [ ] Draw skeleton overlay on canvas
-- [ ] Calculate landmark visibility
-- [ ] Show capture quality badge
-- [ ] Add side/front view instruction by exercise type
+- [x] Build Camera Setup page
+- [x] Access webcam using Browser MediaDevices API
+- [x] Integrate MediaPipe Pose (`pose_landmarker_full`, self-hosted WASM + model)
+- [x] Draw skeleton overlay on canvas (`PoseCanvas` component)
+- [x] Calculate landmark visibility (`computeFrameQuality`)
+- [x] Show capture quality badge (`CaptureQualityBadge` component)
+- [x] Add side/front view instruction by exercise type
+- [x] Gate "Start session" button on capture quality ≥ 60%
+- [x] Session recorder buffers landmark frames for Phase 3/4
+- [x] Replace hardcoded `0.9` quality in `sessionService.end` with real metrics
 
 **Deliverable:**
 
 - Webcam works
-- Pose landmarks are visible
-- Capture quality is shown
+- Pose landmarks are visible with skeleton overlay
+- Capture quality is shown (real, not hardcoded)
+- Session end sends genuine `capture_quality` + `valid_frame_ratio` to backend
 
 ---
 

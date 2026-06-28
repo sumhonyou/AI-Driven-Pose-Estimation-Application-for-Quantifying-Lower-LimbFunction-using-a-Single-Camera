@@ -21,21 +21,15 @@ fi
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null)
 TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
 
-echo "[PostToolUse] $TOOL_NAME on: $FILE_PATH"
-
 # ── 1. FORMAT ────────────────────────────────────────────────────────────────
 
 if [[ "$FILE_PATH" =~ \.(js|jsx|ts|tsx|css|json|html|md)$ ]]; then
   # Prettier for frontend files
   if [ -f "$PROJ/frontend/node_modules/.bin/prettier" ]; then
-    "$PROJ/frontend/node_modules/.bin/prettier" --write "$FILE_PATH" 2>/dev/null \
-      && echo "[Format] Prettier applied: $FILE_PATH"
+    "$PROJ/frontend/node_modules/.bin/prettier" --write "$FILE_PATH" 2>/dev/null
   elif command -v npx &>/dev/null; then
     # Fallback: use npx (may download on first run)
-    cd "$PROJ/frontend" && npx --yes prettier --write "$FILE_PATH" 2>/dev/null \
-      && echo "[Format] Prettier (npx) applied: $FILE_PATH"
-  else
-    echo "[Format] Prettier not found — skipping JS/TS formatting"
+    cd "$PROJ/frontend" && npx --yes prettier --write "$FILE_PATH" 2>/dev/null
   fi
 elif [[ "$FILE_PATH" =~ \.py$ ]]; then
   # Black + isort for Python files
@@ -46,13 +40,11 @@ elif [[ "$FILE_PATH" =~ \.py$ ]]; then
   [ ! -f "$ISORT_BIN" ] && ISORT_BIN=$(which isort 2>/dev/null)
 
   if [ -n "$BLACK_BIN" ] && [ -f "$BLACK_BIN" ]; then
-    "$BLACK_BIN" "$FILE_PATH" 2>/dev/null && echo "[Format] Black applied: $FILE_PATH"
-  else
-    echo "[Format] Black not found — skipping Python formatting"
+    "$BLACK_BIN" "$FILE_PATH" 2>/dev/null
   fi
 
   if [ -n "$ISORT_BIN" ] && [ -f "$ISORT_BIN" ]; then
-    "$ISORT_BIN" "$FILE_PATH" 2>/dev/null && echo "[Format] isort applied: $FILE_PATH"
+    "$ISORT_BIN" "$FILE_PATH" 2>/dev/null
   fi
 fi
 
@@ -67,8 +59,6 @@ fi
   [ -n "$DESCRIPTION" ] && echo "- **Action:** $DESCRIPTION"
 } >> "$LOG"
 
-echo "[Log] Appended change to Completion_Task_Details.md"
-
 # ── 3. RUN TESTS ─────────────────────────────────────────────────────────────
 
 RUN_FRONTEND=false
@@ -81,15 +71,12 @@ if $RUN_FRONTEND; then
   # Check if test script exists in package.json
   HAS_TEST=$(cd "$PROJ/frontend" && node -e "const p=require('./package.json'); console.log(p.scripts?.test?'yes':'no')" 2>/dev/null)
   if [ "$HAS_TEST" = "yes" ]; then
-    echo "[Test] Running frontend tests..."
     cd "$PROJ/frontend" && npm test -- --run 2>&1 | tail -15
     if [ ${PIPESTATUS[0]} -eq 0 ]; then
       bash "$NOTIFY" "test_passed" "Frontend tests passed after editing $(basename "$FILE_PATH")"
     else
       bash "$NOTIFY" "test_failed" "Frontend tests FAILED after editing $(basename "$FILE_PATH")"
     fi
-  else
-    echo "[Test] No frontend test script found — skipping (add tests in Phase 2+)"
   fi
 fi
 
@@ -97,7 +84,6 @@ if $RUN_BACKEND; then
   # Check if any pytest test files exist
   TEST_COUNT=$(find "$PROJ/backend" -name "test_*.py" -o -name "*_test.py" 2>/dev/null | wc -l | tr -d ' ')
   if [ "$TEST_COUNT" -gt 0 ]; then
-    echo "[Test] Running backend pytest ($TEST_COUNT test files)..."
     source "$VENV/activate" 2>/dev/null || true
     cd "$PROJ/backend" && python -m pytest --tb=short -q 2>&1 | tail -20
     if [ ${PIPESTATUS[0]} -eq 0 ]; then
@@ -105,8 +91,6 @@ if $RUN_BACKEND; then
     else
       bash "$NOTIFY" "test_failed" "Backend tests FAILED after editing $(basename "$FILE_PATH")"
     fi
-  else
-    echo "[Test] No pytest files found — skipping (add tests in Phase 3+)"
   fi
 fi
 

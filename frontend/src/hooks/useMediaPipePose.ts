@@ -1,0 +1,158 @@
+// Lazily initialises the MediaPipe PoseLandmarker and runs a rAF detection loop.
+// Self-hosts WASM from /mediapipe/wasm and model from /models/.
+import { useEffect, useRef, useState, useCallback } from "react";
+import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
+import { createLandmarkSmoother } from "../utils/poseLandmarks";
+import type { Landmark } from "../types/pose";
+
+// Singleton landmarker shared across page navigations
+let landmarkerInstance: PoseLandmarker | null = null;
+let landmarkerLoading = false;
+
+async function getLandmarker(): Promise<PoseLandmarker> {
+  if (landmarkerInstance) return landmarkerInstance;
+  if (landmarkerLoading) {
+    // Wait for the in-flight load to finish
+    return new Promise((resolve) => {
+      const check = setInterval(() => {
+        if (landmarkerInstance) {
+          clearInterval(check);
+          resolve(landmarkerInstance!);
+        }
+      }, 100);
+    });
+  }
+
+  landmarkerLoading = true;
+  console.log("[useMediaPipePose] Loading MediaPipe PoseLandmarker...");
+
+  const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
+  landmarkerInstance = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: "/models/pose_landmarker_full.task",
+      delegate: "GPU",
+    },
+    runningMode: "VIDEO",
+    numPoses: 1,
+    minPoseDetectionConfidence: 0.5,
+    minPosePresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
+  landmarkerLoading = false;
+  console.log("[useMediaPipePose] PoseLandmarker ready");
+  return landmarkerInstance;
+}
+
+export interface UsePoseResult {
+  landmarks: Landmark[] | null;
+  fps: number;
+  ready: boolean;
+  error: string | null;
+}
+
+/**
+ * Runs the MediaPipe pose detection loop against a playing <video> element.
+ * Pass the video ref once webcam is ready.
+ */
+export function useMediaPipePose(
+  videoRef: React.RefObject<HTMLVideoElement | null>,
+  webcamReady: boolean,
+): UsePoseResult {
+  const [landmarks, setLandmarks] = useState<Landmark[] | null>(null);
+  const [fps, setFps] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const rafRef = useRef<number | null>(null);
+  const lastTsRef = useRef<number>(0);
+  const frameCountRef = useRef(0);
+  const fpsTimerRef = useRef<number>(0);
+  const smoother = useRef(createLandmarkSmoother(4));
+  const debugPose = import.meta.env.VITE_ENABLE_DEBUG_POSE === "true";
+
+  const stopLoop = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!webcamReady) return;
+
+    let cancelled = false;
+
+    async function init() {
+      try {
+        const landmarker = await getLandmarker();
+        if (cancelled) return;
+
+        setReady(true);
+        console.log("[useMediaPipePose] Detection loop started");
+
+        function detect() {
+          const video = videoRef.current;
+          if (!video || video.readyState < 2) {
+            rafRef.current = requestAnimationFrame(detect);
+            return;
+          }
+
+          const nowMs = performance.now();
+
+          // MediaPipe requires monotonically increasing timestamps
+          if (nowMs <= lastTsRef.current) {
+            rafRef.current = requestAnimationFrame(detect);
+            return;
+          }
+          lastTsRef.current = nowMs;
+
+          const result = landmarker.detectForVideo(video, nowMs);
+
+          if (result.landmarks && result.landmarks.length > 0) {
+            const smoothed = smoother.current(
+              result.landmarks[0].map((lm) => ({
+                x: lm.x,
+                y: lm.y,
+                z: lm.z ?? 0,
+                visibility: lm.visibility ?? 0,
+              })),
+            );
+            setLandmarks(smoothed);
+            if (debugPose) console.debug("[pose] landmarks", smoothed.length);
+          } else {
+            setLandmarks(null);
+          }
+
+          // FPS counter (update every second)
+          frameCountRef.current++;
+          if (nowMs - fpsTimerRef.current >= 1000) {
+            setFps(frameCountRef.current);
+            frameCountRef.current = 0;
+            fpsTimerRef.current = nowMs;
+          }
+
+          rafRef.current = requestAnimationFrame(detect);
+        }
+
+        rafRef.current = requestAnimationFrame(detect);
+      } catch (err) {
+        console.error("[useMediaPipePose] Init error:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to load pose model",
+        );
+      }
+    }
+
+    init();
+
+    return () => {
+      cancelled = true;
+      stopLoop();
+      console.log("[useMediaPipePose] Detection loop stopped");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webcamReady]);
+
+  return { landmarks, fps, ready, error };
+}

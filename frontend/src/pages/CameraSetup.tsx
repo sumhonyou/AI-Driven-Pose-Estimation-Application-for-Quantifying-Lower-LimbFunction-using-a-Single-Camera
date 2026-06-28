@@ -1,11 +1,21 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashTopbar } from "../layouts/DashboardLayout";
-import PoseFigure from "../components/PoseFigure";
-import { ArrowLeft, ArrowRight, Camera, Check, ShieldCheck } from "../components/Icons";
+import PoseCanvas from "../components/PoseCanvas";
+import CaptureQualityBadge from "../components/CaptureQualityBadge";
+import { ArrowLeft, ArrowRight, Camera, Check } from "../components/Icons";
 import { sessionService } from "../services/sessionService";
 import { useSessionFlow } from "../session";
+import { useWebcam } from "../hooks/useWebcam";
+import { useMediaPipePose } from "../hooks/useMediaPipePose";
+import { computeFrameQuality } from "../utils/captureQuality";
+
+/** Derive the required camera view from exercise code. */
+function getViewGuidance(exerciseCode: string | null): "side" | "front" {
+  if (exerciseCode?.includes("single_leg")) return "front";
+  return "side"; // sit_to_stand and weight_bearing_lunge default to side
+}
 
 export default function CameraSetup() {
   const { t } = useTranslation();
@@ -13,7 +23,41 @@ export default function CameraSetup() {
   const { mode, exerciseCode, setSessionId } = useSessionFlow();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
-  const checks = [t("camera.c1"), t("camera.c2"), t("camera.c3"), t("camera.c4")];
+
+  // Real webcam + pose
+  const { videoRef, ready: webcamReady, error: webcamError } = useWebcam();
+  const {
+    landmarks,
+    fps,
+    ready: poseReady,
+  } = useMediaPipePose(videoRef, webcamReady);
+
+  // Live capture quality from real landmarks
+  const captureQuality = computeFrameQuality(landmarks ?? []);
+
+  // Minimum quality before "Start session" is enabled (60% of key landmarks visible)
+  const qualityOk = captureQuality >= 0.6;
+
+  const viewGuidance = getViewGuidance(exerciseCode);
+
+  const guidanceText =
+    viewGuidance === "front"
+      ? "This exercise needs a front view. Face the camera directly so both knees and hips are clearly visible."
+      : "This exercise needs a side view. Place your camera to your side so your knee and hip are clearly visible.";
+
+  const checks = [
+    t("camera.c1"),
+    t("camera.c2"),
+    viewGuidance === "front"
+      ? "Front view — face the camera directly"
+      : t("camera.c3"),
+    t("camera.c4"),
+  ];
+
+  // Log FPS once pose model is ready
+  useEffect(() => {
+    if (poseReady) console.log(`[CameraSetup] Pose model ready — FPS: ${fps}`);
+  }, [poseReady, fps]);
 
   const startSession = async () => {
     if (!exerciseCode) {
@@ -39,35 +83,132 @@ export default function CameraSetup() {
 
   return (
     <>
-      <Link className="back-link" to={`/exercise?mode=${mode}`}><ArrowLeft />{t("common.back")}</Link>
+      <Link className="back-link" to={`/exercise?mode=${mode}`}>
+        <ArrowLeft />
+        {t("common.back")}
+      </Link>
       <DashTopbar title={t("camera.title")} subtitle={t("camera.desc")} />
       <div className="cam-grid">
         <div className="cam-stage reveal">
-          <div className="q-badge"><ShieldCheck width={16} height={16} />{t("camera.quality")} · 92%</div>
-          <PoseFigure />
+          <CaptureQualityBadge
+            quality={captureQuality}
+            label={t("camera.quality")}
+          />
+          <PoseCanvas
+            videoRef={videoRef}
+            landmarks={landmarks}
+            webcamReady={webcamReady}
+            webcamError={webcamError}
+          />
+          {/* Corner frame decoration */}
           <div className="cam-frame">
-            <span className="cam-corner" style={{ top: -2, left: -2, borderRight: "none", borderBottom: "none" }} />
-            <span className="cam-corner" style={{ top: -2, right: -2, borderLeft: "none", borderBottom: "none" }} />
-            <span className="cam-corner" style={{ bottom: -2, left: -2, borderRight: "none", borderTop: "none" }} />
-            <span className="cam-corner" style={{ bottom: -2, right: -2, borderLeft: "none", borderTop: "none" }} />
+            <span
+              className="cam-corner"
+              style={{
+                top: -2,
+                left: -2,
+                borderRight: "none",
+                borderBottom: "none",
+              }}
+            />
+            <span
+              className="cam-corner"
+              style={{
+                top: -2,
+                right: -2,
+                borderLeft: "none",
+                borderBottom: "none",
+              }}
+            />
+            <span
+              className="cam-corner"
+              style={{
+                bottom: -2,
+                left: -2,
+                borderRight: "none",
+                borderTop: "none",
+              }}
+            />
+            <span
+              className="cam-corner"
+              style={{
+                bottom: -2,
+                right: -2,
+                borderLeft: "none",
+                borderTop: "none",
+              }}
+            />
           </div>
         </div>
 
         <div className="stack" style={{ gap: 18 }}>
           <div className="panel reveal">
-            <div className="panel-head" style={{ marginBottom: 16 }}><div><h3>{t("camera.checklist")}</h3></div></div>
+            <div className="panel-head" style={{ marginBottom: 16 }}>
+              <div>
+                <h3>{t("camera.checklist")}</h3>
+              </div>
+            </div>
             <div className="check-list">
               {checks.map((c) => (
-                <div className="cl-row" key={c}><span className="cl-ic"><Check width={15} height={15} /></span>{c}</div>
+                <div className="cl-row" key={c}>
+                  <span className="cl-ic">
+                    <Check width={15} height={15} />
+                  </span>
+                  {c}
+                </div>
               ))}
             </div>
           </div>
+
           <div className="panel reveal">
-            <div className="panel-head" style={{ marginBottom: 12 }}><div><h3>{t("camera.guidanceTitle")}</h3></div><span className="mi" style={{ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", background: "var(--good-bg)", color: "var(--accent-text)" }}><Camera width={19} height={19} /></span></div>
-            <p style={{ color: "var(--text-2)", fontSize: "0.94rem" }}>{t("camera.guidanceBody")}</p>
+            <div className="panel-head" style={{ marginBottom: 12 }}>
+              <div>
+                <h3>{t("camera.guidanceTitle")}</h3>
+              </div>
+              <span
+                className="mi"
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  display: "grid",
+                  placeItems: "center",
+                  background: "var(--good-bg)",
+                  color: "var(--accent-text)",
+                }}
+              >
+                <Camera width={19} height={19} />
+              </span>
+            </div>
+            <p style={{ color: "var(--text-2)", fontSize: "0.94rem" }}>
+              {guidanceText}
+            </p>
           </div>
-          {error && <p className="muted" style={{ color: "var(--coral)" }}>{error}</p>}
-          <button className="btn btn-primary btn-lg btn-block reveal" onClick={startSession} disabled={starting}>{starting ? t("common.loading") : t("camera.startSession")}<ArrowRight /></button>
+
+          {/* Quality gate hint */}
+          {webcamReady && !qualityOk && (
+            <p
+              className="muted"
+              style={{ fontSize: "0.85rem", color: "var(--fair)" }}
+            >
+              Keep your whole body in frame to improve capture quality.
+            </p>
+          )}
+
+          {error && (
+            <p className="muted" style={{ color: "var(--coral)" }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn btn-primary btn-lg btn-block reveal"
+            onClick={startSession}
+            disabled={starting || (webcamReady && !qualityOk)}
+          >
+            {starting ? t("common.loading") : t("camera.startSession")}
+            <ArrowRight />
+          </button>
         </div>
       </div>
     </>

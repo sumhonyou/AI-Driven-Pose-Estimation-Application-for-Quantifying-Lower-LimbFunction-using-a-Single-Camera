@@ -17,17 +17,23 @@ FYP web application for camera-based lower-limb functional checking and rehabili
 **Do this once after cloning the repository:**
 
 ### Step 1: Ensure Docker Desktop is running
+
 Open Docker Desktop from Applications. Wait until the whale icon in the menu bar shows it's running (green indicator or stops animating).
 
 ### Step 2: Start PostgreSQL container
+
 From project root:
+
 ```bash
 docker compose up -d
 ```
+
 Verify: `http://localhost:5432` should be accessible (or `curl http://localhost:8000/health/db` once backend is up).
 
 ### Step 3: Backend setup & database migrations
+
 From project root:
+
 ```bash
 python3 -m venv backend/.venv
 source backend/.venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -47,11 +53,13 @@ cd backend && uvicorn app.main:app --reload
 **Keep this terminal running.** The backend will be at `http://localhost:8000`.
 
 Verify:
+
 - `http://localhost:8000/health` → `{"status":"ok"}`
 - `http://localhost:8000/health/db` → database connected
 - `http://localhost:8000/docs` → Swagger API docs
 
 ### Step 4: Frontend setup (new terminal)
+
 ```bash
 cd frontend
 npm install
@@ -65,23 +73,126 @@ The app will open at `http://localhost:5173`.
 
 ## Quick start (after first setup)
 
-Once everything is set up, you only need:
+Once everything is set up, you need to start three services **every time you develop**. The database container does not persist across system restarts, so `docker compose up -d` must run first.
 
-### Terminal 1: Database
+### Option 1: Automated startup (Recommended)
+
+**macOS/Linux:**
+
+```bash
+chmod +x startup.sh
+./startup.sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+.\startup.bat
+```
+
+This will automatically start all three services in the correct order.
+
+### Option 2: Manual startup (3 terminals)
+
+**Terminal 1: Start the database container**
+
 ```bash
 docker compose up -d
 ```
 
-### Terminal 2: Backend
+This starts PostgreSQL in the background. The `-d` flag means "detached mode." You only need to run this once per session—the container stays running even if you close the terminal.
+
+**Verify database is ready:**
+
 ```bash
-source backend/.venv/bin/activate
+docker compose ps
+# Should show fyp_postgres with status "Up"
+```
+
+**Terminal 2: Start the backend API**
+
+```bash
+source backend/.venv/bin/activate   # Windows: backend\.venv\Scripts\activate
 cd backend && uvicorn app.main:app --reload
 ```
 
-### Terminal 3: Frontend
+The backend will be at `http://localhost:8000`. You'll see `Application startup complete.` when ready.
+
+**Terminal 3: Start the frontend** (new terminal)
+
 ```bash
 cd frontend && npm run dev
 ```
+
+The app will open at `http://localhost:5173`.
+
+---
+
+## Troubleshooting
+
+### Backend won't start: `ModuleNotFoundError: No module named 'app'`
+
+**Cause:** Running uvicorn from the wrong directory.
+**Fix:** Always run from the `backend/` directory:
+
+```bash
+cd backend
+uvicorn app.main:app --reload
+```
+
+### `ERR_CONNECTION_REFUSED` when signing up
+
+**Cause:** Backend is not running on port 8000.
+**Fix:**
+
+1. Ensure the backend is started: `cd backend && uvicorn app.main:app --reload`
+2. Check it's accessible: `curl http://localhost:8000/health` should return `{"status":"ok"}`
+
+### `Error: connect ECONNREFUSED 127.0.0.1:5432`
+
+**Cause:** PostgreSQL container is not running.
+**Fix:**
+
+```bash
+docker compose up -d
+docker compose ps  # Verify fyp_postgres is "Up"
+```
+
+### Port already in use (address already in use)
+
+If port 8000, 5173, or 5432 is already taken:
+
+```bash
+# List what's using the port (e.g., 8000)
+lsof -i :8000
+
+# Kill the process (replace PID)
+kill -9 <PID>
+
+# Or just change ports in .env files and docker-compose.yml
+```
+
+### Frontend shows blank page or old version
+
+**Fix:** Clear cache and rebuild:
+
+```bash
+cd frontend
+npm cache clean --force
+rm -rf node_modules
+npm install
+npm run dev
+```
+
+### Virtual environment issues (Windows)
+
+If `.venv\Scripts\activate` doesn't work, try:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+If you get a permissions error, run PowerShell as Administrator.
 
 ---
 
