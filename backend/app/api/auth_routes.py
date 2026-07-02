@@ -3,7 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import (create_access_token, hash_password,
+                               verify_password)
 from app.db.database import get_db
 from app.db.models import User, UserProfile
 from app.db.schemas import TokenResponse, UserLogin, UserRead, UserRegister
@@ -11,7 +12,9 @@ from app.db.schemas import TokenResponse, UserLogin, UserRead, UserRegister
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+)
 def register(payload: UserRegister, db: Session = Depends(get_db)) -> TokenResponse:
     email = payload.email.lower()
     existing_user = db.scalar(select(User).where(User.email == email))

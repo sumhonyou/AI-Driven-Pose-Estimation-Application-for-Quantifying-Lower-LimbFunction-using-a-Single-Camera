@@ -7,6 +7,7 @@ import type { WebcamError } from "../hooks/useWebcam";
 
 interface PoseCanvasProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  setVideoRef: React.RefCallback<HTMLVideoElement>;
   landmarks: Landmark[] | null;
   webcamReady: boolean;
   webcamError: WebcamError | null;
@@ -20,6 +21,7 @@ const LOWER_JOINT_COLOR = "rgba(154, 230, 113, 1)";
 
 export default function PoseCanvas({
   videoRef,
+  setVideoRef,
   landmarks,
   webcamReady,
   webcamError,
@@ -53,8 +55,7 @@ export default function PoseCanvas({
       if (!a || !b) continue;
       if (a.visibility < 0.3 || b.visibility < 0.3) continue;
 
-      const isLower =
-        LOWER_LIMB_INDICES.has(start) || LOWER_LIMB_INDICES.has(end);
+      const isLower = LOWER_LIMB_INDICES.has(start) || LOWER_LIMB_INDICES.has(end);
       ctx.strokeStyle = isLower ? LOWER_LIMB_COLOR : BONE_COLOR;
       ctx.beginPath();
       ctx.moveTo(a.x * w, a.y * h);
@@ -118,7 +119,7 @@ export default function PoseCanvas({
     <div className="pose-canvas-wrap">
       {/* Mirrored video feed */}
       <video
-        ref={videoRef}
+        ref={setVideoRef}
         className="pose-video"
         autoPlay
         muted
@@ -126,11 +127,7 @@ export default function PoseCanvas({
         style={{ transform: "scaleX(-1)" }}
       />
       {/* Skeleton overlay — also mirrored so it aligns with the flipped video */}
-      <canvas
-        ref={canvasRef}
-        className="pose-overlay"
-        style={{ transform: "scaleX(-1)" }}
-      />
+      <canvas ref={canvasRef} className="pose-overlay" style={{ transform: "scaleX(-1)" }} />
       {/* Loading shimmer while model/camera initialises */}
       {!webcamReady && (
         <div className="pose-loading">

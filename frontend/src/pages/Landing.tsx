@@ -2,7 +2,16 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Disclaimer } from "../components/Controls";
 import PoseFigure from "../components/PoseFigure";
-import { ArrowRight, Play, Activity, ShieldCheck, Camera, User, Chart, Clock } from "../components/Icons";
+import {
+  ArrowRight,
+  Play,
+  Activity,
+  ShieldCheck,
+  Camera,
+  User,
+  Chart,
+  Clock,
+} from "../components/Icons";
 
 export default function Landing() {
   const { t } = useTranslation();
@@ -29,17 +38,38 @@ export default function Landing() {
       <header className="hero">
         <div className="wrap hero-grid">
           <div>
-            <span className="pill reveal"><span className="dot" /> {t("landing.badge")}</span>
-            <h1 className="reveal">{t("landing.title")} <span className="hl">{t("landing.titleHl")}</span></h1>
+            <span className="pill reveal">
+              <span className="dot" /> {t("landing.badge")}
+            </span>
+            <h1 className="reveal">
+              {t("landing.title")} <span className="hl">{t("landing.titleHl")}</span>
+            </h1>
             <p className="lead reveal">{t("landing.lead")}</p>
             <div className="hero-cta reveal">
-              <Link className="btn btn-primary btn-lg" to="/mode">{t("landing.ctaPrimary")}<ArrowRight /></Link>
-              <a className="btn btn-ghost btn-lg" href="#how"><Play />{t("landing.ctaSecondary")}</a>
+              <Link className="btn btn-primary btn-lg" to="/mode">
+                {t("landing.ctaPrimary")}
+                <ArrowRight />
+              </Link>
+              <a className="btn btn-ghost btn-lg" href="#how">
+                <Play />
+                {t("landing.ctaSecondary")}
+              </a>
             </div>
             <div className="hero-stats reveal">
-              <div className="stat"><b>3</b><span>{t("landing.stat1")}</span></div>
-              <div className="stat"><b>33</b><span>{t("landing.stat2")}</span></div>
-              <div className="stat"><b><em>{t("landing.stat3num")}</em></b><span>{t("landing.stat3")}</span></div>
+              <div className="stat">
+                <b>3</b>
+                <span>{t("landing.stat1")}</span>
+              </div>
+              <div className="stat">
+                <b>33</b>
+                <span>{t("landing.stat2")}</span>
+              </div>
+              <div className="stat">
+                <b>
+                  <em>{t("landing.stat3num")}</em>
+                </b>
+                <span>{t("landing.stat3")}</span>
+              </div>
             </div>
           </div>
 
@@ -50,19 +80,33 @@ export default function Landing() {
                 <PoseFigure />
               </div>
               <div className="float-card tl">
-                <span className="ic lime"><Activity /></span>
-                <div><small>{t("landing.kneeRom")}</small><strong>108° · <span className="band-good">{t("common.good")}</span></strong></div>
+                <span className="ic lime">
+                  <Activity />
+                </span>
+                <div>
+                  <small>{t("landing.kneeRom")}</small>
+                  <strong>
+                    108° · <span className="band-good">{t("common.good")}</span>
+                  </strong>
+                </div>
               </div>
               <div className="float-card br">
-                <span className="ic em"><ShieldCheck /></span>
-                <div><small>{t("landing.captureQuality")}</small><strong>92%</strong></div>
+                <span className="ic em">
+                  <ShieldCheck />
+                </span>
+                <div>
+                  <small>{t("landing.captureQuality")}</small>
+                  <strong>92%</strong>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <div className="wrap" style={{ marginTop: 24 }}>
-          <div className="reveal"><Disclaimer text={t("landing.disclaimer")} /></div>
+          <div className="reveal">
+            <Disclaimer text={t("landing.disclaimer")} />
+          </div>
         </div>
       </header>
 
@@ -80,7 +124,13 @@ export default function Landing() {
               <p>{t("landing.modADesc")}</p>
               <div className="checks">
                 {checksA.map((c) => (
-                  <div className="check-row" key={c.n}><span className="num">{c.n}</span><div className="txt"><b>{c.b}</b><span>{c.s}</span></div></div>
+                  <div className="check-row" key={c.n}>
+                    <span className="num">{c.n}</span>
+                    <div className="txt">
+                      <b>{c.b}</b>
+                      <span>{c.s}</span>
+                    </div>
+                  </div>
                 ))}
               </div>
             </article>
@@ -90,7 +140,14 @@ export default function Landing() {
               <p>{t("landing.modBDesc")}</p>
               <div className="checks">
                 {checksB.map((c) => (
-                  <div className="check-row" key={c.b}><span className="num">◷</span><div className="txt"><b>{c.b}</b><span>{c.s}</span></div><span className="badge-soon">{t("common.ai")}</span></div>
+                  <div className="check-row" key={c.b}>
+                    <span className="num">◷</span>
+                    <div className="txt">
+                      <b>{c.b}</b>
+                      <span>{c.s}</span>
+                    </div>
+                    <span className="badge-soon">{t("common.ai")}</span>
+                  </div>
                 ))}
               </div>
             </article>
@@ -123,8 +180,13 @@ export default function Landing() {
             <h2>{t("landing.ctaTitle")}</h2>
             <p>{t("landing.ctaLead")}</p>
             <div className="hero-cta">
-              <Link className="btn btn-primary btn-lg" to="/dashboard">{t("landing.ctaOpen")}<ArrowRight /></Link>
-              <a className="btn btn-ghost btn-lg" href="#modules">{t("landing.ctaExplore")}</a>
+              <Link className="btn btn-primary btn-lg" to="/dashboard">
+                {t("landing.ctaOpen")}
+                <ArrowRight />
+              </Link>
+              <a className="btn btn-ghost btn-lg" href="#modules">
+                {t("landing.ctaExplore")}
+              </a>
             </div>
           </div>
         </div>

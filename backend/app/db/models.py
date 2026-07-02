@@ -3,8 +3,10 @@ from decimal import Decimal
 from uuid import UUID as PyUUID
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
+from sqlalchemy import (Boolean, DateTime, ForeignKey, Integer, Numeric,
+                        String, Text, func)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -13,8 +15,12 @@ from app.db.database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    email: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False, index=True
+    )
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
@@ -41,7 +47,9 @@ class User(Base):
 class UserProfile(Base):
     __tablename__ = "user_profiles"
 
-    id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
     user_id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -68,13 +76,19 @@ class UserProfile(Base):
 class ExerciseCatalog(Base):
     __tablename__ = "exercise_catalog"
 
-    id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
-    code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    code: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     mode: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     view_guidance: Mapped[str | None] = mapped_column(String(100))
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true"
+    )
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="exercise")
 
@@ -82,7 +96,9 @@ class ExerciseCatalog(Base):
 class Session(Base):
     __tablename__ = "sessions"
 
-    id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
     user_id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -91,11 +107,15 @@ class Session(Base):
     )
     mode: Mapped[str] = mapped_column(String(50), nullable=False)
     exercise_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(50), nullable=False)
     capture_quality: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     valid_frame_ratio: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
+    score: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    band: Mapped[str | None] = mapped_column(String(50))
     device_info: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -117,14 +137,20 @@ class Session(Base):
 class Reminder(Base):
     __tablename__ = "reminders"
 
-    id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
     user_id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    reminder_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reminder_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     frequency: Mapped[str | None] = mapped_column(String(50))
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -135,13 +161,18 @@ class Reminder(Base):
 class ModuleAResult(Base):
     __tablename__ = "module_a_results"
 
-    id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
     session_id: Mapped[PyUUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+        PgUUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
     )
     completion_time_sec: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
     hold_duration_sec: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
     rep_count: Mapped[int | None] = mapped_column(Integer)
+    score: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
     rom_band: Mapped[str | None] = mapped_column(String(50))
     stability_proxy: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
     sway_proxy: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
@@ -157,12 +188,42 @@ class ModuleAResult(Base):
     session: Mapped[Session] = relationship(back_populates="module_a_result")
 
 
+class ModuleALandmarkLog(Base):
+    """Raw world-landmark coordinates per frame — numeric only, never video.
+
+    Powers the deterministic replay harness (backend/app/module_a/scripts/replay_session.py).
+    Gated by ENABLE_LANDMARK_LOGGING; not written unless enabled.
+    """
+
+    __tablename__ = "module_a_landmark_log"
+
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    session_id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    frame_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    timestamp_ms: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
+    world_landmarks: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class ModuleBResult(Base):
     __tablename__ = "module_b_results"
 
-    id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
     session_id: Mapped[PyUUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+        PgUUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
     )
     rule_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     ml_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
@@ -188,7 +249,9 @@ class ModuleBResult(Base):
 class ErrorTag(Base):
     __tablename__ = "error_tags"
 
-    id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
     module_b_result_id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True),
         ForeignKey("module_b_results.id", ondelete="CASCADE"),
@@ -207,13 +270,19 @@ class ErrorTag(Base):
 class FeedbackText(Base):
     __tablename__ = "feedback_texts"
 
-    id: Mapped[PyUUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[PyUUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
     session_id: Mapped[PyUUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+        PgUUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
     )
     structured_feedback: Mapped[str | None] = mapped_column(Text)
     rewritten_feedback: Mapped[str | None] = mapped_column(Text)
-    llm_used: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    llm_used: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     safety_disclaimer: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

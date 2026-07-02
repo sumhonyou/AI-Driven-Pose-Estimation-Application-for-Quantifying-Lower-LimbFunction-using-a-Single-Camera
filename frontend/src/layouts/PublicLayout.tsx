@@ -19,29 +19,71 @@ export default function PublicLayout() {
           <div className="nav-links">
             <a href="/#modules">{t("nav.modules")}</a>
             <a href="/#how">{t("nav.how")}</a>
-            <a href="/#" onClick={(e) => e.preventDefault()}>{t("nav.clinicians")}</a>
-            <a href="/#" onClick={(e) => e.preventDefault()}>{t("nav.about")}</a>
+            <a href="/#" onClick={(e) => e.preventDefault()}>
+              {t("nav.clinicians")}
+            </a>
+            <a href="/#" onClick={(e) => e.preventDefault()}>
+              {t("nav.about")}
+            </a>
           </div>
           <div className="nav-actions">
-            <span className="desktop-only"><FontSizeControl /></span>
+            <span className="desktop-only">
+              <FontSizeControl />
+            </span>
             <ThemeToggle />
             <LanguageSwitcher />
-            <Link className="btn btn-ghost desktop-only" to="/login">{t("nav.login")}</Link>
-            <Link className="btn btn-primary desktop-only" to="/mode">{t("nav.startCheck")}<ArrowRight /></Link>
-            <button className="nav-toggle" onClick={() => setMenuOpen((o) => !o)} aria-label={t("nav.menu")}>
+            <Link className="btn btn-ghost desktop-only" to="/login">
+              {t("nav.login")}
+            </Link>
+            <Link className="btn btn-primary desktop-only" to="/mode">
+              {t("nav.startCheck")}
+              <ArrowRight />
+            </Link>
+            <button
+              className="nav-toggle"
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label={t("nav.menu")}
+            >
               {menuOpen ? <Close /> : <Menu />}
             </button>
           </div>
         </div>
         <div className={"wrap mobile-menu" + (menuOpen ? " open" : "")}>
-          <a href="/#modules" onClick={() => setMenuOpen(false)}>{t("nav.modules")}</a>
-          <a href="/#how" onClick={() => setMenuOpen(false)}>{t("nav.how")}</a>
-          <a href="/#" onClick={(e) => { e.preventDefault(); setMenuOpen(false); }}>{t("nav.clinicians")}</a>
-          <a href="/#" onClick={(e) => { e.preventDefault(); setMenuOpen(false); }}>{t("nav.about")}</a>
-          <div style={{ padding: "14px 6px 0" }}><FontSizeControl /></div>
+          <a href="/#modules" onClick={() => setMenuOpen(false)}>
+            {t("nav.modules")}
+          </a>
+          <a href="/#how" onClick={() => setMenuOpen(false)}>
+            {t("nav.how")}
+          </a>
+          <a
+            href="/#"
+            onClick={(e) => {
+              e.preventDefault();
+              setMenuOpen(false);
+            }}
+          >
+            {t("nav.clinicians")}
+          </a>
+          <a
+            href="/#"
+            onClick={(e) => {
+              e.preventDefault();
+              setMenuOpen(false);
+            }}
+          >
+            {t("nav.about")}
+          </a>
+          <div style={{ padding: "14px 6px 0" }}>
+            <FontSizeControl />
+          </div>
           <div className="mm-actions">
-            <Link className="btn btn-ghost" to="/login" onClick={() => setMenuOpen(false)}>{t("nav.login")}</Link>
-            <Link className="btn btn-primary" to="/mode" onClick={() => setMenuOpen(false)}>{t("nav.startCheck")}<ArrowRight /></Link>
+            <Link className="btn btn-ghost" to="/login" onClick={() => setMenuOpen(false)}>
+              {t("nav.login")}
+            </Link>
+            <Link className="btn btn-primary" to="/mode" onClick={() => setMenuOpen(false)}>
+              {t("nav.startCheck")}
+              <ArrowRight />
+            </Link>
           </div>
         </div>
       </nav>
@@ -73,10 +115,18 @@ function Footer() {
             </div>
             <div className="foot-col">
               <b>{t("landing.footCompany")}</b>
-              <a href="/#" onClick={(e) => e.preventDefault()}>{t("landing.fLink5")}</a>
-              <a href="/#" onClick={(e) => e.preventDefault()}>{t("landing.fLink6")}</a>
-              <a href="/#" onClick={(e) => e.preventDefault()}>{t("landing.fLink7")}</a>
-              <a href="/#" onClick={(e) => e.preventDefault()}>{t("landing.fLink8")}</a>
+              <a href="/#" onClick={(e) => e.preventDefault()}>
+                {t("landing.fLink5")}
+              </a>
+              <a href="/#" onClick={(e) => e.preventDefault()}>
+                {t("landing.fLink6")}
+              </a>
+              <a href="/#" onClick={(e) => e.preventDefault()}>
+                {t("landing.fLink7")}
+              </a>
+              <a href="/#" onClick={(e) => e.preventDefault()}>
+                {t("landing.fLink8")}
+              </a>
             </div>
           </div>
         </div>

@@ -1,15 +1,25 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DashTopbar } from "../layouts/DashboardLayout";
 import PoseCanvas from "../components/PoseCanvas";
 import CaptureQualityBadge from "../components/CaptureQualityBadge";
-import { ArrowLeft, ArrowRight, Camera, Check } from "../components/Icons";
+import AutoStartCountdown from "../components/AutoStartCountdown";
+import { ArrowLeft, ArrowRight, Camera, Check, Alert, Lightbulb } from "../components/Icons";
 import { sessionService } from "../services/sessionService";
 import { useSessionFlow } from "../session";
 import { useWebcam } from "../hooks/useWebcam";
 import { useMediaPipePose } from "../hooks/useMediaPipePose";
-import { computeFrameQuality } from "../utils/captureQuality";
+import { useAutoStartGate } from "../hooks/useAutoStartGate";
+import {
+  computeFullBodyQuality,
+  areHeadAndFeetVisible,
+  FULL_BODY_QUALITY_THRESHOLD,
+} from "../utils/captureQuality";
+import cameraReadySound from "../assets/sound effect/Camera all good effect.mp3";
+
+/** How long the full body must be detected continuously before the session auto-starts. 1.8s */
+const AUTO_START_STABLE_MS = 1800;
 
 /** Derive the required camera view from exercise code. */
 function getViewGuidance(exerciseCode: string | null): "side" | "front" {
@@ -17,26 +27,33 @@ function getViewGuidance(exerciseCode: string | null): "side" | "front" {
   return "side"; // sit_to_stand and weight_bearing_lunge default to side
 }
 
+type ChecklistStatus = "done" | "pending" | "info";
+interface ChecklistItem {
+  id: string;
+  label: string;
+  status: ChecklistStatus;
+}
+
+/** Which guidance banner to show when the full body isn't detected yet. */
+type GuidanceKey = "noBody" | "partial" | "lowQuality" | null;
+
 export default function CameraSetup() {
   const { t } = useTranslation();
   const nav = useNavigate();
   const { mode, exerciseCode, setSessionId } = useSessionFlow();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
+  const [hasAutoStarted, setHasAutoStarted] = useState(false);
 
   // Real webcam + pose
-  const { videoRef, ready: webcamReady, error: webcamError } = useWebcam();
-  const {
-    landmarks,
-    fps,
-    ready: poseReady,
-  } = useMediaPipePose(videoRef, webcamReady);
+  const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
+  const { landmarks, ready: poseReady, fps } = useMediaPipePose(videoRef, webcamReady);
 
-  // Live capture quality from real landmarks
-  const captureQuality = computeFrameQuality(landmarks ?? []);
-
-  // Minimum quality before "Start session" is enabled (60% of key landmarks visible)
-  const qualityOk = captureQuality >= 0.6;
+  // Full-body capture quality (head, torso, legs, feet) — stricter than the live-session badge.
+  const hasLandmarks = !!landmarks && landmarks.length > 0;
+  const bodyQuality = computeFullBodyQuality(landmarks ?? []);
+  const isFullBodyReady = bodyQuality >= FULL_BODY_QUALITY_THRESHOLD;
+  const headFeetVisible = areHeadAndFeetVisible(landmarks ?? []);
 
   const viewGuidance = getViewGuidance(exerciseCode);
 
@@ -45,25 +62,26 @@ export default function CameraSetup() {
       ? "This exercise needs a front view. Face the camera directly so both knees and hips are clearly visible."
       : "This exercise needs a side view. Place your camera to your side so your knee and hip are clearly visible.";
 
-  const checks = [
-    t("camera.c1"),
-    t("camera.c2"),
-    viewGuidance === "front"
-      ? "Front view — face the camera directly"
-      : t("camera.c3"),
-    t("camera.c4"),
-  ];
-
   // Log FPS once pose model is ready
   useEffect(() => {
     if (poseReady) console.log(`[CameraSetup] Pose model ready — FPS: ${fps}`);
   }, [poseReady, fps]);
 
-  const startSession = async () => {
+  // Guards duplicate session starts from the manual button and the auto-start gate racing each other.
+  const startedRef = useRef(false);
+
+  const beginSession = async () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    setHasAutoStarted(true);
+
     if (!exerciseCode) {
       setError(t("camera.selectExerciseFirst"));
+      startedRef.current = false;
+      setHasAutoStarted(false);
       return;
     }
+
     setError("");
     setStarting(true);
     try {
@@ -76,10 +94,98 @@ export default function CameraSetup() {
       nav("/live");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("camera.startError"));
+      startedRef.current = false;
+      setHasAutoStarted(false);
     } finally {
       setStarting(false);
     }
   };
+
+  // Auto-start once the full body has been detected continuously for AUTO_START_STABLE_MS.
+  // Note: intentionally does NOT gate on `exerciseCode` — the countdown UI below only depends
+  // on `isFullBodyReady`, so gating the timer on exerciseCode too would let the countdown look
+  // "ready" while silently never firing if exerciseCode was lost (e.g. a page reload). Instead
+  // we always let the timer run, and beginSession() itself reports a clear error if the
+  // exercise is missing.
+  const autoStartEnabled = webcamReady && poseReady && !hasAutoStarted;
+  const { progress: autoStartProgress } = useAutoStartGate(
+    bodyQuality,
+    FULL_BODY_QUALITY_THRESHOLD,
+    AUTO_START_STABLE_MS,
+    autoStartEnabled,
+    beginSession,
+  );
+
+  // Play the "camera all good" sound exactly on the not-ready → ready transition.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wasReadyRef = useRef(false);
+  useEffect(() => {
+    if (isFullBodyReady && !wasReadyRef.current) {
+      if (!audioRef.current) audioRef.current = new Audio(cameraReadySound);
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {
+        // Autoplay can be blocked before any user gesture — non-critical, ignore.
+      });
+    }
+    wasReadyRef.current = isFullBodyReady;
+  }, [isFullBodyReady]);
+
+  // Large, actionable banner explaining what's missing (only once camera + pose model are up).
+  const guidanceKey: GuidanceKey =
+    !webcamReady || !poseReady || isFullBodyReady
+      ? null
+      : !hasLandmarks
+        ? "noBody"
+        : !headFeetVisible
+          ? "partial"
+          : "lowQuality";
+
+  const bannerText =
+    guidanceKey === "noBody"
+      ? t("camera.bannerNoBody")
+      : guidanceKey === "partial"
+        ? t("camera.bannerPartial")
+        : guidanceKey === "lowQuality"
+          ? t("camera.bannerLowQuality")
+          : null;
+
+  // Applied as inline style (not a conditional className) so it never touches the
+  // `.reveal` element's class attribute — doing so would wipe out the `.in` class
+  // that useReveal's IntersectionObserver adds imperatively, hiding the video forever.
+  const stageBorderStyle: React.CSSProperties | undefined =
+    !webcamReady || !poseReady
+      ? undefined
+      : isFullBodyReady
+        ? { borderColor: "var(--good)", boxShadow: "0 0 0 4px var(--good-bg)" }
+        : {
+            borderColor: "var(--coral)",
+            boxShadow: "0 0 0 4px color-mix(in srgb, var(--coral) 16%, transparent)",
+          };
+
+  const checklistItems: ChecklistItem[] = [
+    {
+      id: "permission",
+      label: t("camera.checklistPermission"),
+      status: webcamReady && !webcamError ? "done" : "pending",
+    },
+    {
+      id: "fullBody",
+      label: t("camera.checklistFullBody"),
+      status: isFullBodyReady ? "done" : "pending",
+    },
+    {
+      id: "headFeet",
+      label: t("camera.checklistHeadFeet"),
+      status: headFeetVisible ? "done" : "pending",
+    },
+    { id: "lighting", label: t("camera.checklistLighting"), status: "info" },
+    { id: "space", label: t("camera.checklistSpace"), status: "info" },
+  ];
+
+  const autoStartSecondsLeft = Math.max(
+    1,
+    Math.ceil(((1 - autoStartProgress) * AUTO_START_STABLE_MS) / 1000),
+  );
 
   return (
     <>
@@ -89,56 +195,51 @@ export default function CameraSetup() {
       </Link>
       <DashTopbar title={t("camera.title")} subtitle={t("camera.desc")} />
       <div className="cam-grid">
-        <div className="cam-stage reveal">
-          <CaptureQualityBadge
-            quality={captureQuality}
-            label={t("camera.quality")}
-          />
-          <PoseCanvas
-            videoRef={videoRef}
-            landmarks={landmarks}
-            webcamReady={webcamReady}
-            webcamError={webcamError}
-          />
-          {/* Corner frame decoration */}
-          <div className="cam-frame">
-            <span
-              className="cam-corner"
-              style={{
-                top: -2,
-                left: -2,
-                borderRight: "none",
-                borderBottom: "none",
-              }}
+        <div className="stack" style={{ gap: 14 }}>
+          <div className="cam-stage reveal" style={stageBorderStyle}>
+            <CaptureQualityBadge quality={bodyQuality} label={t("camera.quality")} />
+            <PoseCanvas
+              videoRef={videoRef}
+              setVideoRef={setVideoRef}
+              landmarks={landmarks}
+              webcamReady={webcamReady}
+              webcamError={webcamError}
             />
-            <span
-              className="cam-corner"
-              style={{
-                top: -2,
-                right: -2,
-                borderLeft: "none",
-                borderBottom: "none",
-              }}
-            />
-            <span
-              className="cam-corner"
-              style={{
-                bottom: -2,
-                left: -2,
-                borderRight: "none",
-                borderTop: "none",
-              }}
-            />
-            <span
-              className="cam-corner"
-              style={{
-                bottom: -2,
-                right: -2,
-                borderLeft: "none",
-                borderTop: "none",
-              }}
-            />
+            {/* Corner frame decoration */}
+            <div className="cam-frame">
+              <span
+                className="cam-corner"
+                style={{ top: -2, left: -2, borderRight: "none", borderBottom: "none" }}
+              />
+              <span
+                className="cam-corner"
+                style={{ top: -2, right: -2, borderLeft: "none", borderBottom: "none" }}
+              />
+              <span
+                className="cam-corner"
+                style={{ bottom: -2, left: -2, borderRight: "none", borderTop: "none" }}
+              />
+              <span
+                className="cam-corner"
+                style={{ bottom: -2, right: -2, borderLeft: "none", borderTop: "none" }}
+              />
+            </div>
           </div>
+
+          {bannerText && (
+            <div className="setup-banner" role="status">
+              <Alert width={24} height={24} />
+              <span>{bannerText}</span>
+            </div>
+          )}
+
+          {isFullBodyReady && !hasAutoStarted && (
+            <AutoStartCountdown
+              progress={autoStartProgress}
+              secondsLeft={autoStartSecondsLeft}
+              label={t("camera.autoStarting")}
+            />
+          )}
         </div>
 
         <div className="stack" style={{ gap: 18 }}>
@@ -149,12 +250,14 @@ export default function CameraSetup() {
               </div>
             </div>
             <div className="check-list">
-              {checks.map((c) => (
-                <div className="cl-row" key={c}>
-                  <span className="cl-ic">
-                    <Check width={15} height={15} />
+              {checklistItems.map((item) => (
+                <div className={`cl-row cl-row--${item.status}`} key={item.id}>
+                  <span className={`cl-ic cl-ic--${item.status}`}>
+                    {item.status === "done" && <Check width={16} height={16} />}
+                    {item.status === "pending" && <Alert width={16} height={16} />}
+                    {item.status === "info" && <Lightbulb width={16} height={16} />}
                   </span>
-                  {c}
+                  {item.label}
                 </div>
               ))}
             </div>
@@ -180,20 +283,8 @@ export default function CameraSetup() {
                 <Camera width={19} height={19} />
               </span>
             </div>
-            <p style={{ color: "var(--text-2)", fontSize: "0.94rem" }}>
-              {guidanceText}
-            </p>
+            <p style={{ color: "var(--text-2)", fontSize: "0.94rem" }}>{guidanceText}</p>
           </div>
-
-          {/* Quality gate hint */}
-          {webcamReady && !qualityOk && (
-            <p
-              className="muted"
-              style={{ fontSize: "0.85rem", color: "var(--fair)" }}
-            >
-              Keep your whole body in frame to improve capture quality.
-            </p>
-          )}
 
           {error && (
             <p className="muted" style={{ color: "var(--coral)" }}>
@@ -203,8 +294,8 @@ export default function CameraSetup() {
 
           <button
             className="btn btn-primary btn-lg btn-block reveal"
-            onClick={startSession}
-            disabled={starting || (webcamReady && !qualityOk)}
+            onClick={beginSession}
+            disabled={starting || hasAutoStarted}
           >
             {starting ? t("common.loading") : t("camera.startSession")}
             <ArrowRight />

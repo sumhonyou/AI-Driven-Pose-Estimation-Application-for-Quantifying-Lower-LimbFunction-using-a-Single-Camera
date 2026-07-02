@@ -8,8 +8,9 @@ Create Date: 2026-06-05
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "20260605_0001"
 down_revision: str | None = None
@@ -138,7 +139,9 @@ def upgrade() -> None:
         sa.Column("trunk_lean_proxy", sa.Numeric(8, 4), nullable=True),
         sa.Column("final_band", sa.String(length=50), nullable=False),
         sa.Column("confidence_level", sa.String(length=50), nullable=True),
-        sa.Column("metrics_json", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "metrics_json", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -163,10 +166,14 @@ def upgrade() -> None:
         sa.Column("tempo_score", sa.Numeric(5, 2), nullable=True),
         sa.Column("stability_score", sa.Numeric(5, 2), nullable=True),
         sa.Column(
-            "fusion_weights_json", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+            "fusion_weights_json",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=True,
         ),
         sa.Column(
-            "feature_summary_json", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+            "feature_summary_json",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=True,
         ),
         sa.Column(
             "created_at",

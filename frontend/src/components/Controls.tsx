@@ -8,7 +8,11 @@ import logoImg from "../assets/Physiofit_Logo-removebg-preview.png";
 
 export function Logo({ to = "/", size = "nav" }: { to?: string; size?: "nav" | "footer" }) {
   return (
-    <Link className={"brand" + (size === "footer" ? " brand--footer" : "")} to={to} aria-label="PhysioFit home">
+    <Link
+      className={"brand" + (size === "footer" ? " brand--footer" : "")}
+      to={to}
+      aria-label="PhysioFit home"
+    >
       <span className="logo">
         <img src={logoImg} alt="PhysioFit" />
       </span>
@@ -20,7 +24,12 @@ export function ThemeToggle() {
   const { theme, toggleTheme } = usePreferences();
   const { t } = useTranslation();
   return (
-    <button className="ctrl theme-toggle icon-btn" onClick={toggleTheme} aria-label={t("nav.theme")} title={t("nav.theme")}>
+    <button
+      className="ctrl theme-toggle icon-btn"
+      onClick={toggleTheme}
+      aria-label={t("nav.theme")}
+      title={t("nav.theme")}
+    >
       {theme === "light" ? <Moon /> : <Sun />}
     </button>
   );
@@ -63,9 +72,25 @@ export function LanguageSwitcher() {
 
   return (
     <div className="lang" ref={ref}>
-      <button className="ctrl" onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open} title={t("nav.language")}>
+      <button
+        className="ctrl"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={t("nav.language")}
+      >
         <Globe />
-        <span className="desktop-only" style={{ maxWidth: 70, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{current.label}</span>
+        <span
+          className="desktop-only"
+          style={{
+            maxWidth: 70,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {current.label}
+        </span>
       </button>
       {open && (
         <div className="lang-menu" role="listbox">
@@ -75,7 +100,10 @@ export function LanguageSwitcher() {
               className={l.code === current.code ? "on" : ""}
               role="option"
               aria-selected={l.code === current.code}
-              onClick={() => { i18n.changeLanguage(l.code); setOpen(false); }}
+              onClick={() => {
+                i18n.changeLanguage(l.code);
+                setOpen(false);
+              }}
             >
               <span className="flag">{l.flag}</span>
               {l.label}
@@ -99,7 +127,14 @@ export function Disclaimer({ text }: { text: string }) {
 
 function Alert() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M12 9v4M12 17h.01" />
       <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
     </svg>

@@ -2,6 +2,9 @@
 .env
 .env.local
 
+# Logs
+development-log.md
+
 # Python
 __pycache__/
 *.py[cod]

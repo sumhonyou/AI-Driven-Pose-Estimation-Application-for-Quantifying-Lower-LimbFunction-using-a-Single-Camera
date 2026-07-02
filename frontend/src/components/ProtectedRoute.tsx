@@ -6,7 +6,11 @@ export default function ProtectedRoute() {
   const location = useLocation();
 
   if (loading) {
-    return <div className="center muted" style={{ padding: 48 }}>Loading...</div>;
+    return (
+      <div className="center muted" style={{ padding: 48 }}>
+        Loading...
+      </div>
+    );
   }
 
   if (!token) {

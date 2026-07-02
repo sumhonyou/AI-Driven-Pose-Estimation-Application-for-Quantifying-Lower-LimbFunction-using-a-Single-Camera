@@ -2,16 +2,17 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
+from app.api.deps import get_current_user
+from app.db.database import get_db
+from app.db.models import ExerciseCatalog
+from app.db.models import Session as SessionModel
+from app.db.models import User
+from app.db.schemas import (SessionEnd, SessionRead, SessionStart,
+                            SessionStartResponse)
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import selectinload
-
-from app.api.deps import get_current_user
-from app.db.database import get_db
-from app.db.models import ExerciseCatalog, Session as SessionModel
-from app.db.models import User
-from app.db.schemas import SessionEnd, SessionRead, SessionStart, SessionStartResponse
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -32,8 +33,8 @@ def _session_response(session: SessionModel) -> SessionRead:
         status=session.status,
         capture_quality=_decimal_to_float(session.capture_quality),
         valid_frame_ratio=_decimal_to_float(session.valid_frame_ratio),
-        score=None,
-        band=None,
+        score=_decimal_to_float(session.score),
+        band=session.band,
     )
 
 
@@ -47,7 +48,9 @@ def _get_owned_session(
     )
 
 
-@router.post("/start", response_model=SessionStartResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/start", response_model=SessionStartResponse, status_code=status.HTTP_201_CREATED
+)
 def start_session(
     payload: SessionStart,
     db: DbSession = Depends(get_db),
@@ -93,6 +96,27 @@ def end_session(
     session.status = "completed"
     session.capture_quality = payload.capture_quality
     session.valid_frame_ratio = payload.valid_frame_ratio
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return _session_response(session)
+
+
+@router.post("/{session_id}/cancel", response_model=SessionRead)
+def cancel_session(
+    session_id: UUID,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SessionRead:
+    """Marks a session as cancelled — never scored, never shown as completed."""
+    session = _get_owned_session(db, session_id, current_user.id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
+
+    session.ended_at = datetime.now(UTC)
+    session.status = "cancelled"
     db.add(session)
     db.commit()
     db.refresh(session)

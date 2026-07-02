@@ -8,7 +8,8 @@ from app.api.session_routes import _session_response
 from app.db.database import get_db
 from app.db.models import Session as SessionModel
 from app.db.models import User
-from app.db.schemas import DashboardErrorTag, DashboardSummary, DashboardTrendPoint
+from app.db.schemas import (DashboardErrorTag, DashboardSummary,
+                            DashboardTrendPoint)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -18,7 +19,9 @@ def get_summary(
     db: DbSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> DashboardSummary:
     total_sessions = db.scalar(
-        select(func.count(SessionModel.id)).where(SessionModel.user_id == current_user.id)
+        select(func.count(SessionModel.id)).where(
+            SessionModel.user_id == current_user.id
+        )
     )
     avg_capture_quality = db.scalar(
         select(func.avg(SessionModel.capture_quality)).where(
@@ -35,14 +38,15 @@ def get_summary(
             .limit(5)
         )
     )
+    latest_scored = next((s for s in recent_sessions if s.score is not None), None)
 
     return DashboardSummary(
         total_sessions=total_sessions or 0,
-        avg_capture_quality=float(avg_capture_quality)
-        if avg_capture_quality is not None
-        else None,
-        latest_score=None,
-        latest_band=None,
+        avg_capture_quality=(
+            float(avg_capture_quality) if avg_capture_quality is not None else None
+        ),
+        latest_score=float(latest_scored.score) if latest_scored else None,
+        latest_band=latest_scored.band if latest_scored else None,
         recent_sessions=[_session_response(session) for session in recent_sessions],
     )
 

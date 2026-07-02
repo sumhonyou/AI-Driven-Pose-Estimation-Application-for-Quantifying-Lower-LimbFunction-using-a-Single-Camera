@@ -1,12 +1,12 @@
 #!/bin/bash
 # post_format_log_test.sh — PostToolUse handler for Edit / Write / NotebookEdit
 # 1. Runs Prettier (JS/TS) or Black+isort (Python) on the changed file
-# 2. Appends a log entry to Completion_Task_Details.md
+# 2. Appends a log entry to development-log.md
 # 3. Runs the relevant test suite if test files exist
 
 PROJ="/Users/sumhonyou/Documents/AI-Driven-Pose-Estimation-Application-for-Quantifying-Lower-LimbFunction-using-a-Single-Camera"
 NOTIFY="$PROJ/.claude/hooks/notify.sh"
-LOG="$PROJ/Completion_Task_Details.md"
+LOG="$PROJ/development-log.md"
 VENV="$PROJ/backend/.venv/bin"
 
 INPUT=$(cat)
@@ -48,7 +48,7 @@ elif [[ "$FILE_PATH" =~ \.py$ ]]; then
   fi
 fi
 
-# ── 2. LOG TO Completion_Task_Details.md ─────────────────────────────────────
+# ── 2. LOG TO development-log.md ──────────────────────────────────────────────
 
 {
   echo ""

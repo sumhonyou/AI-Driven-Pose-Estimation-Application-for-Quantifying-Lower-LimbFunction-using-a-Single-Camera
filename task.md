@@ -162,13 +162,13 @@ prototyped in `mockups/physiofit-mockup.html`, then implemented in the React app
 
 **Tasks:**
 
-- [ ] Implement Sit-to-Stand session flow
+- [x] Implement Sit-to-Stand session flow
 - [ ] Implement Supported SLS session flow
 - [ ] Implement WBLT session flow
-- [ ] Calculate simple metrics
-- [ ] Generate Good/Fair/Poor band
-- [ ] Save Module A results to PostgreSQL
-- [ ] Show report page
+- [x] Calculate simple metrics
+- [x] Generate Good/Fair/Poor band
+- [x] Save Module A results to PostgreSQL
+- [x] Show report page
 - [ ] Show dashboard trend
 
 **Deliverable:**

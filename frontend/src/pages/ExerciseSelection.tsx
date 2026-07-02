@@ -5,6 +5,7 @@ import { DashTopbar } from "../layouts/DashboardLayout";
 import { Activity, Balance, Check, Stretch, ArrowLeft, ArrowRight } from "../components/Icons";
 import { exerciseService } from "../services/exerciseService";
 import { useSessionFlow } from "../session";
+import { useReveal } from "../useReveal";
 import type { Exercise } from "../types/api";
 
 export default function ExerciseSelection() {
@@ -15,6 +16,8 @@ export default function ExerciseSelection() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useReveal([exercises]);
 
   useEffect(() => {
     setMode(mode);
@@ -42,29 +45,96 @@ export default function ExerciseSelection() {
     return <Activity width={24} height={24} />;
   };
 
+  const repInfoFor = (code: string) => {
+    if (code.includes("single_leg")) return t("exercise.hold");
+    if (code.includes("lunge")) return t("exercise.trials");
+    return t("exercise.reps");
+  };
+
   return (
     <>
-      <Link className="back-link" to="/mode"><ArrowLeft />{t("common.back")}</Link>
-      <DashTopbar title={t("exercise.title")} subtitle={mode === "rehab" ? t("exercise.descRehab") : t("exercise.descFunc")} />
-      {error && <p className="muted" style={{ color: "var(--coral)", marginBottom: 18 }}>{error}</p>}
-      {loading && <p className="muted" style={{ marginBottom: 18 }}>{t("common.loading")}</p>}
-      <div className="ex-grid">
-        {exercises.map((exercise) => (
-          <Link className="ex-card reveal" to="/camera" key={exercise.code} onClick={() => setExerciseCode(exercise.code)}>
-            <div className="ex-top">
-              <span className="big-ic">{iconFor(exercise.code)}</span>
-              <span className="go" style={{ color: "var(--accent-text)" }}><ArrowRight /></span>
-            </div>
-            <h3>{exercise.name}</h3>
-            <p>{exercise.description}</p>
-            <div className="ex-meta">
-              <span className="chip">{exercise.view_guidance === "front_view" ? t("exercise.frontView") : t("exercise.sideView")}</span>
-              <span className="chip">{mode === "rehab" ? t("exercise.configurable") : t("common.functional")}</span>
-            </div>
-          </Link>
-        ))}
+      <Link className="back-link" to="/mode">
+        <ArrowLeft />
+        {t("common.back")}
+      </Link>
+      <DashTopbar
+        title={t("exercise.title")}
+        subtitle={mode === "rehab" ? t("exercise.descRehab") : t("exercise.descFunc")}
+      />
+      {error && (
+        <p className="muted" style={{ color: "var(--coral)", marginBottom: 18 }}>
+          {error}
+        </p>
+      )}
+      {loading && (
+        <p className="muted" style={{ marginBottom: 18 }}>
+          {t("common.loading")}
+        </p>
+      )}
+
+      <div className={"ex-grid" + (mode === "functional" ? " bento" : "")}>
+        {exercises.map((exercise) =>
+          mode === "functional" ? (
+            /* Functional mode: image-dominant bento card */
+            <Link
+              className="ex-card reveal"
+              to="/camera"
+              key={exercise.code}
+              onClick={() => setExerciseCode(exercise.code)}
+            >
+              <div className="ex-img">
+                {/* White placeholder — real image will be set here later */}
+                <span className="ex-go">
+                  <ArrowRight width={14} height={14} />
+                </span>
+              </div>
+              <div className="ex-body">
+                <span className="ex-eyebrow">
+                  {exercise.view_guidance === "front_view"
+                    ? t("exercise.frontView")
+                    : t("exercise.sideView")}{" "}
+                  · {repInfoFor(exercise.code)}
+                </span>
+                <h3>{exercise.name}</h3>
+                <div className="ex-meta">
+                  <span className="chip">{t("common.functional")}</span>
+                </div>
+              </div>
+            </Link>
+          ) : (
+            /* Rehab mode: original compact card */
+            <Link
+              className="ex-card reveal"
+              to="/camera"
+              key={exercise.code}
+              onClick={() => setExerciseCode(exercise.code)}
+            >
+              <div className="ex-top">
+                <span className="big-ic">{iconFor(exercise.code)}</span>
+                <span className="go" style={{ color: "var(--accent-text)" }}>
+                  <ArrowRight />
+                </span>
+              </div>
+              <h3>{exercise.name}</h3>
+              <p>{exercise.description}</p>
+              <div className="ex-meta">
+                <span className="chip">
+                  {exercise.view_guidance === "front_view"
+                    ? t("exercise.frontView")
+                    : t("exercise.sideView")}
+                </span>
+                <span className="chip">{t("exercise.configurable")}</span>
+              </div>
+            </Link>
+          ),
+        )}
       </div>
-      {!loading && exercises.length === 0 && <p className="muted center" style={{ padding: "28px 0" }}>{t("exercise.empty")}</p>}
+
+      {!loading && exercises.length === 0 && (
+        <p className="muted center" style={{ padding: "28px 0" }}>
+          {t("exercise.empty")}
+        </p>
+      )}
     </>
   );
 }

@@ -31,6 +31,59 @@ export function computeFrameQuality(landmarks: Landmark[]): number {
 }
 
 /**
+ * Full-body landmark set used by the Camera Setup auto-start gate — stricter than
+ * KEY_INDICES because it also requires the head and feet to be inside the frame.
+ */
+const FULL_BODY_INDICES = [
+  LM.NOSE,
+  LM.LEFT_SHOULDER,
+  LM.RIGHT_SHOULDER,
+  LM.LEFT_HIP,
+  LM.RIGHT_HIP,
+  LM.LEFT_KNEE,
+  LM.RIGHT_KNEE,
+  LM.LEFT_ANKLE,
+  LM.RIGHT_ANKLE,
+  LM.LEFT_HEEL,
+  LM.RIGHT_HEEL,
+  LM.LEFT_FOOT_INDEX,
+  LM.RIGHT_FOOT_INDEX,
+];
+
+/** Head + feet landmarks — used to give the "head and feet inside frame" checklist item. */
+const EDGE_INDICES = [
+  LM.NOSE,
+  LM.LEFT_ANKLE,
+  LM.RIGHT_ANKLE,
+  LM.LEFT_HEEL,
+  LM.RIGHT_HEEL,
+  LM.LEFT_FOOT_INDEX,
+  LM.RIGHT_FOOT_INDEX,
+];
+
+/** Minimum full-body quality before Camera Setup considers the user "ready". */
+export const FULL_BODY_QUALITY_THRESHOLD = 0.6;
+
+/**
+ * Returns a 0–1 quality score across the full-body landmark set (head, torso, legs, feet).
+ * Used by Camera Setup to gate the auto-start countdown.
+ */
+export function computeFullBodyQuality(landmarks: Landmark[]): number {
+  if (!landmarks || landmarks.length === 0) return 0;
+  let visible = 0;
+  for (const idx of FULL_BODY_INDICES) {
+    if (landmarks[idx]?.visibility >= VISIBILITY_THRESHOLD) visible++;
+  }
+  return visible / FULL_BODY_INDICES.length;
+}
+
+/** True once the head and both feet are visible above the visibility threshold. */
+export function areHeadAndFeetVisible(landmarks: Landmark[]): boolean {
+  if (!landmarks || landmarks.length === 0) return false;
+  return EDGE_INDICES.every((idx) => landmarks[idx]?.visibility >= VISIBILITY_THRESHOLD);
+}
+
+/**
  * Tracks valid-frame ratio across a session.
  * A frame is "valid" when capture quality >= minQuality.
  */

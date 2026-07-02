@@ -128,6 +128,54 @@ The app will open at `http://localhost:5173`.
 
 ---
 
+## Stopping services (when you're done)
+
+How you stop things depends on **how you started them**.
+
+### If you started manually (3 separate terminals)
+
+Use **`Ctrl + C`** in each terminal:
+
+1. **Frontend terminal** (`npm run dev`) → `Ctrl + C`
+2. **Backend terminal** (`uvicorn app.main:app --reload`) → `Ctrl + C`
+3. **PostgreSQL** (runs in Docker, not in that terminal) → from project root:
+
+```bash
+docker stop fyp_postgres
+```
+
+Verify:
+
+```bash
+docker compose ps
+# fyp_postgres should no longer show status "Up"
+```
+
+### If you started with `./startup.sh` or `startup.bat`
+
+**`Ctrl + C` alone is usually not enough.**
+
+Those scripts start backend and frontend **in the background** (`&`), so pressing `Ctrl + C` often only stops the startup script — **uvicorn and Vite may keep running**.
+
+After `Ctrl + C`, stop everything explicitly:
+
+```bash
+pkill -f "uvicorn app.main:app"
+pkill -f "vite"
+docker stop fyp_postgres
+```
+
+Or use the PIDs printed when `./startup.sh` started (example):
+
+```bash
+kill <BACKEND_PID> <FRONTEND_PID>
+docker stop fyp_postgres
+```
+
+**Tip:** If you prefer simple `Ctrl + C` shutdown, use **manual startup (3 terminals)** instead of `./startup.sh`.
+
+---
+
 ## Troubleshooting
 
 ### Backend won't start: `ModuleNotFoundError: No module named 'app'`

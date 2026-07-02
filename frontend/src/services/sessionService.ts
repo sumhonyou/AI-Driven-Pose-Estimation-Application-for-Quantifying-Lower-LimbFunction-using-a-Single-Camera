@@ -8,13 +8,16 @@ export const sessionService = {
       body: payload,
     });
   },
-  end(
-    sessionId: string,
-    payload: { capture_quality?: number; valid_frame_ratio?: number } = {},
-  ) {
+  end(sessionId: string, payload: { capture_quality?: number; valid_frame_ratio?: number } = {}) {
     return apiRequest<SessionDTO>(`/api/sessions/${sessionId}/end`, {
       method: "POST",
       body: payload,
+    });
+  },
+  // Aborts an in-progress session without scoring it — never appears as completed.
+  cancel(sessionId: string) {
+    return apiRequest<SessionDTO>(`/api/sessions/${sessionId}/cancel`, {
+      method: "POST",
     });
   },
   list() {

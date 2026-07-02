@@ -7,7 +7,7 @@ import { createSessionQualityTracker } from "../utils/captureQuality";
 export interface SessionSummary extends CaptureQuality {
   frameCount: number;
   durationMs: number;
-  frames: PoseFrame[]; // available for Phase 3/4 metric computation
+  frames: PoseFrame[]; // includes worldLandmarks, sent to Module A analyze endpoint
 }
 
 export function useSessionRecorder() {

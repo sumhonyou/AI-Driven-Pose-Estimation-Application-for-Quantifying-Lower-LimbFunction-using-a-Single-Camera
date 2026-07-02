@@ -21,6 +21,11 @@ export default function DashboardLayout() {
     nav("/login");
   };
 
+  // Keep "New session" highlighted for the entire session flow including the report at the end
+  const isSessionFlow = ["/mode", "/exercise", "/camera", "/live-session", "/report"].some((path) =>
+    pathname.startsWith(path),
+  );
+
   return (
     <div className="app">
       {open && <div className="scrim" onClick={close} />}
@@ -28,30 +33,66 @@ export default function DashboardLayout() {
         <Logo to="/dashboard" />
         <div className="side-group">{t("dash.sideOverview")}</div>
         <nav className="side-nav" onClick={close}>
-          <NavLink to="/dashboard" end className={({ isActive }) => (isActive ? "active" : "")}><Grid />{t("dash.navDashboard")}</NavLink>
-          <NavLink to="/mode" className={({ isActive }) => (isActive ? "active" : "")}><CirclePlus />{t("dash.navNew")}</NavLink>
-          <NavLink to="/history" className={({ isActive }) => (isActive ? "active" : "")}><History />{t("dash.navHistory")}</NavLink>
-          <NavLink to="/dashboard" className={() => ""}><Chart />{t("dash.navProgress")}</NavLink>
+          <NavLink to="/dashboard" end className={({ isActive }) => (isActive ? "active" : "")}>
+            <Grid />
+            {t("dash.navDashboard")}
+          </NavLink>
+          <div
+            className={`nav-link ${isSessionFlow ? "active" : ""}`}
+            onClick={() => {
+              nav("/mode");
+              close();
+            }}
+          >
+            <CirclePlus />
+            {t("dash.navNew")}
+          </div>
+          <NavLink to="/history" className={({ isActive }) => (isActive ? "active" : "")}>
+            <History />
+            {t("dash.navHistory")}
+          </NavLink>
+          <NavLink to="/dashboard" className={() => ""}>
+            <Chart />
+            {t("dash.navProgress")}
+          </NavLink>
         </nav>
         <div className="side-group">{t("dash.sideAccount")}</div>
         <nav className="side-nav" onClick={close}>
-          <NavLink to="/reminders" className={({ isActive }) => (isActive ? "active" : "")}><Bell />{t("dash.navReminders")}</NavLink>
-          <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}><User />{t("dash.navProfile")}</NavLink>
+          <NavLink to="/reminders" className={({ isActive }) => (isActive ? "active" : "")}>
+            <Bell />
+            {t("dash.navReminders")}
+          </NavLink>
+          <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
+            <User />
+            {t("dash.navProfile")}
+          </NavLink>
         </nav>
         <div className="side-foot">
           <div className="side-card">
             <b>{t("dash.sideCardTitle")}</b>
             <p>{t("dash.sideCardBody")}</p>
-            <Link className="btn btn-primary btn-block" to="/mode" onClick={close}>{t("common.startNow")}</Link>
+            <Link className="btn btn-primary btn-block" to="/mode" onClick={close}>
+              {t("common.startNow")}
+            </Link>
           </div>
-          <button className="btn btn-ghost btn-block" style={{ marginTop: 12 }} onClick={handleLogout}>{t("auth.logout")}</button>
+          <button
+            className="btn btn-ghost btn-block"
+            style={{ marginTop: 12 }}
+            onClick={handleLogout}
+          >
+            {t("auth.logout")}
+          </button>
         </div>
       </aside>
 
       <div style={{ minWidth: 0 }}>
         <div className="dash-mobilebar">
           <Logo to="/dashboard" />
-          <button className="nav-toggle" onClick={() => setOpen((o) => !o)} aria-label={t("nav.menu")}>
+          <button
+            className="nav-toggle"
+            onClick={() => setOpen((o) => !o)}
+            aria-label={t("nav.menu")}
+          >
             {open ? <Close /> : <Menu />}
           </button>
         </div>
@@ -64,7 +105,15 @@ export default function DashboardLayout() {
 }
 
 // Reusable dashboard page header with the standard control cluster.
-export function DashTopbar({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+export function DashTopbar({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+}) {
   return (
     <div className="topbar">
       <div>
@@ -72,7 +121,9 @@ export function DashTopbar({ title, subtitle, actions }: { title: string; subtit
         {subtitle && <p>{subtitle}</p>}
       </div>
       <div className="topbar-actions">
-        <span className="desktop-only"><FontSizeControl /></span>
+        <span className="desktop-only">
+          <FontSizeControl />
+        </span>
         <ThemeToggle />
         <LanguageSwitcher />
         {actions}

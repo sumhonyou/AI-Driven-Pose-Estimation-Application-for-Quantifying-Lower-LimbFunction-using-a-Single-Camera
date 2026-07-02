@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { createLandmarkSmoother } from "../utils/poseLandmarks";
-import type { Landmark } from "../types/pose";
+import type { Landmark, WorldLandmark } from "../types/pose";
 
 // Singleton landmarker shared across page navigations
 let landmarkerInstance: PoseLandmarker | null = null;
@@ -46,6 +46,8 @@ async function getLandmarker(): Promise<PoseLandmarker> {
 
 export interface UsePoseResult {
   landmarks: Landmark[] | null;
+  /** Metric, hip-centered world landmarks (Module A geometry input). Raw from MediaPipe, no smoothing applied. */
+  worldLandmarks: WorldLandmark[] | null;
   fps: number;
   ready: boolean;
   error: string | null;
@@ -60,6 +62,7 @@ export function useMediaPipePose(
   webcamReady: boolean,
 ): UsePoseResult {
   const [landmarks, setLandmarks] = useState<Landmark[] | null>(null);
+  const [worldLandmarks, setWorldLandmarks] = useState<WorldLandmark[] | null>(null);
   const [fps, setFps] = useState(0);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,9 +122,25 @@ export function useMediaPipePose(
               })),
             );
             setLandmarks(smoothed);
+
+            // World landmarks: metric, hip-centered — used for Module A joint-angle geometry.
+            if (result.worldLandmarks && result.worldLandmarks.length > 0) {
+              setWorldLandmarks(
+                result.worldLandmarks[0].map((lm) => ({
+                  x: lm.x,
+                  y: lm.y,
+                  z: lm.z ?? 0,
+                  visibility: lm.visibility ?? 0,
+                })),
+              );
+            } else {
+              setWorldLandmarks(null);
+            }
+
             if (debugPose) console.debug("[pose] landmarks", smoothed.length);
           } else {
             setLandmarks(null);
+            setWorldLandmarks(null);
           }
 
           // FPS counter (update every second)
@@ -138,9 +157,7 @@ export function useMediaPipePose(
         rafRef.current = requestAnimationFrame(detect);
       } catch (err) {
         console.error("[useMediaPipePose] Init error:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to load pose model",
-        );
+        setError(err instanceof Error ? err.message : "Failed to load pose model");
       }
     }
 
@@ -154,5 +171,5 @@ export function useMediaPipePose(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webcamReady]);
 
-  return { landmarks, fps, ready, error };
+  return { landmarks, worldLandmarks, fps, ready, error };
 }

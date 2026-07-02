@@ -69,11 +69,21 @@ export default function Profile() {
             <div className="field-row">
               <div className="field">
                 <label htmlFor="full_name">{t("auth.fullName")}</label>
-                <input id="full_name" name="full_name" className="input" defaultValue={profile.full_name || ""} />
+                <input
+                  id="full_name"
+                  name="full_name"
+                  className="input"
+                  defaultValue={profile.full_name || ""}
+                />
               </div>
               <div className="field">
                 <label htmlFor="user_type">{t("auth.userType")}</label>
-                <select id="user_type" name="user_type" className="select" defaultValue={profile.user_type || "general"}>
+                <select
+                  id="user_type"
+                  name="user_type"
+                  className="select"
+                  defaultValue={profile.user_type || "general"}
+                >
                   <option value="general">{t("auth.typeGeneral")}</option>
                   <option value="older_adult">{t("auth.typeOlder")}</option>
                   <option value="athlete">{t("auth.typeAthlete")}</option>
@@ -83,7 +93,12 @@ export default function Profile() {
             <div className="field-row">
               <div className="field">
                 <label htmlFor="age_group">{t("auth.ageGroup")}</label>
-                <select id="age_group" name="age_group" className="select" defaultValue={profile.age_group || "under_40"}>
+                <select
+                  id="age_group"
+                  name="age_group"
+                  className="select"
+                  defaultValue={profile.age_group || "under_40"}
+                >
                   <option value="under_40">{t("auth.ageUnder40")}</option>
                   <option value="40_60">{t("auth.age40_60")}</option>
                   <option value="over_60">{t("auth.ageOver60")}</option>
@@ -91,7 +106,12 @@ export default function Profile() {
               </div>
               <div className="field">
                 <label htmlFor="gender">{t("auth.gender")}</label>
-                <select id="gender" name="gender" className="select" defaultValue={profile.gender || "prefer_not_to_say"}>
+                <select
+                  id="gender"
+                  name="gender"
+                  className="select"
+                  defaultValue={profile.gender || "prefer_not_to_say"}
+                >
                   <option value="female">{t("auth.genderF")}</option>
                   <option value="male">{t("auth.genderM")}</option>
                   <option value="prefer_not_to_say">{t("auth.genderOther")}</option>
@@ -101,16 +121,37 @@ export default function Profile() {
             <div className="field-row">
               <div className="field">
                 <label htmlFor="height_cm">{t("profile.height")}</label>
-                <input id="height_cm" name="height_cm" className="input" type="number" step="0.1" min="0" defaultValue={profile.height_cm ?? ""} />
+                <input
+                  id="height_cm"
+                  name="height_cm"
+                  className="input"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  defaultValue={profile.height_cm ?? ""}
+                />
               </div>
               <div className="field">
                 <label htmlFor="weight_kg">{t("profile.weight")}</label>
-                <input id="weight_kg" name="weight_kg" className="input" type="number" step="0.1" min="0" defaultValue={profile.weight_kg ?? ""} />
+                <input
+                  id="weight_kg"
+                  name="weight_kg"
+                  className="input"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  defaultValue={profile.weight_kg ?? ""}
+                />
               </div>
             </div>
             <div className="field">
               <label htmlFor="focus_area">{t("auth.focusArea")}</label>
-              <select id="focus_area" name="focus_area" className="select" defaultValue={profile.focus_area || "both"}>
+              <select
+                id="focus_area"
+                name="focus_area"
+                className="select"
+                defaultValue={profile.focus_area || "both"}
+              >
                 <option value="knee">{t("auth.focusKnee")}</option>
                 <option value="ankle">{t("auth.focusAnkle")}</option>
                 <option value="both">{t("auth.focusBoth")}</option>
@@ -118,11 +159,27 @@ export default function Profile() {
             </div>
             <div className="field">
               <label htmlFor="self_reported_note">{t("profile.note")}</label>
-              <textarea id="self_reported_note" name="self_reported_note" className="input" rows={4} defaultValue={profile.self_reported_note || ""} />
+              <textarea
+                id="self_reported_note"
+                name="self_reported_note"
+                className="input"
+                rows={4}
+                defaultValue={profile.self_reported_note || ""}
+              />
             </div>
-            {message && <p className="muted" style={{ color: "var(--accent-text)" }}>{message}</p>}
-            {error && <p className="muted" style={{ color: "var(--coral)" }}>{error}</p>}
-            <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? t("profile.saving") : t("profile.save")}</button>
+            {message && (
+              <p className="muted" style={{ color: "var(--accent-text)" }}>
+                {message}
+              </p>
+            )}
+            {error && (
+              <p className="muted" style={{ color: "var(--coral)" }}>
+                {error}
+              </p>
+            )}
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? t("profile.saving") : t("profile.save")}
+            </button>
           </form>
         )}
         {!loading && !profile && <p className="muted">{error || t("profile.loadError")}</p>}

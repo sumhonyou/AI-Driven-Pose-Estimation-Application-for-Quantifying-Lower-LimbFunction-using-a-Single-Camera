@@ -15,17 +15,31 @@ export default function ModeSelection() {
     <>
       <DashTopbar title={t("mode.title")} subtitle={t("mode.desc")} />
       <div className="choice-grid">
-        <Link className="choice reveal" to="/exercise?mode=functional" onClick={() => choose("functional")}>
-          <span className="ci"><Activity width={28} height={28} /></span>
+        <Link
+          className="choice reveal"
+          to="/exercise?mode=functional"
+          onClick={() => choose("functional")}
+        >
+          <span className="ci">
+            <Activity width={28} height={28} />
+          </span>
           <h3>{t("mode.funcTitle")}</h3>
           <p>{t("mode.funcDesc")}</p>
-          <span className="go">{t("mode.choose")}<ArrowRight /></span>
+          <span className="go">
+            {t("mode.choose")}
+            <ArrowRight />
+          </span>
         </Link>
         <Link className="choice reveal" to="/exercise?mode=rehab" onClick={() => choose("rehab")}>
-          <span className="ci"><Stretch width={28} height={28} /></span>
+          <span className="ci">
+            <Stretch width={28} height={28} />
+          </span>
           <h3>{t("mode.rehabTitle")}</h3>
           <p>{t("mode.rehabDesc")}</p>
-          <span className="go">{t("mode.choose")}<ArrowRight /></span>
+          <span className="go">
+            {t("mode.choose")}
+            <ArrowRight />
+          </span>
         </Link>
       </div>
     </>

@@ -6,9 +6,7 @@ export const dashboardService = {
     return apiRequest<DashboardSummary>("/api/dashboard/summary");
   },
   trends() {
-    return apiRequest<Array<{ label: string; score: number | null }>>(
-      "/api/dashboard/trends",
-    );
+    return apiRequest<Array<{ label: string; score: number | null }>>("/api/dashboard/trends");
   },
   errorTags() {
     return apiRequest<Array<{ tag_code: string; severity: string | null; count: number }>>(

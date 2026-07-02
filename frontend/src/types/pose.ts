@@ -8,10 +8,19 @@ export interface Landmark {
   visibility: number;
 }
 
-/** One frame of pose data: timestamp + all 33 landmarks. */
+/** A world-space landmark: metric (meters), hip-centered, scale-invariant. Used for Module A geometry. */
+export interface WorldLandmark {
+  x: number;
+  y: number;
+  z: number;
+  visibility: number;
+}
+
+/** One frame of pose data: timestamp + all 33 landmarks (image-space for overlay, world-space for geometry). */
 export interface PoseFrame {
   timestampMs: number;
   landmarks: Landmark[];
+  worldLandmarks: WorldLandmark[];
 }
 
 /** Capture quality summary for a session or a moment in time. */
