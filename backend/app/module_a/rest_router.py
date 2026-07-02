@@ -2,10 +2,6 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session as DbSession
-
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import Session as SessionModel
@@ -13,6 +9,9 @@ from app.db.models import User
 from app.module_a import banding, crud
 from app.module_a.schemas import AnalyzeRequest, ModuleAResultResponse
 from app.module_a.session_engine import SessionEngine
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DbSession
 
 router = APIRouter(prefix="/api/module-a", tags=["module-a"])
 
@@ -58,20 +57,23 @@ def analyze_session(
         )
 
     frames = [f.model_dump() for f in payload.frames]
-    print(f"[module-a] analyze session={payload.sessionId} frames={len(frames)}")
+    logger.info("analyze session=%s frames=%d", payload.sessionId, len(frames))
 
     engine_result = SessionEngine().run(frames)
     band_result = banding.compute_band(
         engine_result["metrics"], engine_result["quality"]
     )
-    print(
-        f"[module-a] result session={payload.sessionId} band={band_result['band']} "
-        f"score={band_result['score']} reps={engine_result['metrics']['rep_count']}"
+    logger.info(
+        "result session=%s band=%s score=%s reps=%s",
+        payload.sessionId,
+        band_result["band"],
+        band_result["score"],
+        engine_result["metrics"]["rep_count"],
     )
 
     crud.save_result(db, session, engine_result, band_result)
     crud.save_landmark_log(db, session.id, frames)
-    print(f"[module-a] persisted session={payload.sessionId}")
+    logger.info("persisted session=%s", payload.sessionId)
 
     return _to_response(session.id, engine_result, band_result)
 

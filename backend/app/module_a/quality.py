@@ -1,7 +1,6 @@
 """Capture-quality checks: per-frame validity and session-level quality band."""
 
-from app.module_a.config import (MIN_VISIBILITY, QUALITY_GOOD_MIN,
-                                 QUALITY_MODERATE_MIN)
+from app.module_a.config import MIN_VISIBILITY, QUALITY_GOOD_MIN, QUALITY_MODERATE_MIN
 
 # Landmarks required for STS knee-angle + trunk-lean geometry (indices match MediaPipe Pose).
 REQUIRED_LANDMARKS = {
@@ -30,7 +29,14 @@ def average_visibility(world_landmarks: list[dict]) -> float:
     """Mean visibility across the required landmarks for one frame."""
     if not world_landmarks:
         return 0.0
-    values = [world_landmarks[idx].get("visibility", 0.0) for idx in REQUIRED_LANDMARKS]
+    values = [
+        (
+            world_landmarks[idx].get("visibility", 0.0)
+            if idx < len(world_landmarks)
+            else 0.0
+        )
+        for idx in REQUIRED_LANDMARKS
+    ]
     return sum(values) / len(values)
 
 
