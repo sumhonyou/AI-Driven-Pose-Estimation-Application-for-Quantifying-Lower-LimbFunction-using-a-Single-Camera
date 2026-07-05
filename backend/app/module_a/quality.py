@@ -1,41 +1,48 @@
 """Capture-quality checks: per-frame validity and session-level quality band."""
 
-from app.module_a.config import MIN_VISIBILITY, QUALITY_GOOD_MIN, QUALITY_MODERATE_MIN
+from app.module_a.config import (MIN_VISIBILITY, QUALITY_GOOD_MIN,
+                                 QUALITY_MODERATE_MIN)
 
-# Landmarks required for STS knee-angle + trunk-lean geometry (indices match MediaPipe Pose).
-REQUIRED_LANDMARKS = {
-    11: "left_shoulder",
-    12: "right_shoulder",
-    23: "left_hip",
-    24: "right_hip",
-    25: "left_knee",
-    26: "right_knee",
-    27: "left_ankle",
-    28: "right_ankle",
+# STS knee-angle + trunk-lean geometry only ever needs ONE leg's kinematic chain
+# (shoulder-hip-knee-ankle). A pure side-view camera structurally occludes the far
+# leg behind the near leg, so requiring both legs' landmarks made captures fail
+# even with a well-tracked near leg. SessionEngine picks whichever side MediaPipe
+# tracks better for a given session (see _pick_tracked_leg) and quality is judged
+# against that side only.
+LANDMARKS_BY_LEG = {
+    "left": {11: "left_shoulder", 23: "left_hip", 25: "left_knee", 27: "left_ankle"},
+    "right": {
+        12: "right_shoulder",
+        24: "right_hip",
+        26: "right_knee",
+        28: "right_ankle",
+    },
 }
 
 
-def is_frame_valid(world_landmarks: list[dict]) -> bool:
-    """A frame is valid if all required landmarks are visible above threshold."""
+def is_frame_valid(world_landmarks: list[dict], leg: str = "left") -> bool:
+    """A frame is valid if the tracked leg's chain is visible above threshold."""
     if not world_landmarks or len(world_landmarks) < 33:
         return False
+    required = LANDMARKS_BY_LEG[leg]
     return all(
         world_landmarks[idx].get("visibility", 0.0) >= MIN_VISIBILITY
-        for idx in REQUIRED_LANDMARKS
+        for idx in required
     )
 
 
-def average_visibility(world_landmarks: list[dict]) -> float:
-    """Mean visibility across the required landmarks for one frame."""
+def average_visibility(world_landmarks: list[dict], leg: str = "left") -> float:
+    """Mean visibility across the tracked leg's chain for one frame."""
     if not world_landmarks:
         return 0.0
+    required = LANDMARKS_BY_LEG[leg]
     values = [
         (
             world_landmarks[idx].get("visibility", 0.0)
             if idx < len(world_landmarks)
             else 0.0
         )
-        for idx in REQUIRED_LANDMARKS
+        for idx in required
     ]
     return sum(values) / len(values)
 

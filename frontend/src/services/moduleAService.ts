@@ -15,7 +15,13 @@ export type ModuleAMetrics = {
   wobble_count: number;
   session_duration_sec: number;
   stopped_early: boolean;
+  tracked_leg: string | null;
+  /** UX-only figure from the frontend's live rep-boundary FSM, echoed back for
+   * the report's "Attempted reps" — the backend engine has no other way to know it. */
+  client_attempted_reps: number | null;
 };
+
+export type SessionStatus = "complete" | "incomplete" | "low_confidence";
 
 export type ModuleAResult = {
   session_id: string;
@@ -25,10 +31,20 @@ export type ModuleAResult = {
   warning_tags: string[];
   capture_quality_band: string;
   valid_frame_ratio: number;
+  /** Completeness/confidence, decoupled from `band` (movement quality only). */
+  session_status: SessionStatus;
+  is_partial_score: boolean;
+  /** True only when this specific call actually wrote the result to the database. */
+  persisted: boolean;
 };
 
 export const moduleAService = {
-  analyze(sessionId: string, exerciseType: string, frames: PoseFrame[]) {
+  analyze(
+    sessionId: string,
+    exerciseType: string,
+    frames: PoseFrame[],
+    options?: { clientAttemptedReps?: number; forceFinalize?: boolean },
+  ) {
     return apiRequest<ModuleAResult>("/api/module-a/analyze", {
       method: "POST",
       body: {
@@ -38,6 +54,8 @@ export const moduleAService = {
           timestampMs: f.timestampMs,
           worldLandmarks: f.worldLandmarks,
         })),
+        clientAttemptedReps: options?.clientAttemptedReps,
+        forceFinalize: options?.forceFinalize ?? false,
       },
     });
   },

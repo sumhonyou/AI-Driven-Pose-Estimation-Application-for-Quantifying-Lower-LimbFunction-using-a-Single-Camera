@@ -17,7 +17,6 @@ KNEE_SIT_ENTER = 110.0
 KNEE_SIT_EXIT = 120.0
 
 # --- Rep confirmation ---
-HIP_RISE_CONFIRM_M = 0.08  # min hip-height rise (meters) to confirm a stand
 MIN_REP_GAP_MS = 500  # refractory period between reps to avoid double counting
 
 # --- Session limits ---
@@ -40,4 +39,4 @@ TIME_FAIR_MAX_SEC = 16.0
 TRUNK_LEAN_EXCESSIVE_DEG = 25.0
 
 # --- Landmark logging (evaluation / replay harness) ---
-ENABLE_LANDMARK_LOGGING = False
+ENABLE_LANDMARK_LOGGING = True

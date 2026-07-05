@@ -18,14 +18,34 @@ LEFT_KNEE, RIGHT_KNEE = 25, 26
 LEFT_ANKLE, RIGHT_ANKLE = 27, 28
 LEFT_SHOULDER, RIGHT_SHOULDER = 11, 12
 
+CHAIN_BY_LEG = {
+    "left": (LEFT_SHOULDER, LEFT_HIP, LEFT_KNEE, LEFT_ANKLE),
+    "right": (RIGHT_SHOULDER, RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE),
+}
 
-def _midpoint(a: dict, b: dict) -> dict:
-    return {
-        "x": (a["x"] + b["x"]) / 2,
-        "y": (a["y"] + b["y"]) / 2,
-        "z": (a["z"] + b["z"]) / 2,
-        "visibility": min(a.get("visibility", 0), b.get("visibility", 0)),
-    }
+
+def _leg_visibility(world: list[dict], knee_idx: int, ankle_idx: int) -> float:
+    if len(world) <= ankle_idx:
+        return 0.0
+    return (
+        world[knee_idx].get("visibility", 0.0) + world[ankle_idx].get("visibility", 0.0)
+    ) / 2
+
+
+def _pick_tracked_leg(frames: list[dict]) -> str:
+    """Picks whichever side MediaPipe tracked better across the whole session.
+
+    A side-view camera structurally occludes the far leg's knee/ankle behind the
+    near leg, so we commit to one side's full shoulder-hip-knee-ankle chain for
+    the whole session instead of averaging both (which mixes a good and a
+    unreliable reading together). Deterministic: same frames -> same choice.
+    """
+    left_total = right_total = 0.0
+    for frame in frames:
+        world = frame.get("worldLandmarks") or []
+        left_total += _leg_visibility(world, LEFT_KNEE, LEFT_ANKLE)
+        right_total += _leg_visibility(world, RIGHT_KNEE, RIGHT_ANKLE)
+    return "left" if left_total >= right_total else "right"
 
 
 class SessionEngine:
@@ -42,9 +62,10 @@ class SessionEngine:
         frame_validity: list[bool] = []
         frame_avg_visibility: list[float] = []
 
+        tracked_leg = _pick_tracked_leg(frames)
+        shoulder_idx, hip_idx, knee_idx, ankle_idx = CHAIN_BY_LEG[tracked_leg]
+
         posture = "sitting"
-        baseline_sit_hip_y: float | None = None
-        baseline_locked = False
         left_full_stand = False  # tracks a partial rise that fell back (wobble)
         wobble_count = 0
 
@@ -56,8 +77,6 @@ class SessionEngine:
 
         knee_angles: list[float] = []
         trunk_leans: list[float] = []
-        calibration_hip_ys: list[float] = []
-        calibration_knee_angles: list[float] = []
         session_end_time = 0.0
         stopped_early = False
 
@@ -65,50 +84,43 @@ class SessionEngine:
             t = frame["timestampMs"] / 1000.0 - t0
             world = frame.get("worldLandmarks") or []
 
-            valid = is_frame_valid(world)
+            valid = is_frame_valid(world, tracked_leg)
             frame_validity.append(valid)
-            frame_avg_visibility.append(average_visibility(world))
+            frame_avg_visibility.append(average_visibility(world, tracked_leg))
             session_end_time = t
 
-            if not valid or len(world) < 33:
+            # frame_validity/valid_frame_ratio (above) drives the session-level
+            # capture-quality band; it deliberately requires the tracked leg's
+            # whole chain visible at once. The FSM below is more permissive: it
+            # only needs a full landmark set, and leans on the smoother's
+            # per-landmark hold-last (smoothing.py) to ride out a single landmark
+            # briefly dipping below MIN_VISIBILITY (e.g. the ankle at the bottom
+            # of a rep) without losing frame-to-frame continuity.
+            if len(world) < 33:
                 continue
 
             smoothed = self.smoother.smooth_frame(t, world)
-            hip = _midpoint(smoothed[LEFT_HIP], smoothed[RIGHT_HIP])
-            knee_l = knee_angle(
-                smoothed[LEFT_HIP], smoothed[LEFT_KNEE], smoothed[LEFT_ANKLE]
-            )
-            knee_r = knee_angle(
-                smoothed[RIGHT_HIP], smoothed[RIGHT_KNEE], smoothed[RIGHT_ANKLE]
-            )
-            angle = (knee_l + knee_r) / 2
-            shoulder = _midpoint(smoothed[LEFT_SHOULDER], smoothed[RIGHT_SHOULDER])
+            hip = smoothed[hip_idx]
+            angle = knee_angle(hip, smoothed[knee_idx], smoothed[ankle_idx])
+            shoulder = smoothed[shoulder_idx]
             lean = trunk_lean_deg(shoulder, hip)
 
             if t <= config.CALIBRATION_SECONDS:
-                calibration_hip_ys.append(hip["y"])
-                calibration_knee_angles.append(angle)
-                if baseline_sit_hip_y is None:
-                    baseline_sit_hip_y = hip["y"]
                 continue
-
-            # First frame past calibration: lock the sit baseline from the calibration window.
-            if not baseline_locked and calibration_hip_ys:
-                baseline_sit_hip_y = sum(calibration_hip_ys) / len(calibration_hip_ys)
-                baseline_locked = True
 
             knee_angles.append(angle)
             trunk_leans.append(lean)
 
+            # Confirmed by knee-angle hysteresis alone (separate enter/exit bands
+            # absorb jitter around the threshold). An earlier version also required
+            # the hip to "rise" 8cm, but MediaPipe world landmarks are hip-centered
+            # per frame -- the hip's own Y is ~0 by construction and can never show
+            # a meaningful rise, so that gate silently blocked every rep.
             if posture == "sitting":
                 if angle < config.KNEE_STAND_EXIT:
                     left_full_stand = False
-                if angle >= config.KNEE_STAND_ENTER and baseline_sit_hip_y is not None:
-                    hip_rise = (
-                        baseline_sit_hip_y - hip["y"]
-                    )  # Y is down; rise = decrease
-                    if hip_rise >= config.HIP_RISE_CONFIRM_M:
-                        posture = "standing"
+                if angle >= config.KNEE_STAND_ENTER:
+                    posture = "standing"
             elif posture == "standing":
                 if angle < config.KNEE_STAND_EXIT and not left_full_stand:
                     left_full_stand = True  # started descending from full stand
@@ -121,7 +133,6 @@ class SessionEngine:
                         rep_count += 1
                         rep_event_times.append(t)
                         last_rep_time = t
-                        baseline_sit_hip_y = hip["y"]
                         posture = "sitting"
                         left_full_stand = False
 
@@ -155,6 +166,7 @@ class SessionEngine:
             "wobble_count": wobble_count,
             "session_duration_sec": session_end_time,
             "stopped_early": stopped_early,
+            "tracked_leg": tracked_leg,
         }
 
         return {"metrics": metrics, "quality": quality}
@@ -185,6 +197,7 @@ class SessionEngine:
                 "wobble_count": 0,
                 "session_duration_sec": 0.0,
                 "stopped_early": False,
+                "tracked_leg": None,
             },
             "quality": {
                 "valid_frame_ratio": 0.0,

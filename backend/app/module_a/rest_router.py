@@ -1,5 +1,6 @@
 """Module A REST endpoints: analyze a finished STS session, then read it back."""
 
+import logging
 from uuid import UUID
 
 from app.api.deps import get_current_user
@@ -12,6 +13,8 @@ from app.module_a.session_engine import SessionEngine
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/module-a", tags=["module-a"])
 
@@ -30,16 +33,27 @@ def _get_owned_session(db: DbSession, session_id: UUID, user_id: UUID) -> Sessio
 
 
 def _to_response(
-    session_id: UUID, engine_result: dict, band_result: dict
+    session_id: UUID,
+    engine_result: dict,
+    band_result: dict,
+    persisted: bool,
+    client_attempted_reps: int | None = None,
 ) -> ModuleAResultResponse:
+    metrics = {
+        **engine_result["metrics"],
+        "client_attempted_reps": client_attempted_reps,
+    }
     return ModuleAResultResponse(
         session_id=session_id,
         band=band_result["band"],
         score=band_result["score"],
-        metrics=engine_result["metrics"],
+        metrics=metrics,
         warning_tags=band_result["warning_tags"],
         capture_quality_band=engine_result["quality"]["quality_band"],
         valid_frame_ratio=engine_result["quality"]["valid_frame_ratio"],
+        session_status=band_result["session_status"],
+        is_partial_score=band_result["is_partial_score"],
+        persisted=persisted,
     )
 
 
@@ -49,6 +63,15 @@ def analyze_session(
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ModuleAResultResponse:
+    """Recomputes the STS result from the frames sent so far.
+
+    Called both as a lightweight live-progress check (once per attempted-rep
+    boundary, `forceFinalize=False`) and as the call that finalizes the session
+    (either naturally, once `rep_count` reaches `target_rep_count`, or forced via
+    `forceFinalize=True` on a manual/timeout early end). Persistence only happens
+    once one of those two conditions is true, so a session in progress can be
+    checked repeatedly without writing anything until it's actually done.
+    """
     session = _get_owned_session(db, payload.sessionId, current_user.id)
     if payload.exerciseType != "sit_to_stand":
         raise HTTPException(
@@ -57,25 +80,59 @@ def analyze_session(
         )
 
     frames = [f.model_dump() for f in payload.frames]
-    logger.info("analyze session=%s frames=%d", payload.sessionId, len(frames))
+    logger.info(
+        "analyze session=%s frames=%d forceFinalize=%s",
+        payload.sessionId,
+        len(frames),
+        payload.forceFinalize,
+    )
 
     engine_result = SessionEngine().run(frames)
     band_result = banding.compute_band(
         engine_result["metrics"], engine_result["quality"]
     )
-    logger.info(
-        "result session=%s band=%s score=%s reps=%s",
-        payload.sessionId,
-        band_result["band"],
-        band_result["score"],
-        engine_result["metrics"]["rep_count"],
+
+    should_persist = payload.forceFinalize or (
+        engine_result["metrics"]["rep_count"]
+        >= engine_result["metrics"]["target_rep_count"]
     )
 
-    crud.save_result(db, session, engine_result, band_result)
-    crud.save_landmark_log(db, session.id, frames)
-    logger.info("persisted session=%s", payload.sessionId)
+    if should_persist:
+        logger.info(
+            "result session=%s band=%s score=%s reps=%s status=%s",
+            payload.sessionId,
+            band_result["band"],
+            band_result["score"],
+            engine_result["metrics"]["rep_count"],
+            band_result["session_status"],
+        )
+        crud.save_result(
+            db,
+            session,
+            engine_result,
+            band_result,
+            client_attempted_reps=payload.clientAttemptedReps,
+        )
+        crud.save_landmark_log(db, session.id, frames)
+        logger.info("persisted session=%s", payload.sessionId)
 
-    return _to_response(session.id, engine_result, band_result)
+    return _to_response(
+        session.id,
+        engine_result,
+        band_result,
+        persisted=should_persist,
+        client_attempted_reps=payload.clientAttemptedReps,
+    )
+
+
+def _legacy_session_status(result) -> str:
+    """Infers session_status for rows saved before that column existed.
+
+    Response-time inference only -- never mutates the stored row (no backfill).
+    """
+    if result.session_status:
+        return result.session_status
+    return "low_confidence" if result.final_band == "invalid" else "complete"
 
 
 @router.get("/sessions/{session_id}", response_model=ModuleAResultResponse)
@@ -103,6 +160,9 @@ def get_session_result(
         valid_frame_ratio=(
             float(session.valid_frame_ratio) if session.valid_frame_ratio else 0.0
         ),
+        session_status=_legacy_session_status(result),
+        is_partial_score=result.is_partial_score,
+        persisted=True,
     )
 
 
@@ -130,6 +190,9 @@ def get_history(
                 valid_frame_ratio=(
                     float(session_ratio) if session_ratio is not None else 0.0
                 ),
+                session_status=_legacy_session_status(result),
+                is_partial_score=result.is_partial_score,
+                persisted=True,
             )
         )
     return responses

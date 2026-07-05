@@ -12,6 +12,7 @@ export default function DashboardLayout() {
   const nav = useNavigate();
   const { logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   useReveal([pathname]);
 
   const close = () => setOpen(false);
@@ -27,15 +28,26 @@ export default function DashboardLayout() {
   );
 
   return (
-    <div className="app">
+    <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
       {open && <div className="scrim" onClick={close} />}
       <aside className={"side" + (open ? " open" : "")}>
-        <Logo to="/dashboard" />
+        <div className="side-top">
+          <Logo to="/dashboard" />
+          <button
+            className="sidebar-toggle"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label="Toggle sidebar"
+            aria-pressed={collapsed}
+            title="Toggle sidebar"
+          >
+            {collapsed ? <Menu /> : <Close />}
+          </button>
+        </div>
         <div className="side-group">{t("dash.sideOverview")}</div>
         <nav className="side-nav" onClick={close}>
           <NavLink to="/dashboard" end className={({ isActive }) => (isActive ? "active" : "")}>
             <Grid />
-            {t("dash.navDashboard")}
+            <span className="nav-label">{t("dash.navDashboard")}</span>
           </NavLink>
           <div
             className={`nav-link ${isSessionFlow ? "active" : ""}`}
@@ -45,26 +57,26 @@ export default function DashboardLayout() {
             }}
           >
             <CirclePlus />
-            {t("dash.navNew")}
+            <span className="nav-label">{t("dash.navNew")}</span>
           </div>
           <NavLink to="/history" className={({ isActive }) => (isActive ? "active" : "")}>
             <History />
-            {t("dash.navHistory")}
+            <span className="nav-label">{t("dash.navHistory")}</span>
           </NavLink>
           <NavLink to="/dashboard" className={() => ""}>
             <Chart />
-            {t("dash.navProgress")}
+            <span className="nav-label">{t("dash.navProgress")}</span>
           </NavLink>
         </nav>
         <div className="side-group">{t("dash.sideAccount")}</div>
         <nav className="side-nav" onClick={close}>
           <NavLink to="/reminders" className={({ isActive }) => (isActive ? "active" : "")}>
             <Bell />
-            {t("dash.navReminders")}
+            <span className="nav-label">{t("dash.navReminders")}</span>
           </NavLink>
           <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
             <User />
-            {t("dash.navProfile")}
+            <span className="nav-label">{t("dash.navProfile")}</span>
           </NavLink>
         </nav>
         <div className="side-foot">

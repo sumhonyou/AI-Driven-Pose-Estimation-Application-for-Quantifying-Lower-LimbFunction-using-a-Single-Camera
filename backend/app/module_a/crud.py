@@ -2,19 +2,28 @@
 
 from uuid import UUID
 
+from app.db.models import ModuleAResult
+from app.db.models import Session as SessionModel
+from app.module_a import config
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import ModuleAResult
-from app.db.models import Session as SessionModel
-from app.module_a import config
-
 
 def save_result(
-    db: DbSession, session: SessionModel, engine_result: dict, band_result: dict
+    db: DbSession,
+    session: SessionModel,
+    engine_result: dict,
+    band_result: dict,
+    client_attempted_reps: int | None = None,
 ) -> ModuleAResult:
-    """Writes the STS result onto the owning session + a new module_a_results row."""
+    """Writes the STS result onto the owning session + upserts the module_a_results row.
+
+    Upsert (update-in-place if a row already exists for this session) rather than
+    always inserting: a session may now be analyzed multiple times before it's
+    complete (once per live rep-boundary check), and a stray/retried request must
+    never produce a second row for the same session.
+    """
     metrics = engine_result["metrics"]
     quality = engine_result["quality"]
 
@@ -24,18 +33,28 @@ def save_result(
     session.capture_quality = quality["average_visibility"]
     session.valid_frame_ratio = quality["valid_frame_ratio"]
 
-    result = ModuleAResult(
-        session_id=session.id,
-        completion_time_sec=metrics["completion_time_sec"],
-        rep_count=metrics["rep_count"],
-        score=band_result["score"],
-        trunk_lean_proxy=metrics["avg_trunk_lean_deg"],
-        final_band=band_result["band"],
-        confidence_level=quality["quality_band"],
-        metrics_json={**metrics, "warning_tags": band_result["warning_tags"]},
-    )
+    metrics_json = {
+        **metrics,
+        "warning_tags": band_result["warning_tags"],
+        "client_attempted_reps": client_attempted_reps,
+    }
+
+    result = get_result_by_session(db, session.id)
+    if result is None:
+        result = ModuleAResult(session_id=session.id)
+        db.add(result)
+
+    result.completion_time_sec = metrics["completion_time_sec"]
+    result.rep_count = metrics["rep_count"]
+    result.score = band_result["score"]
+    result.trunk_lean_proxy = metrics["avg_trunk_lean_deg"]
+    result.final_band = band_result["band"]
+    result.confidence_level = quality["quality_band"]
+    result.session_status = band_result["session_status"]
+    result.is_partial_score = band_result["is_partial_score"]
+    result.metrics_json = metrics_json
+
     db.add(session)
-    db.add(result)
     db.commit()
     db.refresh(result)
     return result

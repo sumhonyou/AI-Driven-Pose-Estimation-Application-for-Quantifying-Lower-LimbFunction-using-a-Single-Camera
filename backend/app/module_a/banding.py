@@ -27,22 +27,50 @@ def time_band(completion_time_sec: float | None) -> str | None:
     return "poor"
 
 
+def compute_session_status(rep_count: int, target: int, quality_band: str) -> str:
+    """Completeness/confidence status, kept independent of movement-quality band.
+
+    A tracking problem (poor capture) or an early/incomplete stop must never be
+    presented as if the movement itself was graded Poor -- that's a separate axis
+    from `band`, which only ever describes movement quality.
+    """
+    if quality_band == "poor":
+        return "low_confidence"
+    if rep_count < target:
+        return "incomplete"
+    return "complete"
+
+
 def compute_band(metrics: dict, quality: dict) -> dict:
-    """Returns {score, band, warning_tags} from session metrics + capture quality."""
+    """Returns {score, band, warning_tags, session_status, is_partial_score} from
+    session metrics + capture quality.
+
+    `band`/`score` are computed only from the valid reps actually captured --
+    never suppressed or force-capped because the set was incomplete or capture
+    quality was poor. `session_status` carries that information instead.
+    """
     warning_tags: list[str] = []
     quality_band = quality["quality_band"]
-
-    if quality_band == "poor":
-        warning_tags.append("poor_capture_quality")
-        return {"score": 0.0, "band": "invalid", "warning_tags": warning_tags}
-
-    score = 10.0
     rep_count = metrics["rep_count"]
     target = metrics["target_rep_count"]
 
+    session_status = compute_session_status(rep_count, target, quality_band)
+    if quality_band == "poor":
+        warning_tags.append("poor_capture_quality")
     if rep_count < target:
         warning_tags.append("incomplete_reps")
-        score = min(score, 3.0)
+
+    if rep_count == 0:
+        return {
+            "score": 0.0,
+            "band": "invalid",
+            "warning_tags": warning_tags,
+            "time_band": None,
+            "session_status": session_status,
+            "is_partial_score": False,
+        }
+
+    score = 10.0
 
     if quality_band == "moderate":
         warning_tags.append("moderate_capture_quality")
@@ -71,4 +99,6 @@ def compute_band(metrics: dict, quality: dict) -> dict:
         "band": band,
         "warning_tags": warning_tags,
         "time_band": t_band,
+        "session_status": session_status,
+        "is_partial_score": rep_count < target,
     }

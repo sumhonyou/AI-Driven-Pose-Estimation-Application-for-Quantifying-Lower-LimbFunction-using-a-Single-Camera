@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DashTopbar } from "../layouts/DashboardLayout";
 import { Lightbulb, ShieldCheck, History, Plus, Alert } from "../components/Icons";
+import InfoTooltip from "../components/InfoTooltip";
 import { sessionService } from "../services/sessionService";
 import { moduleAService, type ModuleAResult } from "../services/moduleAService";
 import type { SessionDTO } from "../types/api";
@@ -15,6 +16,20 @@ function fmtSec(value: number | null | undefined) {
 
 function fmtDeg(value: number | null | undefined) {
   return value == null ? "—" : `${value.toFixed(0)}°`;
+}
+
+// Maps a band value to its plain-language meaning key in i18n `common`.
+function bandMeaningKey(band: string | null): string {
+  switch (band) {
+    case "good":
+      return "common.bandMeaningGood";
+    case "fair":
+      return "common.bandMeaningFair";
+    case "poor":
+      return "common.bandMeaningPoor";
+    default:
+      return "common.bandMeaningInvalid";
+  }
 }
 
 export default function Report() {
@@ -64,9 +79,17 @@ export default function Report() {
   const metricRows = result
     ? [
         {
-          label: t("report.repCount"),
+          label: t("report.validReps"),
           value: `${result.metrics.rep_count}/${result.metrics.target_rep_count}`,
         },
+        ...(result.metrics.client_attempted_reps != null
+          ? [
+              {
+                label: t("report.attemptedReps"),
+                value: `${result.metrics.client_attempted_reps}`,
+              },
+            ]
+          : []),
         {
           label: t("report.completionTime"),
           value: fmtSec(result.metrics.completion_time_sec),
@@ -127,6 +150,23 @@ export default function Report() {
 
       {result && (
         <>
+          {result.session_status !== "complete" && (
+            <div className="dash-note reveal" style={{ marginBottom: 18 }}>
+              <Alert />
+              <span>
+                {t(
+                  result.session_status === "low_confidence"
+                    ? "report.lowConfidenceStatus"
+                    : "report.incompleteStatus",
+                  {
+                    valid: result.metrics.rep_count,
+                    target: result.metrics.target_rep_count,
+                  },
+                )}
+              </span>
+            </div>
+          )}
+
           <div className="report-hero reveal" style={{ marginBottom: 18 }}>
             <div className="score-dial">
               <svg width="150" height="150" viewBox="0 0 150 150">
@@ -163,7 +203,7 @@ export default function Report() {
                   display: "flex",
                   alignItems: "center",
                   gap: 14,
-                  margin: "10px 0 14px",
+                  margin: "10px 0 6px",
                   flexWrap: "wrap",
                 }}
               >
@@ -173,15 +213,31 @@ export default function Report() {
                 >
                   {t("common." + band)}
                 </span>
+                {result.is_partial_score && (
+                  <span className="pill">{t("report.partialScoreLabel")}</span>
+                )}
+                <InfoTooltip text={t(bandMeaningKey(band))} label={t("report.bandInfoLabel")} />
                 <span className="pill">
                   <ShieldCheck width={16} height={16} style={{ color: "var(--emerald)" }} />
                   {t("report.captureQualityBand")}: {t("common." + result.capture_quality_band)}
                 </span>
+                <InfoTooltip
+                  text={t("report.captureQualityMeaning")}
+                  label={t("report.captureQualityInfoLabel")}
+                />
               </div>
+              <p className="muted" style={{ maxWidth: "40em", marginBottom: 10 }}>
+                {t(bandMeaningKey(band))}
+              </p>
               <p className="muted" style={{ maxWidth: "40em" }}>
-                {session?.exercise_name} — {t("report.disclaimer")}
+                {session?.exercise_name}
               </p>
             </div>
+          </div>
+
+          <div className="dash-note reveal" style={{ marginBottom: 18 }}>
+            <Alert />
+            <span>{t("report.nonDiagnosticReminder")}</span>
           </div>
 
           <div style={{ marginBottom: 8 }}>
@@ -249,10 +305,12 @@ export default function Report() {
         </>
       )}
 
-      <div className="dash-note reveal">
-        <Alert />
-        <span>{t("report.disclaimer")}</span>
-      </div>
+      {!result && (
+        <div className="dash-note reveal">
+          <Alert />
+          <span>{t("report.disclaimer")}</span>
+        </div>
+      )}
     </>
   );
 }

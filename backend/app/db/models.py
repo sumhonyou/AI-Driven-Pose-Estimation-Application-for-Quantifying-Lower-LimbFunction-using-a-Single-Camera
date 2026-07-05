@@ -3,13 +3,12 @@ from decimal import Decimal
 from uuid import UUID as PyUUID
 from uuid import uuid4
 
+from app.db.database import Base
 from sqlalchemy import (Boolean, DateTime, ForeignKey, Integer, Numeric,
                         String, Text, func)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.db.database import Base
 
 
 class User(Base):
@@ -181,6 +180,13 @@ class ModuleAResult(Base):
     final_band: Mapped[str] = mapped_column(String(50), nullable=False)
     confidence_level: Mapped[str | None] = mapped_column(String(50))
     metrics_json: Mapped[dict | None] = mapped_column(JSONB)
+    # Completeness/confidence status, decoupled from final_band (movement quality
+    # only). Nullable: pre-existing rows from before this column existed have no
+    # value here and are inferred at read time instead of being backfilled.
+    session_status: Mapped[str | None] = mapped_column(String(50))
+    is_partial_score: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -1,10 +1,12 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect, useRef } from "react";
+import stsDemoSrc from "../assets/videos/sit to stand.mp4";
 import { DashTopbar } from "../layouts/DashboardLayout";
 import PoseCanvas from "../components/PoseCanvas";
 import CaptureQualityBadge from "../components/CaptureQualityBadge";
 import AutoStartCountdown from "../components/AutoStartCountdown";
+import StartingSessionOverlay from "../components/StartingSessionOverlay";
 import { ArrowLeft, ArrowRight, Camera, Check, Alert, Lightbulb } from "../components/Icons";
 import { sessionService } from "../services/sessionService";
 import { useSessionFlow } from "../session";
@@ -44,6 +46,8 @@ export default function CameraSetup() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
   const [hasAutoStarted, setHasAutoStarted] = useState(false);
+  const [frozenQuality, setFrozenQuality] = useState(0);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   // Real webcam + pose
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
@@ -73,6 +77,7 @@ export default function CameraSetup() {
   const beginSession = async () => {
     if (startedRef.current) return;
     startedRef.current = true;
+    setFrozenQuality(bodyQuality);
     setHasAutoStarted(true);
 
     if (!exerciseCode) {
@@ -108,7 +113,7 @@ export default function CameraSetup() {
   // we always let the timer run, and beginSession() itself reports a clear error if the
   // exercise is missing.
   const autoStartEnabled = webcamReady && poseReady && !hasAutoStarted;
-  const { progress: autoStartProgress } = useAutoStartGate(
+  const { progress: autoStartProgress, active: autoStartActive } = useAutoStartGate(
     bodyQuality,
     FULL_BODY_QUALITY_THRESHOLD,
     AUTO_START_STABLE_MS,
@@ -189,6 +194,7 @@ export default function CameraSetup() {
 
   return (
     <>
+      {hasAutoStarted && <StartingSessionOverlay bodyQuality={frozenQuality} />}
       <Link className="back-link" to={`/exercise?mode=${mode}`}>
         <ArrowLeft />
         {t("common.back")}
@@ -233,7 +239,7 @@ export default function CameraSetup() {
             </div>
           )}
 
-          {isFullBodyReady && !hasAutoStarted && (
+          {!hasAutoStarted && autoStartActive && (
             <AutoStartCountdown
               progress={autoStartProgress}
               secondsLeft={autoStartSecondsLeft}
@@ -285,6 +291,31 @@ export default function CameraSetup() {
             </div>
             <p style={{ color: "var(--text-2)", fontSize: "0.94rem" }}>{guidanceText}</p>
           </div>
+
+          {exerciseCode === "sit_to_stand" && (
+            <div className="panel reveal">
+              <div className="panel-head" style={{ marginBottom: demoOpen ? 14 : 0 }}>
+                <div>
+                  <h3>{t("camera.demoTitle")}</h3>
+                </div>
+                <button
+                  className="btn btn-ghost"
+                  style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+                  onClick={() => setDemoOpen((o) => !o)}
+                >
+                  {demoOpen ? "▲" : "▶"}
+                </button>
+              </div>
+              {demoOpen && (
+                <video
+                  src={stsDemoSrc}
+                  controls
+                  playsInline
+                  style={{ width: "100%", borderRadius: "var(--r-md)", display: "block" }}
+                />
+              )}
+            </div>
+          )}
 
           {error && (
             <p className="muted" style={{ color: "var(--coral)" }}>

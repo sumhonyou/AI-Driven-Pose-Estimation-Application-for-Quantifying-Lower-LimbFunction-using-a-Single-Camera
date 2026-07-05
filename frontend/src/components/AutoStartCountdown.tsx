@@ -12,18 +12,21 @@ interface AutoStartCountdownProps {
   secondsLeft: number;
   /** Supporting label text next to the ring. */
   label: string;
+  /** Show a spinning ring instead of a seconds number — used once starting the session. */
+  spinner?: boolean;
 }
 
 export default function AutoStartCountdown({
   progress,
   secondsLeft,
   label,
+  spinner = false,
 }: AutoStartCountdownProps) {
   const offset = CIRCUMFERENCE * (1 - Math.min(1, Math.max(0, progress)));
 
   return (
     <div className="auto-start-countdown" role="status" aria-live="polite">
-      <div className="auto-start-ring-wrap">
+      <div className={"auto-start-ring-wrap" + (spinner ? " auto-start-ring-wrap--spin" : "")}>
         <svg className="auto-start-ring" viewBox="0 0 72 72">
           <circle className="auto-start-ring-track" cx="36" cy="36" r={RADIUS} />
           <circle
@@ -35,10 +38,12 @@ export default function AutoStartCountdown({
             strokeDashoffset={offset}
           />
         </svg>
-        {/* key={secondsLeft} forces a remount on every tick, replaying the pop animation */}
-        <span key={secondsLeft} className="auto-start-number">
-          {secondsLeft}
-        </span>
+        {!spinner && (
+          // key={secondsLeft} forces a remount on every tick, replaying the pop animation
+          <span key={secondsLeft} className="auto-start-number">
+            {secondsLeft}
+          </span>
+        )}
       </div>
       <span className="auto-start-label">{label}</span>
     </div>

@@ -1,11 +1,13 @@
 """Joint-angle geometry from MediaPipe world landmarks.
 
 Vertical axis convention (MediaPipe world landmarks, metric, hip-centered):
-Y increases DOWNWARD, same as image-space landmarks. So "up" is -Y, and a
-person standing up (hip rising) means hip Y DECREASES.
-This has not been empirically verified against a real capture yet — the
-session engine logs hip-Y at calibration vs. mid-rep so this can be
-confirmed/corrected against real recordings before the thresholds are trusted.
+Y increases DOWNWARD, same as image-space landmarks.
+
+Landmarks are re-centered on the hip midpoint every frame, so the hip's own Y
+is always ~0 and cannot be used to measure how much the hip actually rose in
+real space (confirmed against real recordings — see session_engine.py, which
+no longer gates on hip displacement for exactly this reason). Knee angle, a
+relative joint angle, is unaffected by this and is the reliable signal here.
 """
 
 import math
