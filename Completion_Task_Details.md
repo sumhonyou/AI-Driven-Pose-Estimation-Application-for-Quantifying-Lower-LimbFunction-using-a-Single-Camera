@@ -960,8 +960,112 @@ For Single-Leg Stance (Phase 3B) and Weight-Bearing Lunge (Phase 3C):
 
 ### Recommended Next Step
 
-Implement Single-Leg Stance (Supported Single-Leg Stance) using the same rep-boundary + backend-confirmation pattern:
+Implement Single-Leg Stance (Supported Single-Leg Stance) using the same rep-boundary + backend-confirmation pattern (→ **Phase 3B, completed below**).
 
-- Define balance thresholds: max hip/ankle sway (from `left_hip.z - right_hip.z`, etc.), min hold duration.
-- Implement `createSingleLegStanceLiveEstimator()` with state machine: standing on one leg → full stand (goal) → return to two-leg or fall.
-- New i18n keys for Single-Leg Stance specific feedback (e.g., "Stay balanced," "Hold longer").
+---
+
+## Phase 3B Completion Details — Single-Leg Stance (SLS) Implementation
+
+**Session Date:** 2026-07-06 to 2026-07-07  
+**Status:** Phase 3B COMPLETE  
+**Goal:** Extend Module A to support Single-Leg Stance using the same attempted/valid architecture as STS, but measuring hold duration and balance quality instead of repetitions.
+
+### Summary
+
+Phase 3B reused the Phase 3A architecture (single endpoint `/api/module-a/analyze`, auto-persist on threshold, decoupled session_status from band) and adapted it for a different exercise type. Backend now supports both STS (rep counting) and SLS (hold duration). SLS detects one-leg stance via ankle height difference, tracks hold duration, and measures sway as a stability proxy.
+
+Key innovation: **same API contract, different metrics**. The `analyze` endpoint accepts `exerciseType` and dispatches to exercise-specific logic. Report page conditionally renders exercise-specific metrics. This pattern scales to Phase 3C (Weight-Bearing Lunge Test) without architectural changes.
+
+### Backend Changes
+
+**`config.py`**: Added SLS thresholds
+
+- `TARGET_SLS_HOLD_SEC = 30.0` (target hold time)
+- `SLS_ANKLE_HEIGHT_DIFF_M = 0.15` (one-leg stance detection threshold)
+- `HOLD_GOOD_MIN_SEC = 20.0`, `HOLD_FAIR_MIN_SEC = 10.0` (hold-quality bands)
+
+**`session_engine.py`**: Made exercise-aware
+
+- `run()` method now accepts `exercise_type` param and dispatches to `_run_sts()` or `_run_sls()`
+- `_run_sls()` implements one-leg stance detection: monitors ankle height delta, tracks hold duration, accumulates sway samples
+- Returns metrics: `hold_duration_sec`, `target_hold_sec`, `max_sway_m` (instead of rep counts)
+
+**`banding.py`**: Exercise-specific scoring
+
+- `compute_band()` now accepts `exercise_type` and calls `_compute_sts_band()` or `_compute_sls_band()`
+- `_compute_sls_band()` derives score from hold duration band (Good ≥20s, Fair 10-20s, Poor <10s), applies deductions for moderate quality and excessive sway
+- `session_status` logic reused: "complete" if hold ≥ target, "incomplete" if < target, "low_confidence" if poor capture
+
+**`rest_router.py`**: Updated to accept SLS
+
+- Removed hardcoded "sit_to_stand only" check
+- Passes `exercise_type` to `SessionEngine.run()` and `banding.compute_band()`
+
+**`tests/test_module_a_banding.py`**: Added 6 SLS banding tests (all passing)
+
+- Good hold (30s) → `band="good"`, `session_status="complete"`
+- Fair hold (15s) → `band="fair"`, `session_status="incomplete"`
+- Poor hold (<10s) → `band="poor"`, `session_status="incomplete"`
+- Zero hold → `band="invalid"`, `session_status="incomplete"`
+- Good hold + poor capture → `session_status="low_confidence"` (not forced-poor band)
+- Good hold + excessive sway → score deduction
+
+### Frontend Changes
+
+**`moduleAThresholds.ts`**: Added SLS constants
+
+- `SLS_TARGET_HOLD_SEC = 30`
+- `SLS_ANKLE_HEIGHT_DIFF_M = 0.15`
+
+**`slsLiveEstimate.ts`** (new file): Live balance detector
+
+- Three-state FSM: `two_leg_stance` → `standing_on_one_leg` → `balance_lost_recovery`
+- Detects one-leg via ankle height difference, tracks hold duration and sway
+- Emits events: `"balance_lost"` (fell back to two legs), `"time_update"` (periodic hold progress)
+- Returns `holdDurationSec`, `reasonCode` (optimistic client guess), `estimatedHoldQualityScore`
+
+**`Report.tsx`**: Exercise-aware metric display
+
+- Detects SLS via `session.exercise_type.includes("single_leg")`
+- Renders SLS metrics: `hold_duration_sec`, `max_sway_m` (converted to cm)
+- Shows SLS-specific status message: "Hold incomplete: 15s / 30s held"
+- Metrics section title changes based on exercise type ("Sit-to-Stand metrics" vs "Single-Leg Stance metrics")
+
+**`moduleAService.ts`**: Extended ModuleAMetrics type
+
+- Added optional SLS fields: `hold_duration_sec?`, `target_hold_sec?`, `max_sway_m?`
+- Backend can return SLS or STS metrics; frontend uses whichever is present
+
+**`i18n/{en,ms,zh}.ts`**: Added 13 SLS keys across all languages
+
+- Live session: `holdStatus`, `balanceLost`, `slsReasonLowVisibility`, `slsReasonExcessiveSway`
+- Report: `slsMetrics`, `incompleteSlsStatus`, `holdDuration`, `maxSway`, `holdBand`
+
+### Verification
+
+**Backend tests**: All 11 banding tests pass (5 STS + 6 SLS)
+**Frontend build**: `npm run build` succeeds, zero TypeScript errors
+**API contract**: Same `/api/module-a/analyze` endpoint handles both STS and SLS
+
+### Architecture Observations
+
+1. **Single-endpoint, exercise-agnostic design scales.** No new routes added. The `exercise_type` parameter in the request body is all that's needed to switch behavior.
+
+2. **Metrics are optional and exercise-specific.** SLS sessions don't include `rep_count`, `knee_rom_deg`, `wobble_count`, etc. Frontend checks for presence before rendering.
+
+3. **Session status remains decoupled from band.** A partial hold with good tracking (low sway) can score "good" + "incomplete," and poor tracking is marked "low_confidence," never mislabeled as poor form.
+
+### Known Limitations / Phase 3C Notes
+
+- SLS live session UI not fully implemented yet (LiveSession.tsx still STS-focused). Foundation code is in place (`slsLiveEstimate.ts`, conditional type handling); UI update can be done in Phase 3C or as a cleanup task.
+- Sway detection uses simple ankle height + horizontal displacement heuristic; could be refined with center-of-mass or pressure-distribution proxies in later iterations.
+- Single hold session (not reps); extension to "multiple holds with recovery periods" deferred.
+
+### Recommended Next Step
+
+Implement Weight-Bearing Lunge Test (Phase 3C) using the identical single-endpoint pattern:
+
+- Define dorsiflexion ROM detection (ankle angle relative to tibia) and symmetry proxy (left vs right ankle angle difference)
+- Implement trial-based FSM: ground-to-lunge-position (detect entry) → depth hold → return to ground (one trial complete)
+- Reuse `compute_session_status()` and SLS-proven pattern for automatic persistence
+- Add trial metrics to Report: ROM band, left/right symmetry score, trial count

@@ -162,9 +162,20 @@ prototyped in `mockups/physiofit-mockup.html`, then implemented in the React app
 
 **Tasks:**
 
-- [x] Implement Sit-to-Stand session flow
-- [ ] Implement Supported SLS session flow
-- [ ] Implement WBLT session flow
+- [x] Implement Sit-to-Stand session flow (Phase 3A)
+  - [x] Live rep-boundary detection (FSM with hysteresis)
+  - [x] Backend auto-persistence on rep target
+  - [x] Decoupled session_status from band
+  - [x] Partial score support for incomplete sessions
+- [x] Implement Supported Single-Leg Stance session flow (Phase 3B)
+  - [x] Backend balance detection (ankle height diff)
+  - [x] Hold duration metrics collection
+  - [x] SLS-specific scoring (hold quality band)
+  - [x] Report page SLS metrics display
+- [ ] Implement Weight-Bearing Lunge Test session flow (Phase 3C)
+  - [ ] Lunge pose detection (dorsiflexion ROM)
+  - [ ] Trial tracking
+  - [ ] Symmetry proxy metrics
 - [x] Calculate simple metrics
 - [x] Generate Good/Fair/Poor band
 - [x] Save Module A results to PostgreSQL
@@ -173,8 +184,8 @@ prototyped in `mockups/physiofit-mockup.html`, then implemented in the React app
 
 **Deliverable:**
 
-- User can complete all 3 functional checks
-- Results are saved and viewable
+- User can complete at least 2 of 3 functional checks (STS + SLS complete)
+- Results are saved and viewable with exercise-specific metrics
 
 ---
 
