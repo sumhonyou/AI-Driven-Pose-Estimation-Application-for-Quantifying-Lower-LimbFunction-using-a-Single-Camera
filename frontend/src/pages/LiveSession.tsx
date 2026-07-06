@@ -13,10 +13,12 @@ import { computeFrameQuality } from "../utils/captureQuality";
 import { useSessionRecorder } from "../hooks/useSessionRecorder";
 import { moduleAService } from "../services/moduleAService";
 import { createStsLiveEstimator } from "../utils/stsLiveEstimate";
+// import { createSlsLiveEstimator } from "../utils/slsLiveEstimate"; // TODO: Phase 3B LiveSession SLS UI
 import { humanizeLabel } from "../utils/format";
 import {
   SAMPLE_FPS,
   STS_TARGET_REPS,
+  // SLS_TARGET_HOLD_SEC, // TODO: Phase 3B LiveSession SLS UI
   MAX_SESSION_SECONDS,
   LIVE_KNEE_STAND_ENTER,
   LIVE_KNEE_SIT_ENTER,
@@ -24,6 +26,7 @@ import {
 } from "../config/moduleAThresholds";
 import type { PoseFrame } from "../types/pose";
 import type { StsPhase, InvalidReasonCode } from "../utils/stsLiveEstimate";
+// import type { SlsEvent } from "../utils/slsLiveEstimate"; // TODO: Phase 3B LiveSession SLS UI
 import goodRepSrc from "../assets/sound effect/Rep correct sound effect.mp3";
 import wrongRepSrc from "../assets/sound effect/Wrong sound effect.mp3";
 
@@ -45,6 +48,7 @@ export default function LiveSession() {
   const nav = useNavigate();
   const { mode, exerciseCode, sessionId } = useSessionFlow();
   const isSts = exerciseCode === "sit_to_stand";
+  // const isSls = exerciseCode?.includes("single_leg"); // TODO: Phase 3B LiveSession SLS UI
 
   const [sec, setSec] = useState(0);
   // Attempted: every concluded rep-boundary the client's FSM detects. Valid: only

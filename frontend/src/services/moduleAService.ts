@@ -19,6 +19,10 @@ export type ModuleAMetrics = {
   /** UX-only figure from the frontend's live rep-boundary FSM, echoed back for
    * the report's "Attempted reps" — the backend engine has no other way to know it. */
   client_attempted_reps: number | null;
+  // SLS-specific metrics
+  hold_duration_sec?: number;
+  target_hold_sec?: number;
+  max_sway_m?: number;
 };
 
 export type SessionStatus = "complete" | "incomplete" | "low_confidence";

@@ -4,7 +4,7 @@
 // the backend (POST /analyze), called periodically during the hold.
 import { LM, type WorldLandmark } from "../types/pose";
 import {
-  SLS_TARGET_HOLD_SEC,
+  // SLS_TARGET_HOLD_SEC, // Unused in this module, backend uses config value
   SLS_ANKLE_HEIGHT_DIFF_M,
   LIVE_MIN_QUALITY_FOR_VALID_REP,
 } from "../config/moduleAThresholds";

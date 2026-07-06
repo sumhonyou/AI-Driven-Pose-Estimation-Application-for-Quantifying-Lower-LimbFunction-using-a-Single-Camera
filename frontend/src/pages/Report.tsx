@@ -76,50 +76,73 @@ export default function Report() {
     c = 2 * Math.PI * r,
     pct = Math.max(0, Math.min(1, score / 10));
 
-  const metricRows = result
-    ? [
-        {
-          label: t("report.validReps"),
-          value: `${result.metrics.rep_count}/${result.metrics.target_rep_count}`,
-        },
-        ...(result.metrics.client_attempted_reps != null
-          ? [
-              {
-                label: t("report.attemptedReps"),
-                value: `${result.metrics.client_attempted_reps}`,
-              },
-            ]
-          : []),
-        {
-          label: t("report.completionTime"),
-          value: fmtSec(result.metrics.completion_time_sec),
-        },
-        {
-          label: t("report.avgRepTime"),
-          value: fmtSec(result.metrics.avg_rep_time_sec),
-        },
-        {
-          label: t("report.fastestRep"),
-          value: fmtSec(result.metrics.fastest_rep_time_sec),
-        },
-        {
-          label: t("report.slowestRep"),
-          value: fmtSec(result.metrics.slowest_rep_time_sec),
-        },
-        {
-          label: t("report.kneeRom"),
-          value: fmtDeg(result.metrics.knee_rom_deg),
-        },
-        {
-          label: t("report.trunkLean"),
-          value: fmtDeg(result.metrics.avg_trunk_lean_deg),
-        },
-        {
-          label: t("report.captureQualityBand"),
-          value: t("common." + result.capture_quality_band),
-        },
-      ]
-    : [];
+  const isSls = session?.exercise_type?.includes("single_leg");
+
+  const metricRows =
+    result && session
+      ? isSls
+        ? // Single-Leg Stance metrics
+          [
+            {
+              label: t("report.holdDuration"),
+              value: fmtSec(result.metrics.hold_duration_sec),
+            },
+            {
+              label: t("report.maxSway"),
+              value:
+                result.metrics.max_sway_m != null
+                  ? `${(result.metrics.max_sway_m * 100).toFixed(0)}cm`
+                  : "—",
+            },
+            {
+              label: t("report.captureQualityBand"),
+              value: t("common." + result.capture_quality_band),
+            },
+          ]
+        : // Sit-to-Stand metrics
+          [
+            {
+              label: t("report.validReps"),
+              value: `${result.metrics.rep_count}/${result.metrics.target_rep_count}`,
+            },
+            ...(result.metrics.client_attempted_reps != null
+              ? [
+                  {
+                    label: t("report.attemptedReps"),
+                    value: `${result.metrics.client_attempted_reps}`,
+                  },
+                ]
+              : []),
+            {
+              label: t("report.completionTime"),
+              value: fmtSec(result.metrics.completion_time_sec),
+            },
+            {
+              label: t("report.avgRepTime"),
+              value: fmtSec(result.metrics.avg_rep_time_sec),
+            },
+            {
+              label: t("report.fastestRep"),
+              value: fmtSec(result.metrics.fastest_rep_time_sec),
+            },
+            {
+              label: t("report.slowestRep"),
+              value: fmtSec(result.metrics.slowest_rep_time_sec),
+            },
+            {
+              label: t("report.kneeRom"),
+              value: fmtDeg(result.metrics.knee_rom_deg),
+            },
+            {
+              label: t("report.trunkLean"),
+              value: fmtDeg(result.metrics.avg_trunk_lean_deg),
+            },
+            {
+              label: t("report.captureQualityBand"),
+              value: t("common." + result.capture_quality_band),
+            },
+          ]
+      : [];
 
   return (
     <>
@@ -157,11 +180,18 @@ export default function Report() {
                 {t(
                   result.session_status === "low_confidence"
                     ? "report.lowConfidenceStatus"
-                    : "report.incompleteStatus",
-                  {
-                    valid: result.metrics.rep_count,
-                    target: result.metrics.target_rep_count,
-                  },
+                    : isSls
+                      ? "report.incompleteSlsStatus"
+                      : "report.incompleteStatus",
+                  isSls
+                    ? {
+                        duration: result.metrics.hold_duration_sec?.toFixed(1) || "0",
+                        target: result.metrics.target_hold_sec || 30,
+                      }
+                    : {
+                        valid: result.metrics.rep_count,
+                        target: result.metrics.target_rep_count,
+                      },
                 )}
               </span>
             </div>
@@ -241,7 +271,7 @@ export default function Report() {
           </div>
 
           <div style={{ marginBottom: 8 }}>
-            <span className="eyebrow">{t("report.metrics")}</span>
+            <span className="eyebrow">{t(isSls ? "report.slsMetrics" : "report.metrics")}</span>
           </div>
           <div className="sub-scores" style={{ marginBottom: 18 }}>
             {metricRows.map((row) => (
