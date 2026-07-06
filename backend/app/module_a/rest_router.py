@@ -76,6 +76,7 @@ def analyze_session(
         "sit_to_stand",
         "single_leg_stance",
         "supported_single_leg_stance",
+        "weight_bearing_lunge_test",
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

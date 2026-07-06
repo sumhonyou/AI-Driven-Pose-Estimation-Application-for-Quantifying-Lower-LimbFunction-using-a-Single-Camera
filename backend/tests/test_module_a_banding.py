@@ -101,6 +101,26 @@ def _sls_metrics(
     }
 
 
+# Weight-Bearing Lunge Test (WBLT) banding tests
+def _wblt_metrics(
+    trial_count=3,
+    target_trials=3,
+    avg_dorsiflexion_deg=18.0,
+    avg_symmetry_diff_deg=6.0,
+):
+    return {
+        "rep_count": trial_count,
+        "target_rep_count": target_trials,
+        "trial_count": trial_count,
+        "target_trials": target_trials,
+        "avg_dorsiflexion_deg": avg_dorsiflexion_deg,
+        "max_dorsiflexion_deg": avg_dorsiflexion_deg + 2,
+        "avg_symmetry_diff_deg": avg_symmetry_diff_deg,
+        "session_duration_sec": 30.0,
+        "stopped_early": False,
+    }
+
+
 class ModuleASlsBandingTests(unittest.TestCase):
     def test_sls_good_hold_is_complete_and_good(self):
         """30-second hold with good tracking and minimal sway is a good, complete result."""
@@ -180,6 +200,71 @@ class ModuleASlsBandingTests(unittest.TestCase):
 
         self.assertLess(bad_sway["score"], good_sway["score"])
         self.assertIn("excessive_sway", bad_sway["warning_tags"])
+
+
+class ModuleAWbltBandingTests(unittest.TestCase):
+    def test_wblt_good_rom_good_symmetry_is_complete_good(self):
+        """Good ROM (18°) with good symmetry (6°) is a good, complete result."""
+        result = banding.compute_band(
+            _wblt_metrics(avg_dorsiflexion_deg=18.0, avg_symmetry_diff_deg=6.0),
+            _quality("good"),
+            exercise_type="weight_bearing_lunge_test",
+        )
+
+        self.assertEqual(result["session_status"], "complete")
+        self.assertEqual(result["band"], "good")
+        self.assertFalse(result["is_partial_score"])
+        self.assertEqual(result["rom_band"], "good")
+        self.assertEqual(result["symmetry_band"], "good")
+
+    def test_wblt_fair_rom_with_poor_symmetry_is_fair(self):
+        """Fair ROM (12°) with poor symmetry (15°) is fair, complete."""
+        result = banding.compute_band(
+            _wblt_metrics(avg_dorsiflexion_deg=12.0, avg_symmetry_diff_deg=15.0),
+            _quality("good"),
+            exercise_type="weight_bearing_lunge_test",
+        )
+
+        self.assertEqual(result["session_status"], "complete")
+        self.assertEqual(result["band"], "fair")
+        self.assertFalse(result["is_partial_score"])
+        self.assertIn("poor_ankle_symmetry", result["warning_tags"])
+
+    def test_wblt_poor_rom_is_poor(self):
+        """Poor ROM (<10°) is poor, complete."""
+        result = banding.compute_band(
+            _wblt_metrics(avg_dorsiflexion_deg=7.0, avg_symmetry_diff_deg=3.0),
+            _quality("good"),
+            exercise_type="weight_bearing_lunge_test",
+        )
+
+        self.assertEqual(result["session_status"], "complete")
+        self.assertEqual(result["band"], "poor")
+        self.assertFalse(result["is_partial_score"])
+        self.assertIn("limited_ankle_dorsiflexion", result["warning_tags"])
+
+    def test_wblt_incomplete_trials(self):
+        """Fewer than 3 trials is incomplete."""
+        result = banding.compute_band(
+            _wblt_metrics(trial_count=2, target_trials=3),
+            _quality("good"),
+            exercise_type="weight_bearing_lunge_test",
+        )
+
+        self.assertEqual(result["session_status"], "incomplete")
+        self.assertTrue(result["is_partial_score"])
+        self.assertIn("incomplete_trials", result["warning_tags"])
+
+    def test_wblt_zero_trials_is_invalid(self):
+        """No trials detected is invalid."""
+        result = banding.compute_band(
+            _wblt_metrics(trial_count=0),
+            _quality("good"),
+            exercise_type="weight_bearing_lunge_test",
+        )
+
+        self.assertEqual(result["band"], "invalid")
+        self.assertEqual(result["score"], 0.0)
 
 
 if __name__ == "__main__":
