@@ -172,10 +172,12 @@ prototyped in `mockups/physiofit-mockup.html`, then implemented in the React app
   - [x] Hold duration metrics collection
   - [x] SLS-specific scoring (hold quality band)
   - [x] Report page SLS metrics display
-- [ ] Implement Weight-Bearing Lunge Test session flow (Phase 3C)
-  - [ ] Lunge pose detection (dorsiflexion ROM)
-  - [ ] Trial tracking
-  - [ ] Symmetry proxy metrics
+- [x] Implement Weight-Bearing Lunge Test session flow (Phase 3C)
+  - [x] Lunge pose detection (knee angle-based entry/exit)
+  - [x] Dorsiflexion ROM measurement
+  - [x] Trial tracking (target 3 trials)
+  - [x] Ankle symmetry proxy metrics
+  - [x] ROM and symmetry-based scoring
 - [x] Calculate simple metrics
 - [x] Generate Good/Fair/Poor band
 - [x] Save Module A results to PostgreSQL
@@ -184,8 +186,11 @@ prototyped in `mockups/physiofit-mockup.html`, then implemented in the React app
 
 **Deliverable:**
 
-- User can complete at least 2 of 3 functional checks (STS + SLS complete)
-- Results are saved and viewable with exercise-specific metrics
+- ✅ User can complete all 3 functional checks (STS, SLS, WBLT)
+- ✅ Results are saved and viewable with exercise-specific metrics
+- ✅ Single-endpoint `/api/module-a/analyze` dispatches to exercise-specific logic
+- ✅ Decoupled session_status from band across all exercise types
+- ⏳ Frontend LiveSession UI complete for STS, partial for SLS/WBLT (deferred)
 
 ---
 

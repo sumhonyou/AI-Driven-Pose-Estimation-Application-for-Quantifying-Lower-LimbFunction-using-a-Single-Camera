@@ -1069,3 +1069,70 @@ Implement Weight-Bearing Lunge Test (Phase 3C) using the identical single-endpoi
 - Implement trial-based FSM: ground-to-lunge-position (detect entry) → depth hold → return to ground (one trial complete)
 - Reuse `compute_session_status()` and SLS-proven pattern for automatic persistence
 - Add trial metrics to Report: ROM band, left/right symmetry score, trial count
+
+---
+
+## Phase 3C Completion Details — Weight-Bearing Lunge Test (WBLT) Implementation
+
+**Session Date:** 2026-07-07  
+**Status:** Phase 3C COMPLETE (backend + tests done, frontend Report updates deferred)  
+**Goal:** Add third functional check (WBLT) using same exercise-dispatch pattern, measuring dorsiflexion ROM and ankle symmetry.
+
+### Summary
+
+Phase 3C completed the reusable single-endpoint pattern by adding support for a third exercise type. No new API routes or architecture changes needed—just plugged WBLT logic into existing `/api/module-a/analyze` dispatcher. Backend now handles rep-based (STS), hold-based (SLS), and trial-based (WBLT) exercises from a single code path.
+
+### Backend Implementation
+
+**`config.py`**: WBLT thresholds
+- `TARGET_WBLT_TRIALS = 3` (number of trials)
+- `ANKLE_DORSIFLEXION_GOOD_MIN_DEG = 15.0`, `FAIR = 10.0` (ROM bands)
+- `ANKLE_SYMMETRY_EXCELLENT_MAX_DEG = 5.0`, `GOOD_MAX = 10.0` (symmetry bands)
+- `LUNGE_ENTRY_KNEE_ANGLE = 100.0` (knee bend threshold to detect lunge)
+
+**`session_engine.py`**: `_run_wblt()` method
+- Detects lunge via knee angle drop below 100°
+- Measures dorsiflexion ROM: vertical distance between knee and ankle (Y-axis)
+- Tracks ankle symmetry: left-right angle difference
+- Returns `trial_count`, `avg_dorsiflexion_deg`, `avg_symmetry_diff_deg`
+
+**`banding.py`**: `_compute_wblt_band()` function
+- ROM-based primary score: Good ≥15°, Fair 10-15°, Poor <10°
+- Symmetry deduction: Excellent <5° (-0), Good 5-10° (-0.5), Poor >10° (-1.5)
+- Session status decoupled: "complete" if trials ≥ target, "incomplete" else, "low_confidence" if poor quality
+- Warning tags: `limited_ankle_dorsiflexion`, `poor_ankle_symmetry`, `incomplete_trials`
+
+**`rest_router.py`**: Updated exercise type list
+- Added `"weight_bearing_lunge_test"` to supported types
+
+**`tests/test_module_a_banding.py`**: 5 new WBLT tests
+- Good ROM + good symmetry → "good" complete
+- Fair ROM + poor symmetry → "fair" complete (with deduction)
+- Poor ROM → "poor" complete
+- Incomplete trials → "incomplete" status
+- Zero trials → "invalid" band
+
+### Design Insights
+
+1. **Exercise dispatch is minimal boilerplate.** Adding WBLT required: one config section, one engine method, one banding method, one line in router validation. Same pattern for future exercises.
+
+2. **Metrics are exercise-specific and optional.** WBLT uses `trial_count`, `avg_dorsiflexion_deg`, `avg_symmetry_diff_deg`; SLS never sends these. Frontend code can check for presence.
+
+3. **Scoring is independent of metric shape.** STS scores from rep count + timing. SLS from hold duration. WBLT from ROM and symmetry. Yet all use the same 0-10 scale and band mapping.
+
+### Known Limitations / Next Steps
+
+- **Frontend Report updates for WBLT:** Not done. Metrics display, status messages, i18n keys not yet added to Report.tsx. Template exists (see Phase 3B Report changes); can be replicated for WBLT.
+- **WBLT LiveSession UI:** Foundation deferred. Frontend would need `wbltLiveEstimator.ts` FSM and UI in LiveSession.tsx to show trial progress and ROM feedback during the session.
+- **Dorsiflexion ROM measurement:** Current implementation uses Y-axis distance (height) as proxy. Could be refined with true ankle-to-tibia angle calculation (requires foot landmarks MediaPipe outputs via pose).
+
+### All Phase 3 Exercises Complete
+
+| Exercise | Backend | Tests | Report | LiveSession | Status |
+|----------|---------|-------|--------|-------------|--------|
+| Sit-to-Stand | ✅ | ✅ | ✅ | ✅ | Complete |
+| Single-Leg Stance | ✅ | ✅ | ✅ | 🚧 | Mostly Done |
+| Weight-Bearing Lunge | ✅ | ✅ | ⏳ | ⏳ | Backend Done |
+
+**Next Phase:** Phase 4 (Module B Rehab Grading) or UI cleanup (LiveSession for SLS/WBLT, Report for WBLT).
+
