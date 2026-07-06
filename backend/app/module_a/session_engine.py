@@ -1,11 +1,12 @@
-"""Sit-to-Stand (STS) rule-based session engine.
+"""Rule-based session engines: Sit-to-Stand (STS) and Single-Leg Stance (SLS).
 
-Consumes a list of raw world-landmark frames and produces rep count, timing,
-and geometry metrics using a hysteresis finite-state machine (calibrate ->
-smooth -> knee angle -> FSM). The same engine instance/code path is used by
-the live REST endpoint and the replay harness, so a stored session always
-reproduces the exact same result (determinism requirement).
+Each exercise consumes a list of raw world-landmark frames and produces metrics
+using deterministic algorithms (FSM for STS, sway detection for SLS). The same
+engine is used by the live REST endpoint and replay harness, guaranteeing
+determinism: same frames -> same result.
 """
+
+import math
 
 from app.module_a import config
 from app.module_a.geometry import knee_angle, trunk_lean_deg
@@ -49,12 +50,21 @@ def _pick_tracked_leg(frames: list[dict]) -> str:
 
 
 class SessionEngine:
-    """Runs the STS FSM over a full frame list and returns metrics + band inputs."""
+    """Dispatches to exercise-specific engines (STS FSM or SLS sway detection)."""
 
     def __init__(self):
         self.smoother = LandmarkSmoother()
 
-    def run(self, frames: list[dict]) -> dict:
+    def run(self, frames: list[dict], exercise_type: str = "sit_to_stand") -> dict:
+        """Runs the appropriate engine for the exercise type."""
+        if exercise_type == "sit_to_stand":
+            return self._run_sts(frames)
+        elif exercise_type in ("single_leg_stance", "supported_single_leg_stance"):
+            return self._run_sls(frames)
+        else:
+            raise ValueError(f"Unknown exercise_type: {exercise_type}")
+
+    def _run_sts(self, frames: list[dict]) -> dict:
         if not frames:
             return self._empty_result()
 
@@ -171,6 +181,124 @@ class SessionEngine:
 
         return {"metrics": metrics, "quality": quality}
 
+    def _run_sls(self, frames: list[dict]) -> dict:
+        """Single-Leg Stance: tracks balance hold time and lateral sway.
+
+        Front-view preferrable to detect lateral sway. Returns hold_duration_sec
+        (how long the user stayed on one leg) and sway metrics as proxies.
+        """
+        if not frames:
+            return self._empty_sls_result()
+
+        t0 = frames[0]["timestampMs"] / 1000.0
+        frame_validity: list[bool] = []
+        frame_avg_visibility: list[float] = []
+
+        # For SLS, we use both legs (front view) to detect balance
+        hip_l_idx, ankle_l_idx = 23, 27  # LEFT_HIP, LEFT_ANKLE
+        hip_r_idx, ankle_r_idx = 24, 28  # RIGHT_HIP, RIGHT_ANKLE
+
+        standing_on_one_leg = False
+        balance_start_time = None
+        hold_duration_sec = 0.0
+        max_sway_m = 0.0
+        sway_samples: list[float] = []
+        session_end_time = 0.0
+        stopped_early = False
+
+        for frame in frames:
+            t = frame["timestampMs"] / 1000.0 - t0
+            world = frame.get("worldLandmarks") or []
+            session_end_time = t
+
+            # Frame validity check
+            valid = len(world) >= 33
+            frame_validity.append(valid)
+
+            if len(world) >= 33:
+                frame_avg_visibility.append(average_visibility(world, "left"))
+            else:
+                frame_avg_visibility.append(0.0)
+
+            if len(world) < 33 or t <= config.CALIBRATION_SECONDS:
+                continue
+
+            smoothed = self.smoother.smooth_frame(t, world)
+            hip_l = smoothed[hip_l_idx]
+            ankle_l = smoothed[ankle_l_idx]
+            hip_r = smoothed[hip_r_idx]
+            ankle_r = smoothed[ankle_r_idx]
+
+            # Detect if standing on one leg: check if one ankle is significantly
+            # higher than the other (user lifted one foot off ground).
+            # Threshold: 0.15m vertical difference indicates one-leg stance.
+            ankle_height_diff = abs(ankle_l.get("y", 0) - ankle_r.get("y", 0))
+            currently_one_leg = ankle_height_diff > 0.15
+
+            if not standing_on_one_leg and currently_one_leg:
+                # Transitioned to one-leg stance
+                standing_on_one_leg = True
+                balance_start_time = t
+                sway_samples = []
+
+            elif standing_on_one_leg and not currently_one_leg:
+                # Fell back to two-leg stance (balance lost)
+                if balance_start_time is not None:
+                    hold_duration_sec = t - balance_start_time
+                standing_on_one_leg = False
+                balance_start_time = None
+
+            elif standing_on_one_leg:
+                # Measure lateral sway while in one-leg stance
+                # Use hip/ankle lateral (x) displacement as sway proxy
+                hip_x = (
+                    hip_l.get("x", 0)
+                    if ankle_l.get("y", 0) > ankle_r.get("y", 0)
+                    else hip_r.get("x", 0)
+                )
+                ankle_x = (
+                    ankle_l.get("x", 0)
+                    if ankle_l.get("y", 0) > ankle_r.get("y", 0)
+                    else ankle_r.get("x", 0)
+                )
+
+                # Compute sway as lateral displacement from baseline
+                sway_samples.append(abs(hip_x) + abs(ankle_x))
+                if (
+                    sway_samples
+                    and len(sway_samples) >= config.SWAY_SAMPLE_WINDOW_FRAMES
+                ):
+                    # Use rolling window of recent samples
+                    recent_sway = sway_samples[-config.SWAY_SAMPLE_WINDOW_FRAMES :]
+                    avg_sway = sum(recent_sway) / len(recent_sway)
+                    max_sway_m = max(max_sway_m, avg_sway)
+
+            if t >= config.MAX_SESSION_SECONDS:
+                stopped_early = True
+                if standing_on_one_leg and balance_start_time is not None:
+                    hold_duration_sec = t - balance_start_time
+                break
+
+        # If still in balance when time expires, count that duration
+        if standing_on_one_leg and balance_start_time is not None:
+            hold_duration_sec = session_end_time - balance_start_time
+
+        quality = session_quality(frame_validity, frame_avg_visibility)
+
+        metrics = {
+            "rep_count": (
+                1 if hold_duration_sec > 0 else 0
+            ),  # Simplified: 1 "rep" if any hold detected
+            "target_rep_count": 1,  # SLS is a single hold test, not reps
+            "hold_duration_sec": round(hold_duration_sec, 2),
+            "target_hold_sec": config.TARGET_SLS_HOLD_SEC,
+            "max_sway_m": round(max_sway_m, 3),
+            "session_duration_sec": session_end_time,
+            "stopped_early": stopped_early,
+        }
+
+        return {"metrics": metrics, "quality": quality}
+
     @staticmethod
     def _rep_durations(rep_event_times: list[float]) -> list[float]:
         durations = []
@@ -198,6 +326,25 @@ class SessionEngine:
                 "session_duration_sec": 0.0,
                 "stopped_early": False,
                 "tracked_leg": None,
+            },
+            "quality": {
+                "valid_frame_ratio": 0.0,
+                "average_visibility": 0.0,
+                "quality_band": "poor",
+            },
+        }
+
+    @staticmethod
+    def _empty_sls_result() -> dict:
+        return {
+            "metrics": {
+                "rep_count": 0,
+                "target_rep_count": 1,
+                "hold_duration_sec": 0.0,
+                "target_hold_sec": config.TARGET_SLS_HOLD_SEC,
+                "max_sway_m": 0.0,
+                "session_duration_sec": 0.0,
+                "stopped_early": False,
             },
             "quality": {
                 "valid_frame_ratio": 0.0,

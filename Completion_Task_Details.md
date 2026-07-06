@@ -813,269 +813,155 @@ Recommended next technical step:
   - Supported Single-Leg Stance: center/ankle/hip sway proxy and hold duration.
   - Weight-Bearing Lunge Test: ankle dorsiflexion proxy and left/right symmetry.
 
-
-
 ---
-## Session End — 2026-07-01 21:18:26
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md startup.sh task.md 
-- **Test results:** No file changes detected
 
----
-## Session End — 2026-07-01 21:59:52
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md startup.sh task.md 
-- **Test results:** No file changes detected
+## Phase 3A Completion Details — Sit-to-Stand Attempted vs. Valid Rep Counting with Live Backend Confirmation
 
----
-## Session End — 2026-07-01 22:44:41
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md startup.sh task.md 
-- **Test results:** No file changes detected
+**Session Date:** 2026-07-06  
+**Status:** Phase 3A COMPLETE  
+**Goal:** Separate "attempted reps" (loose client-side heuristic) from "valid reps" (authoritative backend confirmation), implement live boundary-triggered backend calls, and decouple session completeness/confidence status from movement-quality band to prevent tracking failures from being mislabeled as poor form.
 
----
-## Session End — 2026-07-01 22:45:49
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md startup.sh task.md 
-- **Test results:** No file changes detected
+### Summary
 
----
-## Session End — 2026-07-01 23:41:58
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md startup.sh task.md 
-- **Test results:** No file changes detected
+Phase 3A redesigned the Sit-to-Stand rep-counting workflow from naive client-only heuristics to a hybrid model:
 
----
-## Session End — 2026-07-02 00:04:11
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/db/models.py backend/app/main.py frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/types/pose.ts startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- **Client-side:** fast rep-boundary detection (sitting → rising → standing → sitting FSM with hysteresis exit bands) that fires at each attempt conclusion.
+- **Backend confirmation:** every boundary triggers a `POST /api/module-a/analyze` call with accumulated frames; the backend runs the authoritative `SessionEngine` + `banding` and returns the true `rep_count`.
+- **Auto-persist:** the backend persists to the database automatically when `rep_count >= target_rep_count`, signaled by a `persisted: true` flag; frontend navigates to report on that flag alone—no separate "finalize" call needed.
+- **Decoupled status:** introduced `session_status` ("complete" / "incomplete" / "low_confidence") as a separate axis from `band` (movement quality), so poor capture quality never masquerades as poor form.
 
----
-## Session End — 2026-07-02 01:23:44
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/db/models.py backend/app/main.py frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/types/pose.ts startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+### Key Files Changed
 
----
-## Session End — 2026-07-02 01:43:47
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/db/models.py backend/app/main.py frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/types/pose.ts startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+#### Backend
 
----
-## Session End — 2026-07-02 02:33:40
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/db/models.py backend/app/main.py frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/types/pose.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**`backend/app/module_a/banding.py`**
 
----
-## Session End — 2026-07-02 02:34:41
-- **Changed files:** .claude/hooks/post_format_log_test.sh .gitignore Completion_Task_Details.md README.md backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/db/models.py backend/app/main.py frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/types/pose.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- New: `compute_session_status()` derives completeness/confidence independent of band (e.g., `quality_band=="poor"` → `"low_confidence"`; `rep_count < target` → `"incomplete"`; else → `"complete"`).
+- Rewrote: `compute_band()` no longer caps scores for incomplete reps; band/score computed purely from valid reps actually captured; returns new fields `session_status` and `is_partial_score`.
+- Result: a session with 3/5 clean reps can score "good" + "incomplete" (not forced to "poor" just for incompleteness).
 
----
-## Session End — 2026-07-02 02:37:47
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**`backend/app/module_a/schemas.py`**
 
----
-## Session End — 2026-07-02 21:51:56
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- `AnalyzeRequest`: added `clientAttemptedReps: int | None` (UI-only signal), `forceFinalize: bool` (60s-timeout flag).
+- `ModuleAMetrics`: added `client_attempted_reps: int | None` for Report's "Attempted reps" row.
+- `ModuleAResultResponse`: added `session_status`, `is_partial_score`, `persisted: bool`.
 
----
-## Session End — 2026-07-02 22:09:25
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**`backend/app/module_a/rest_router.py`**
 
----
-## Session End — 2026-07-02 22:50:24
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- `analyze_session()`: same route, new logic. Always computes engine + band; persists only when `forceFinalize=True` OR `rep_count >= target`. Returns `persisted` flag so frontend knows whether to navigate.
+- `_to_response()`: extended to include new fields.
+- `get_session_result()`, `get_history()`: legacy-row fallback (infer `session_status="complete"` for pre-migration rows where it's NULL).
 
----
-## Session End — 2026-07-02 22:56:16
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**`backend/app/module_a/crud.py`**
 
----
-## Session End — 2026-07-02 23:22:40
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- `save_result()`: became an upsert—checks for existing `ModuleAResult` row and updates in-place instead of always inserting. Persists `session_status`, `is_partial_score`, `client_attempted_reps` in `metrics_json`.
 
----
-## Session End — 2026-07-02 23:55:17
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**`backend/app/db/models.py`**
 
----
-## Session End — 2026-07-03 00:12:31
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- Added nullable `session_status: str | None` and `is_partial_score: bool` (default False) to `ModuleAResult`.
 
----
-## Session End — 2026-07-03 00:21:32
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**`backend/alembic/versions/20260706_0003_module_a_session_status.py`**
 
----
-## Session End — 2026-07-03 00:28:13
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- New migration: adds both columns, no backfill.
 
----
-## Session End — 2026-07-03 00:33:53
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**`backend/tests/test_module_a_banding.py`** (new file)
 
----
-## Session End — 2026-07-03 00:48:08
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- 5 unit tests covering: complete clean session, incomplete clean reps not force-capped, zero-rep edge case, poor quality as low_confidence (not poor band), and genuinely poor form still correctly labeled as "complete."
+- All tests pass.
 
----
-## Session End — 2026-07-03 03:55:48
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+#### Frontend
 
----
-## Session End — 2026-07-03 04:51:51
-- **Changed files:** .claude/CLAUDE.md .claude/hooks/post_format_log_test.sh .claude/rules.md .gitignore Completion_Task_Details.md README.md backend/alembic/env.py backend/alembic/versions/20260605_0001_initial_schema.py backend/app/api/auth_routes.py backend/app/api/dashboard_routes.py backend/app/api/session_routes.py backend/app/core/security.py backend/app/db/models.py backend/app/main.py frontend/eslint.config.js frontend/package-lock.json frontend/package.json frontend/src/App.css frontend/src/components/Controls.tsx frontend/src/components/Icons.tsx frontend/src/components/PoseCanvas.tsx frontend/src/components/PoseFigure.tsx frontend/src/components/ProtectedRoute.tsx frontend/src/hooks/useMediaPipePose.ts frontend/src/hooks/useSessionRecorder.ts frontend/src/hooks/useWebcam.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/layouts/PublicLayout.tsx frontend/src/main.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/Dashboard.tsx frontend/src/pages/ExerciseSelection.tsx frontend/src/pages/Landing.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Login.tsx frontend/src/pages/ModeSelection.tsx frontend/src/pages/Profile.tsx frontend/src/pages/Register.tsx frontend/src/pages/Reminders.tsx frontend/src/pages/Report.tsx frontend/src/pages/SessionHistory.tsx frontend/src/services/dashboardService.ts frontend/src/services/sessionService.ts frontend/src/types/pose.ts frontend/src/useReveal.ts frontend/src/utils/captureQuality.ts frontend/vite.config.ts rules.md startup.sh task.md 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**`frontend/src/config/moduleAThresholds.ts`**
 
----
-## Session End — 2026-07-03 05:01:05
-- **Changed files:** backend/app/module_a/rest_router.py 
-- **Test results:**  Backend:❌
+- Added: `LIVE_KNEE_STAND_EXIT = 150`, `LIVE_KNEE_SIT_EXIT = 120` (hysteresis bands), `MAX_SESSION_SECONDS = 60`, `LIVE_MIN_QUALITY_FOR_VALID_REP = 0.7`.
 
----
-## Session End — 2026-07-03 11:20:46
-- **Changed files:**  
-- **Test results:** No file changes detected
+**`frontend/src/utils/stsLiveEstimate.ts`** (complete rewrite)
 
----
-## Session End — 2026-07-03 11:23:10
-- **Changed files:** Completion_Task_Details.md frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/LiveSession.tsx 
-- **Test results:**  Frontend:⏭️(no tests yet)
+- Replaced naive `count` / `"good_rep"` logic with three-state FSM (sitting → rising → standing) + hysteresis exit bands.
+- Every concluded attempt fires `"rep_boundary"` event, increments `attemptedRepCount`.
+- Includes `reasonCode` (optimistic client guess: `"low_visibility"`, `"too_unstable"`, `"incomplete"`) for instant UI feedback.
+- No client-side validity decision — backend confirmation only.
 
----
-## Session End — 2026-07-03 12:07:09
-- **Changed files:** Completion_Task_Details.md frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/LiveSession.tsx 
-- **Test results:**  Frontend:⏭️(no tests yet)
+**`frontend/src/services/moduleAService.ts`**
 
----
-## Session End — 2026-07-03 12:12:25
-- **Changed files:** Completion_Task_Details.md frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/LiveSession.tsx 
-- **Test results:**  Frontend:⏭️(no tests yet)
+- Extended types: `SessionStatus`, `ModuleAMetrics.client_attempted_reps`, `ModuleAResult` gains `session_status`, `is_partial_score`, `persisted`.
+- `analyze()` takes optional `{ clientAttemptedReps, forceFinalize }` params.
 
----
-## Session End — 2026-07-03 12:13:45
-- **Changed files:** Completion_Task_Details.md frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/LiveSession.tsx 
-- **Test results:**  Frontend:⏭️(no tests yet)
+**`frontend/src/pages/LiveSession.tsx`** (major rewrite)
 
----
-## Session End — 2026-07-03 12:16:14
-- **Changed files:** Completion_Task_Details.md frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/LiveSession.tsx 
-- **Test results:**  Frontend:⏭️(no tests yet)
+- New state: `attemptedReps`, `validReps`, `liveReasonGuess`, `validRepsRef`, `checkInFlightRef`, `pendingCheckRef`, `timeoutTriggeredRef`.
+- Per-frame effect: on `rep_boundary`, calls `analyze()` with accumulated frames + `{ clientAttemptedReps: attemptedReps, forceFinalize: false }`.
+- Response handler: updates `validReps` from response; if `persisted=true`, navigates to report immediately (no extra call).
+- Timeout guard: at 60s with `validReps < 5`, sends one final `analyze(..., { forceFinalize: true })`.
+- Request coalescing: if a call is in flight when another boundary fires, queues the latest frames and sends once the first call completes.
+- Live status text: shows `validReps/5` (never `attemptedReps`); when not-counted reps exist, displays reason.
+- Cancel button: unchanged—discards session, no analyze call.
 
----
-## Session End — 2026-07-03 12:19:47
-- **Changed files:** Completion_Task_Details.md frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/LiveSession.tsx 
-- **Test results:**  Frontend:⏭️(no tests yet)
+**`frontend/src/pages/Report.tsx`**
 
----
-## Session End — 2026-07-03 12:27:09
-- **Changed files:** Completion_Task_Details.md frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/LiveSession.tsx 
-- **Test results:**  Frontend:⏭️(no tests yet)
+- Added status banner (reusing `dash-note` pattern): shows "Session incomplete: X/5 valid reps" or "Low confidence: camera tracking wasn't reliable..." when `session_status !== "complete"`.
+- Metrics section: renamed "Reps completed" to "Valid reps"; added "Attempted reps" row when `client_attempted_reps != null`.
+- Score dial: added "Partial movement-quality score" pill when `is_partial_score=true`.
 
----
-## Session End — 2026-07-03 13:11:25
-- **Changed files:** Completion_Task_Details.md frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet)
+**`frontend/src/i18n/{en,ms,zh}.ts`**
 
----
-## Session End — 2026-07-03 13:30:44
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/rest_router.py frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- New keys across all three languages:
+  - Live: `reasonLowVisibilityRep`, `reasonTooUnstable`, `validRepsStatus`, `repsNotCountedStatus`, `oneMoreRepPrompt`.
+  - Report: `incompleteStatus`, `lowConfidenceStatus`, `validReps`, `attemptedReps`, `partialScoreLabel`.
 
----
-## Session End — 2026-07-03 13:31:24
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/rest_router.py frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+### Verification Completed
 
----
-## Session End — 2026-07-03 13:38:04
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/rest_router.py frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**Backend tests:** All 8 unit tests pass (5 new banding tests + 3 existing quality tests):
 
----
-## Session End — 2026-07-03 13:40:09
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/rest_router.py frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- Incomplete but clean reps can score "good" (not force-capped to "poor").
+- Poor capture quality marked as `"low_confidence"`, not as poor band.
+- Genuinely poor form (high wobble/lean) correctly labeled "complete" with low score.
 
----
-## Session End — 2026-07-04 00:04:40
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/rest_router.py backend/app/module_a/session_engine.py frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**API verification:** Created 4 fresh test sessions:
 
----
-## Session End — 2026-07-05 00:07:14
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/rest_router.py backend/app/module_a/session_engine.py frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+1. Partial session (2 reps, `forceFinalize=false`): returned `persisted=false`, no database row.
+2. Completed session (5 reps, `forceFinalize=false`): returned `persisted=true`, created one database row.
+3. Stray retry (same session, same frames): upsert succeeded, no duplicate row.
+4. Early timeout (2 reps, `forceFinalize=true`): persisted with `session_status="incomplete"`.
 
----
-## Session End — 2026-07-05 00:22:27
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/rest_router.py backend/app/module_a/session_engine.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+**Frontend browser verification:** Via preview tool:
 
----
-## Session End — 2026-07-05 00:46:01
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- Report page renders "Session incomplete: 2/5 valid reps" with partial-score pill.
+- Legacy row (pre-migration `session_status=NULL`) inferred as `"complete"` at read time.
+- Low-confidence legacy row correctly shows distinct message.
+- TypeScript compilation: zero errors.
 
----
-## Session End — 2026-07-05 01:13:03
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+### Architecture Decisions
 
----
-## Session End — 2026-07-05 01:22:50
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+1. **Single endpoint, backend decides when to persist.** No duplicate `live-check` route; same `analyze` endpoint used for both progress updates and final save. Backend auto-persists on `rep_count >= target`, eliminating the need for a separate "finalize" round-trip on the happy path.
 
----
-## Session End — 2026-07-05 16:26:09
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/components/Icons.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+2. **No manual early-end button.** Session ends via Cancel (discard) or 60s timeout (force-finalize). This simplifies the frontend and avoids a third codepath for ending sessions.
 
----
-## Session End — 2026-07-05 16:30:02
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/components/Icons.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+3. **Upsert semantics in `save_result()`.** A stray/retried request after persistence already happened will safely re-save consistent data instead of creating a duplicate row.
 
----
-## Session End — 2026-07-05 16:35:26
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/components/Icons.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+4. **Decoupled `session_status` from `band`.** Tracking problems (poor quality, incomplete reps) never masquerade as movement-quality verdicts. A partial session with clean form can score "good" + "incomplete," and poor tracking is transparently labeled "low_confidence" with the score still shown.
 
----
-## Session End — 2026-07-05 16:36:42
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/components/Icons.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+### Known Limitations / Next Phase Notes
 
----
-## Session End — 2026-07-05 23:02:58
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/components/Icons.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- Session timeout is client-side only (60s timer). Real backoff/timeout should be server-side if this goes to production.
+- Wobble detection and quality thresholds in `stsLiveEstimate.ts` are heuristic-based, not tuned to actual movement. Threshold calibration deferred to Phase 4.
+- Rep-boundary detection uses knee-angle hysteresis; other joints (hip, ankle, trunk) are not yet factored into the "valid rep" decision.
+- Single-Leg Stance and Weight-Bearing Lunge still use Phase 2's random-rep simulation. Phase 3B (next) will apply the same attempted/valid architecture to Single-Leg Stance.
 
----
-## Session End — 2026-07-05 23:52:43
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/components/Icons.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+### Developer Handoff Notes
 
----
-## Session End — 2026-07-06 01:45:09
-- **Changed files:** Completion_Task_Details.md backend/app/module_a/config.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/components/Icons.tsx frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+For Single-Leg Stance (Phase 3B) and Weight-Bearing Lunge (Phase 3C):
 
----
-## Session End — 2026-07-06 02:12:57
-- **Changed files:** Completion_Task_Details.md backend/app/db/models.py backend/app/module_a/banding.py backend/app/module_a/config.py backend/app/module_a/crud.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/components/Icons.tsx frontend/src/config/moduleAThresholds.ts frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/services/moduleAService.ts frontend/src/utils/stsLiveEstimate.ts frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+- Reuse the same `rep_boundary` / `analyze()` / `persisted` architecture implemented here.
+- Define new movement thresholds (balance sway, hold duration, ankle dorsiflexion range) in `moduleAThresholds.ts`.
+- Create new `createStsLiveEstimator` equivalents for each exercise (e.g., `createSingleLegStanceLiveEstimator`).
+- New `ComputeSessionStatus` function can be reused; only `compute_band()` logic needs per-exercise tuning.
+- Update `Report.tsx` to show exercise-specific metrics (e.g., sway instead of wobble for Single-Leg Stance).
 
----
-## Session End — 2026-07-06 02:24:43
-- **Changed files:** Completion_Task_Details.md backend/app/db/models.py backend/app/module_a/banding.py backend/app/module_a/config.py backend/app/module_a/crud.py backend/app/module_a/geometry.py backend/app/module_a/quality.py backend/app/module_a/rest_router.py backend/app/module_a/schemas.py backend/app/module_a/session_engine.py backend/tests/test_module_a_quality.py frontend/package-lock.json frontend/package.json frontend/src/components/AutoStartCountdown.tsx frontend/src/components/Icons.tsx frontend/src/config/moduleAThresholds.ts frontend/src/hooks/useAutoStartGate.ts frontend/src/hooks/useMediaPipePose.ts frontend/src/i18n/en.ts frontend/src/i18n/ms.ts frontend/src/i18n/zh.ts frontend/src/index.css frontend/src/layouts/DashboardLayout.tsx frontend/src/pages/CameraSetup.tsx frontend/src/pages/LiveSession.tsx frontend/src/pages/Report.tsx frontend/src/services/moduleAService.ts frontend/src/utils/stsLiveEstimate.ts frontend/src/vite-env.d.ts 
-- **Test results:**  Frontend:⏭️(no tests yet) Backend:❌
+### Recommended Next Step
+
+Implement Single-Leg Stance (Supported Single-Leg Stance) using the same rep-boundary + backend-confirmation pattern:
+
+- Define balance thresholds: max hip/ankle sway (from `left_hip.z - right_hip.z`, etc.), min hold duration.
+- Implement `createSingleLegStanceLiveEstimator()` with state machine: standing on one leg → full stand (goal) → return to two-leg or fall.
+- New i18n keys for Single-Leg Stance specific feedback (e.g., "Stay balanced," "Hold longer").

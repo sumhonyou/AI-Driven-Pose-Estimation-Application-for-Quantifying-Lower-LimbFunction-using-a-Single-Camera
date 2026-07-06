@@ -63,33 +63,39 @@ def analyze_session(
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ModuleAResultResponse:
-    """Recomputes the STS result from the frames sent so far.
+    """Analyzes Module A session from frames (STS or SLS).
 
     Called both as a lightweight live-progress check (once per attempted-rep
     boundary, `forceFinalize=False`) and as the call that finalizes the session
-    (either naturally, once `rep_count` reaches `target_rep_count`, or forced via
-    `forceFinalize=True` on a manual/timeout early end). Persistence only happens
-    once one of those two conditions is true, so a session in progress can be
-    checked repeatedly without writing anything until it's actually done.
+    (either naturally, once metrics reach target, or forced via `forceFinalize=True`
+    on early end). Persistence only happens once completion threshold is met, so
+    a session in progress can be checked repeatedly without writing until complete.
     """
     session = _get_owned_session(db, payload.sessionId, current_user.id)
-    if payload.exerciseType != "sit_to_stand":
+    if payload.exerciseType not in (
+        "sit_to_stand",
+        "single_leg_stance",
+        "supported_single_leg_stance",
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only sit_to_stand is supported by Module A analyze so far",
+            detail="Unsupported exercise type",
         )
 
     frames = [f.model_dump() for f in payload.frames]
     logger.info(
-        "analyze session=%s frames=%d forceFinalize=%s",
+        "analyze session=%s exercise=%s frames=%d forceFinalize=%s",
         payload.sessionId,
+        payload.exerciseType,
         len(frames),
         payload.forceFinalize,
     )
 
-    engine_result = SessionEngine().run(frames)
+    engine_result = SessionEngine().run(frames, exercise_type=payload.exerciseType)
     band_result = banding.compute_band(
-        engine_result["metrics"], engine_result["quality"]
+        engine_result["metrics"],
+        engine_result["quality"],
+        exercise_type=payload.exerciseType,
     )
 
     should_persist = payload.forceFinalize or (

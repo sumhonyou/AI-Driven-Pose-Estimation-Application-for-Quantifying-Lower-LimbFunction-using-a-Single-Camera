@@ -41,16 +41,30 @@ def compute_session_status(rep_count: int, target: int, quality_band: str) -> st
     return "complete"
 
 
-def compute_band(metrics: dict, quality: dict) -> dict:
-    """Returns {score, band, warning_tags, session_status, is_partial_score} from
-    session metrics + capture quality.
+def compute_band(
+    metrics: dict, quality: dict, exercise_type: str = "sit_to_stand"
+) -> dict:
+    """Returns {score, band, warning_tags, session_status, is_partial_score}.
 
-    `band`/`score` are computed only from the valid reps actually captured --
-    never suppressed or force-capped because the set was incomplete or capture
-    quality was poor. `session_status` carries that information instead.
+    Exercise-specific scoring: STS uses rep count; SLS uses hold duration.
+    Band/score computed from valid data only; session_status (complete/incomplete/
+    low_confidence) tracks completeness/confidence separately from quality band.
     """
     warning_tags: list[str] = []
     quality_band = quality["quality_band"]
+
+    if exercise_type == "sit_to_stand":
+        return _compute_sts_band(metrics, quality_band, warning_tags)
+    elif exercise_type in ("single_leg_stance", "supported_single_leg_stance"):
+        return _compute_sls_band(metrics, quality_band, warning_tags)
+    else:
+        raise ValueError(f"Unknown exercise_type: {exercise_type}")
+
+
+def _compute_sts_band(
+    metrics: dict, quality_band: str, warning_tags: list[str]
+) -> dict:
+    """STS-specific banding: based on rep count, timing, and stability."""
     rep_count = metrics["rep_count"]
     target = metrics["target_rep_count"]
 
@@ -101,4 +115,66 @@ def compute_band(metrics: dict, quality: dict) -> dict:
         "time_band": t_band,
         "session_status": session_status,
         "is_partial_score": rep_count < target,
+    }
+
+
+def _compute_sls_band(
+    metrics: dict, quality_band: str, warning_tags: list[str]
+) -> dict:
+    """SLS-specific banding: based on hold duration and stability/sway."""
+    hold_duration = metrics.get("hold_duration_sec", 0.0)
+    target_hold = metrics.get("target_hold_sec", config.TARGET_SLS_HOLD_SEC)
+
+    # For SLS, session_status considers hold_duration as the primary metric
+    # Treat as "complete" if hold >= target_hold, "incomplete" if < target, "low_confidence" if poor quality
+    if quality_band == "poor":
+        session_status = "low_confidence"
+        warning_tags.append("poor_capture_quality")
+    elif hold_duration >= target_hold:
+        session_status = "complete"
+    else:
+        session_status = "incomplete"
+        warning_tags.append("incomplete_hold")
+
+    if hold_duration == 0.0:
+        return {
+            "score": 0.0,
+            "band": "invalid",
+            "warning_tags": warning_tags,
+            "hold_band": None,
+            "session_status": session_status,
+            "is_partial_score": False,
+        }
+
+    # Determine hold-duration band and start score from it
+    if hold_duration >= config.HOLD_GOOD_MIN_SEC:
+        hold_band = "good"
+        score = 10.0
+    elif hold_duration >= config.HOLD_FAIR_MIN_SEC:
+        hold_band = "fair"
+        score = 6.0  # Fair is 4-7, so middle at 6.0
+    else:
+        hold_band = "poor"
+        score = 3.0  # Poor is 0-4, so middle at 3.0
+
+    if quality_band == "moderate":
+        warning_tags.append("moderate_capture_quality")
+        score -= 1.0
+
+    # Sway/stability deduction
+    max_sway = metrics.get("max_sway_m", 0.0)
+    if max_sway > config.MAX_HIP_SWAY_M:
+        warning_tags.append("excessive_sway")
+        score -= 1.0
+
+    score = max(0.0, round(score, 2))
+    band = score_to_band(score)
+
+    return {
+        "score": score,
+        "band": band,
+        "warning_tags": warning_tags,
+        "hold_band": hold_band,
+        "session_status": session_status,
+        "is_partial_score": hold_duration < target_hold,
     }

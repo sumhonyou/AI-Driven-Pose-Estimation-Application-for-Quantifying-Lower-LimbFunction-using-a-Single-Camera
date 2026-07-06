@@ -5,6 +5,7 @@
 # and what the next task should be. Claude will also suggest rule updates if needed.
 
 PROJ="/Users/sumhonyou/Documents/AI-Driven-Pose-Estimation-Application-for-Quantifying-Lower-LimbFunction-using-a-Single-Camera"
+LOG="$PROJ/Session_Summary_Log.md"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║              SESSION START — PROJECT CONTEXT BRIEF           ║"
@@ -16,9 +17,9 @@ echo "## Current Task Status (task.md — top 40 lines)"
 head -40 "$PROJ/task.md" 2>/dev/null
 echo ""
 
-# ── Recent completions (last 80 lines of log) ────────────────────────────────
-echo "## Recent Completion Log (last 80 lines of Completion_Task_Details.md)"
-tail -80 "$PROJ/Completion_Task_Details.md" 2>/dev/null
+# ── Recent session summary (last 80 lines of log) ────────────────────────────
+echo "## Recent Session Summary Log (last 80 lines of Session_Summary_Log.md)"
+tail -80 "$LOG" 2>/dev/null
 echo ""
 
 # ── Recent git history ───────────────────────────────────────────────────────

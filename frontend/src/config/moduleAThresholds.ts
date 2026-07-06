@@ -21,6 +21,12 @@ export const STS_TARGET_REPS = 5;
  * STS_TARGET_REPS valid reps instead of running forever. */
 export const MAX_SESSION_SECONDS = 60;
 
+/** Single-Leg Stance: target hold duration in seconds. */
+export const SLS_TARGET_HOLD_SEC = 30;
+/** One-leg stance detection: vertical distance (meters) between ankles above which
+ * we consider the user to be standing on one leg. */
+export const SLS_ANKLE_HEIGHT_DIFF_M = 0.15;
+
 /** Below this capture-quality score, live feedback should warn the user instead of showing progress. */
 export const LIVE_MIN_VISIBILITY = 0.6;
 /** Below this average per-rep capture quality, the live estimator's optimistic

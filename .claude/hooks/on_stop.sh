@@ -2,12 +2,12 @@
 # on_stop.sh — Stop hook
 # Fires when Claude finishes a session.
 # 1. Runs tests for any files changed in this git session
-# 2. Appends a session-end summary to Completion_Task_Details.md
+# 2. Appends a session-end summary to Session_Summary_Log.md
 # 3. Sends a "task finished" Mac notification
 
 PROJ="/Users/sumhonyou/Documents/AI-Driven-Pose-Estimation-Application-for-Quantifying-Lower-LimbFunction-using-a-Single-Camera"
 NOTIFY="$PROJ/.claude/hooks/notify.sh"
-LOG="$PROJ/Completion_Task_Details.md"
+LOG="$PROJ/Session_Summary_Log.md"
 VENV="$PROJ/backend/.venv/bin"
 
 TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
@@ -55,6 +55,15 @@ fi
 
 # ── 3. LOG SESSION END ────────────────────────────────────────────────────────
 
+# Create the summary file with a short heading on first use.
+if [ ! -f "$LOG" ]; then
+  {
+    echo "# Session Summary Log"
+    echo ""
+    echo "Automatically updated by .claude/hooks/on_stop.sh after each Claude session."
+  } > "$LOG"
+fi
+
 {
   echo ""
   echo "---"
@@ -63,11 +72,11 @@ fi
   echo "- **Test results:** $TEST_RESULTS"
 } >> "$LOG"
 
-echo "[Stop] Session summary written to Completion_Task_Details.md"
+echo "[Stop] Session summary written to Session_Summary_Log.md"
 
 # ── 4. MAC NOTIFICATION ───────────────────────────────────────────────────────
 
-NOTIF_MSG="Session done. Tests:${TEST_RESULTS}. See Completion_Task_Details.md"
+NOTIF_MSG="Session done. Tests:${TEST_RESULTS}. See Session_Summary_Log.md"
 bash "$NOTIFY" "task_finished" "$NOTIF_MSG"
 
 exit 0
