@@ -1,0 +1,92 @@
+[
+  {
+    "sample_id": "good_steady_right_1",
+    "leg": "right",
+    "frames_file": "good_steady_right_1.json",
+    "intended_hold_sec": 40.0,
+    "manual_hold_sec": 39.598,
+    "target_band_hint": "good",
+    "sway_amplitude": 0.0
+  },
+  {
+    "sample_id": "good_steady_left_1",
+    "leg": "left",
+    "frames_file": "good_steady_left_1.json",
+    "intended_hold_sec": 44.0,
+    "manual_hold_sec": 43.674,
+    "target_band_hint": "good",
+    "sway_amplitude": 0.05
+  },
+  {
+    "sample_id": "good_capped_right_1",
+    "leg": "right",
+    "frames_file": "good_capped_right_1.json",
+    "intended_hold_sec": 50.0,
+    "manual_hold_sec": 50.496,
+    "target_band_hint": "good",
+    "sway_amplitude": 0.0
+  },
+  {
+    "sample_id": "fair_steady_left_1",
+    "leg": "left",
+    "frames_file": "fair_steady_left_1.json",
+    "intended_hold_sec": 18.0,
+    "manual_hold_sec": 17.845,
+    "target_band_hint": "fair",
+    "sway_amplitude": 0.1
+  },
+  {
+    "sample_id": "fair_swaying_right_1",
+    "leg": "right",
+    "frames_file": "fair_swaying_right_1.json",
+    "intended_hold_sec": 20.0,
+    "manual_hold_sec": 20.035,
+    "target_band_hint": "fair",
+    "sway_amplitude": 0.35
+  },
+  {
+    "sample_id": "fair_steady_right_2",
+    "leg": "right",
+    "frames_file": "fair_steady_right_2.json",
+    "intended_hold_sec": 12.0,
+    "manual_hold_sec": 12.529,
+    "target_band_hint": "fair",
+    "sway_amplitude": 0.1
+  },
+  {
+    "sample_id": "poor_swaying_left_1",
+    "leg": "left",
+    "frames_file": "poor_swaying_left_1.json",
+    "intended_hold_sec": 6.0,
+    "manual_hold_sec": 6.071,
+    "target_band_hint": "poor",
+    "sway_amplitude": 0.4
+  },
+  {
+    "sample_id": "poor_short_right_1",
+    "leg": "right",
+    "frames_file": "poor_short_right_1.json",
+    "intended_hold_sec": 3.0,
+    "manual_hold_sec": 3.378,
+    "target_band_hint": "poor",
+    "sway_amplitude": 0.15
+  },
+  {
+    "sample_id": "poor_swaying_right_2",
+    "leg": "right",
+    "frames_file": "poor_swaying_right_2.json",
+    "intended_hold_sec": 8.0,
+    "manual_hold_sec": 7.504,
+    "target_band_hint": "poor",
+    "sway_amplitude": 0.5
+  },
+  {
+    "sample_id": "invalid_never_lifted_left_1",
+    "leg": "left",
+    "frames_file": "invalid_never_lifted_left_1.json",
+    "intended_hold_sec": 0.0,
+    "manual_hold_sec": 0.403,
+    "target_band_hint": "invalid",
+    "sway_amplitude": 0.0
+  }
+]

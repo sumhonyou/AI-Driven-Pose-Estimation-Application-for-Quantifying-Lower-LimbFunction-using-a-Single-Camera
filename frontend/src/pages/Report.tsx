@@ -77,6 +77,10 @@ export default function Report() {
     pct = Math.max(0, Math.min(1, score / 10));
 
   const isSls = session?.exercise_type?.includes("single_leg");
+  // Migration signal: only SLS rows from the both-legs rebuild carry `perLeg`.
+  // Older single-leg rows (pre-rebuild) fall through to the legacy metricRows below.
+  const perLeg = result?.metrics.perLeg;
+  const hasPerLeg = !!(perLeg && (perLeg.left || perLeg.right));
 
   const metricRows =
     result && session
@@ -185,8 +189,13 @@ export default function Report() {
                       : "report.incompleteStatus",
                   isSls
                     ? {
-                        duration: result.metrics.hold_duration_sec?.toFixed(1) || "0",
-                        target: result.metrics.target_hold_sec || 30,
+                        duration: (
+                          result.metrics.best_hold_sec ??
+                          result.metrics.hold_duration_sec ??
+                          0
+                        ).toFixed(1),
+                        target:
+                          result.metrics.maxHoldSeconds ?? result.metrics.target_hold_sec ?? 45,
                       }
                     : {
                         valid: result.metrics.rep_count,
@@ -273,16 +282,81 @@ export default function Report() {
           <div style={{ marginBottom: 8 }}>
             <span className="eyebrow">{t(isSls ? "report.slsMetrics" : "report.metrics")}</span>
           </div>
-          <div className="sub-scores" style={{ marginBottom: 18 }}>
-            {metricRows.map((row) => (
-              <div className="sub-score reveal" key={row.label}>
-                <div className="ss-top">
-                  <b>{row.label}</b>
-                  <span>{row.value}</span>
+
+          {hasPerLeg ? (
+            <div className="dash-grid-2" style={{ marginBottom: 18 }}>
+              {(["right", "left"] as const).map((leg) => {
+                const m = perLeg?.[leg];
+                if (!m) return null;
+                return (
+                  <div className="panel reveal" key={leg}>
+                    <div className="panel-head" style={{ marginBottom: 18 }}>
+                      <h3>{t(leg === "right" ? "sls.legRight" : "sls.legLeft")}</h3>
+                      <span className={"band " + m.band}>{t("common." + m.band)}</span>
+                    </div>
+                    <div className="sls-metric-row">
+                      <span className="sls-metric-label">{t("sls.bestHold")}</span>
+                      <span className="sls-metric-value">{fmtSec(m.holdSeconds)}</span>
+                    </div>
+                    <div className="sls-metric-row">
+                      <span className="sls-metric-label">{t("sls.stabilityScore")}</span>
+                      <span className="sls-metric-value">{m.stabilityScore.toFixed(1)}/10</span>
+                    </div>
+                    <div className="sls-metric-row">
+                      <span className="sls-metric-label">{t("sls.combinedScore")}</span>
+                      <span className="sls-metric-value">{m.combinedScore.toFixed(1)}/10</span>
+                    </div>
+                    <p className="muted" style={{ fontSize: "0.82rem", marginTop: 12 }}>
+                      {t("sls.stopReasonLabel")}: {t("sls.stopReason_" + m.stopReason)}
+                    </p>
+                  </div>
+                );
+              })}
+              <div className="panel reveal">
+                <div className="panel-head" style={{ marginBottom: 18 }}>
+                  <h3>{t("sls.perLegHeading")}</h3>
+                </div>
+                <div className="sls-metric-row">
+                  <span className="sls-metric-label">{t("sls.lrDifference")}</span>
+                  <span className="sls-metric-value">
+                    {fmtSec(result?.metrics.leftRightHoldDifferenceSeconds)}
+                  </span>
+                </div>
+                <div className="sls-metric-row">
+                  <span className="sls-metric-label">{t("sls.supportUsed")}</span>
+                  <span className="sls-metric-value">
+                    {result?.metrics.usedSupport
+                      ? t(
+                          "sls.support" +
+                            (result.metrics.usedSupport === "none"
+                              ? "None"
+                              : result.metrics.usedSupport === "slight"
+                                ? "Slight"
+                                : "Full"),
+                        )
+                      : "—"}
+                  </span>
+                </div>
+                <div className="sls-metric-row">
+                  <span className="sls-metric-label">{t("report.captureQualityBand")}</span>
+                  <span className="sls-metric-value">
+                    {t("common." + result?.capture_quality_band)}
+                  </span>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="sub-scores" style={{ marginBottom: 18 }}>
+              {metricRows.map((row) => (
+                <div className="sub-score reveal" key={row.label}>
+                  <div className="ss-top">
+                    <b>{row.label}</b>
+                    <span>{row.value}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="dash-grid-2" style={{ marginBottom: 18 }}>
             <div className="panel reveal">

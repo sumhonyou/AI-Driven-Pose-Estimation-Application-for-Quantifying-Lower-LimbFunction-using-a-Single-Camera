@@ -1,5 +1,6 @@
 import { apiRequest } from "./apiClient";
 import type { PoseFrame } from "../types/pose";
+import type { SlsLeg, SlsLegMetrics } from "./sls/slsApi";
 
 export type ModuleAMetrics = {
   rep_count: number;
@@ -19,10 +20,19 @@ export type ModuleAMetrics = {
   /** UX-only figure from the frontend's live rep-boundary FSM, echoed back for
    * the report's "Attempted reps" — the backend engine has no other way to know it. */
   client_attempted_reps: number | null;
-  // SLS-specific metrics
+  // SLS legacy (single-leg) metrics — pre-rebuild rows only.
   hold_duration_sec?: number;
   target_hold_sec?: number;
   max_sway_m?: number;
+  // SLS rebuild (both-legs) metrics — presence of `perLeg` is the migration signal
+  // Report/Dashboard/SessionHistory use to pick this render over the legacy one.
+  perLeg?: Partial<Record<SlsLeg, SlsLegMetrics>>;
+  combinedScore?: number;
+  maxHoldSeconds?: number;
+  usedSupport?: "none" | "slight" | "support" | null;
+  leftRightHoldDifferenceSeconds?: number | null;
+  best_hold_sec?: number;
+  both_legs_done?: boolean;
 };
 
 export type SessionStatus = "complete" | "incomplete" | "low_confidence";

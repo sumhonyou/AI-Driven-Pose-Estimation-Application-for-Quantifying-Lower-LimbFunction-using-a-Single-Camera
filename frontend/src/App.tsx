@@ -11,6 +11,7 @@ import ModeSelection from "./pages/ModeSelection";
 import ExerciseSelection from "./pages/ExerciseSelection";
 import CameraSetup from "./pages/CameraSetup";
 import LiveSession from "./pages/LiveSession";
+import SlsLiveSessionPage from "./pages/sls/SlsLiveSessionPage";
 import Report from "./pages/Report";
 import SessionHistory from "./pages/SessionHistory";
 import Reminders from "./pages/Reminders";
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="exercise" element={<ExerciseSelection />} />
             <Route path="camera" element={<CameraSetup />} />
             <Route path="live" element={<LiveSession />} />
+            <Route path="sls/live" element={<SlsLiveSessionPage />} />
             <Route path="report" element={<Report />} />
             <Route path="history" element={<SessionHistory />} />
             <Route path="reminders" element={<Reminders />} />

@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect, useRef } from "react";
 import stsDemoSrc from "../assets/videos/sit to stand.mp4";
+import slsDemoSrc from "../assets/videos/Balance & Flexibility_ Single Leg Stance Test and Side Leg Raises.mp4";
 import { DashTopbar } from "../layouts/DashboardLayout";
 import PoseCanvas from "../components/PoseCanvas";
 import CaptureQualityBadge from "../components/CaptureQualityBadge";
@@ -60,11 +61,15 @@ export default function CameraSetup() {
   const headFeetVisible = areHeadAndFeetVisible(landmarks ?? []);
 
   const viewGuidance = getViewGuidance(exerciseCode);
+  const isSls = !!exerciseCode?.includes("single_leg");
 
   const guidanceText =
     viewGuidance === "front"
       ? "This exercise needs a front view. Face the camera directly so both knees and hips are clearly visible."
       : "This exercise needs a side view. Place your camera to your side so your knee and hip are clearly visible.";
+
+  // Pick the tutorial clip per exercise; null hides the demo panel.
+  const demoSrc = isSls ? slsDemoSrc : exerciseCode === "sit_to_stand" ? stsDemoSrc : null;
 
   // Log FPS once pose model is ready
   useEffect(() => {
@@ -96,7 +101,7 @@ export default function CameraSetup() {
         device_info: navigator.userAgent,
       });
       setSessionId(response.session_id);
-      nav("/live");
+      nav(isSls ? "/sls/live" : "/live");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("camera.startError"));
       startedRef.current = false;
@@ -290,9 +295,23 @@ export default function CameraSetup() {
               </span>
             </div>
             <p style={{ color: "var(--text-2)", fontSize: "0.94rem" }}>{guidanceText}</p>
+            {/* SLS-specific safety guidance: one hand lightly on a chair/wall if needed. */}
+            {isSls && (
+              <p
+                style={{
+                  color: "var(--text-2)",
+                  fontSize: "0.94rem",
+                  marginTop: 10,
+                  paddingTop: 10,
+                  borderTop: "1px solid var(--border-soft)",
+                }}
+              >
+                {t("sls.supportGuidance")}
+              </p>
+            )}
           </div>
 
-          {exerciseCode === "sit_to_stand" && (
+          {demoSrc && (
             <div className="panel reveal">
               <div className="panel-head" style={{ marginBottom: demoOpen ? 14 : 0 }}>
                 <div>
@@ -308,7 +327,7 @@ export default function CameraSetup() {
               </div>
               {demoOpen && (
                 <video
-                  src={stsDemoSrc}
+                  src={demoSrc}
                   controls
                   playsInline
                   style={{ width: "100%", borderRadius: "var(--r-md)", display: "block" }}

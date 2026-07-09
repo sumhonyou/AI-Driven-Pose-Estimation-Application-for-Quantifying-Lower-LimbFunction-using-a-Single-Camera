@@ -7,6 +7,9 @@ import { exerciseService } from "../services/exerciseService";
 import { useSessionFlow } from "../session";
 import { useReveal } from "../useReveal";
 import type { Exercise } from "../types/api";
+import slsImage from "../assets/exercise type/Single Leg Stance pic.png";
+import stsImage from "../assets/exercise type/sit to stand.png";
+import wbltImage from "../assets/exercise type/WBLT.png";
 
 export default function ExerciseSelection() {
   const { t } = useTranslation();
@@ -37,6 +40,13 @@ export default function ExerciseSelection() {
       cancelled = true;
     };
   }, [mode, setMode, t]);
+
+  const imageFor = (code: string): string | null => {
+    if (code.includes("single_leg")) return slsImage;
+    if (code.includes("sit_to_stand") || code.includes("sit-to-stand")) return stsImage;
+    if (code.includes("lunge") || code.includes("wblt")) return wbltImage;
+    return null;
+  };
 
   const iconFor = (code: string) => {
     if (mode === "rehab") return <Stretch width={24} height={24} />;
@@ -83,7 +93,13 @@ export default function ExerciseSelection() {
               onClick={() => setExerciseCode(exercise.code)}
             >
               <div className="ex-img">
-                {/* White placeholder — real image will be set here later */}
+                {imageFor(exercise.code) && (
+                  <img
+                    src={imageFor(exercise.code)!}
+                    alt={exercise.name}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                )}
                 <span className="ex-go">
                   <ArrowRight width={14} height={14} />
                 </span>

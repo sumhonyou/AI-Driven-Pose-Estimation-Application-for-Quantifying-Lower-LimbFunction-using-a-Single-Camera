@@ -417,7 +417,7 @@ html[data-theme="dark"] .band.poor {
 }
 .brand .logo {
   width: auto;
-  height: 120px;
+  height: 110px;
   flex: none;
   display: flex;
   align-items: center;
@@ -429,7 +429,7 @@ html[data-theme="dark"] .band.poor {
   display: block;
 }
 .brand--footer .logo {
-  height: 175px;
+  height: 140px;
 }
 
 .nav-links {
@@ -1337,7 +1337,7 @@ html[data-theme="dark"] .band.poor {
   gap: 10px;
 }
 .side .brand {
-  padding: 4px 8px 26px;
+  padding: 16px 8px 32px;
 }
 .sidebar-toggle {
   display: grid;
@@ -1892,16 +1892,28 @@ html[data-theme="dark"] .trend.down {
 .rem-check.done svg {
   opacity: 1;
 }
+.rem-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
 .rem-body b {
+  display: block;
   font-size: 0.906rem;
   font-weight: 600;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .rem-item.is-done .rem-body b {
   text-decoration: line-through;
   color: var(--text-3);
 }
 .rem-body span {
+  display: block;
   font-size: 0.78rem;
   color: var(--text-3);
 }
@@ -2467,12 +2479,188 @@ html[data-theme="dark"] .ex-card .ex-img {
   letter-spacing: -0.03em;
   margin-top: 4px;
 }
+
+/* --- Single-Leg Stance live overlays --- */
+.sls-ball-gauge {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1.5px solid var(--border);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+.sls-ball-gauge-label {
+  font-size: 0.78rem;
+  color: var(--text-2);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.sls-lift-gauge {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+.sls-lift-gauge-label {
+  font-size: 0.68rem;
+  color: var(--text-3);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+.sls-lift-track-vertical {
+  position: relative;
+  width: 28px;
+  height: 180px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.sls-lift-tick {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--amber);
+  z-index: 1;
+  border-radius: 2px 2px 0 0;
+}
+.sls-lift-fill {
+  width: 100%;
+  border-radius: 0 0 14px 14px;
+  transition: height 0.15s linear;
+}
+.sls-lift-fill.good {
+  background: linear-gradient(to top, var(--emerald), #6be0a0);
+}
+.sls-lift-fill.fair {
+  background: linear-gradient(to top, var(--amber), #ffd76b);
+}
+.sls-combo {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+}
+.sls-combo-points {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.sls-combo-label {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.sls-combo-multiplier {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--lime);
+}
+.sls-combo-meter {
+  display: flex;
+  gap: 4px;
+}
+.sls-combo-pip {
+  width: 14px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--border);
+}
+.sls-combo-pip--lit {
+  background: var(--lime);
+}
+
+.sls-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--ink-dark) 55%, transparent);
+  padding: 24px;
+}
+.sls-modal-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 28px;
+}
+.sls-modal-card h3 {
+  margin-bottom: 8px;
+}
+.sls-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
 .live-band {
   display: inline-flex;
   align-items: center;
   gap: 9px;
   font-size: 1.1rem;
   font-weight: 800;
+}
+.sls-live-status-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--good-bg);
+  border: 2px solid var(--good);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  min-height: 72px;
+}
+.sls-live-status-text {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--accent-text);
+  text-align: center;
+  line-height: 1.35;
 }
 .knee-metrics {
   display: grid;
@@ -2560,6 +2748,27 @@ html[data-theme="dark"] .ex-card .ex-img {
   font-size: 0.75rem;
   color: var(--text-3);
   font-weight: 600;
+}
+.sls-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.sls-metric-row:last-of-type {
+  border-bottom: none;
+}
+.sls-metric-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.sls-metric-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
 }
 .sub-scores {
   display: grid;
@@ -2837,6 +3046,12 @@ html[data-theme="dark"] .ex-card .ex-img {
     width: 20px;
     height: 20px;
   }
+  .brand .logo {
+    height: 90px;
+  }
+  .dash-mobilebar .brand .logo {
+    height: 68px;
+  }
   .hero {
     padding: 56px 0 40px;
   }
@@ -2894,6 +3109,38 @@ html[data-theme="dark"] .ex-card .ex-img {
 }
 
 /* generating-report overlay */
+.countdown-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--bg);
+  text-align: center;
+}
+.countdown-eyebrow {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.countdown-number {
+  font-size: clamp(7rem, 24vw, 13rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.countdown-caption {
+  color: var(--text-2);
+  font-size: 1.05rem;
+  margin: 4px 0 34px;
+}
 .generating-overlay {
   position: fixed;
   inset: 0;
@@ -2962,4 +3209,17 @@ html[data-theme="dark"] .ex-card .ex-img {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   opacity: 0.8;
+}
+
+/* Ultra-small screens (under 480px) */
+@media (max-width: 480px) {
+  .brand .logo {
+    height: 76px;
+  }
+  .brand--footer .logo {
+    height: 100px;
+  }
+  .dash-mobilebar .brand .logo {
+    height: 56px;
+  }
 }

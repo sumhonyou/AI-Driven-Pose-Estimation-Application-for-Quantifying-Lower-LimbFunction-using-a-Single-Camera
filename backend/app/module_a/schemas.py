@@ -54,7 +54,10 @@ class ModuleAResultResponse(BaseModel):
     session_id: UUID
     band: str
     score: float
-    metrics: ModuleAMetrics
+    # Passthrough dict rather than the STS-specific ModuleAMetrics model: SLS rows
+    # carry a per-leg shape that doesn't fit that model, and this endpoint is shared
+    # across all Module A exercises. The frontend already reads metrics loosely.
+    metrics: dict
     warning_tags: list[str]
     capture_quality_band: str
     valid_frame_ratio: float
@@ -64,3 +67,41 @@ class ModuleAResultResponse(BaseModel):
     is_partial_score: bool = False
     # True only when this specific call actually wrote to the database.
     persisted: bool = True
+
+
+# --- SLS (rebuild) REST models ---
+
+
+class SlsAnalyzeRequest(BaseModel):
+    sessionId: UUID
+    leg: Literal["left", "right"]
+    frames: list[FrameIn] = Field(default_factory=list)
+
+
+class SlsLegResultResponse(BaseModel):
+    session_id: UUID
+    leg: str
+    metrics: dict  # this leg's per-leg metrics (holdSeconds, scores, band, ...)
+    session_score: float  # combined score across the legs completed so far
+    session_band: str
+    both_legs_done: bool
+    capture_quality_band: str
+    valid_frame_ratio: float
+    persisted: bool = True
+
+
+class SlsSupportRequest(BaseModel):
+    sessionId: UUID
+    usedSupport: Literal["none", "slight", "support"]
+
+
+class SlsSessionSummaryResponse(BaseModel):
+    session_id: UUID
+    combined_score: float
+    band: str
+    used_support: str | None = None
+    max_hold_seconds: float
+    per_leg: dict
+    left_right_hold_difference_seconds: float | None = None
+    session_status: str
+    warning_tags: list[str] = Field(default_factory=list)

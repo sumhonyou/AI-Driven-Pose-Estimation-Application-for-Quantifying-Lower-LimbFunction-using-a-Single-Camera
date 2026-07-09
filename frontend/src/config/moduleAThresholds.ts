@@ -21,11 +21,23 @@ export const STS_TARGET_REPS = 5;
  * STS_TARGET_REPS valid reps instead of running forever. */
 export const MAX_SESSION_SECONDS = 60;
 
-/** Single-Leg Stance: target hold duration in seconds. */
+/** Single-Leg Stance (legacy single-leg engine): target hold duration in seconds. */
 export const SLS_TARGET_HOLD_SEC = 30;
 /** One-leg stance detection: vertical distance (meters) between ankles above which
- * we consider the user to be standing on one leg. */
+ * we consider the user to be standing on one leg. (legacy) */
 export const SLS_ANKLE_HEIGHT_DIFF_M = 0.15;
+
+// --- SLS REBUILD geometry — KEEP IN SYNC with backend app/module_a/config.py ---
+// These drive live feedback (lift-line, ball-in-circle) so the on-screen numbers
+// match the backend's official recompute. Prototype values, tunable after pilot.
+export const SLS_MAX_HOLD_SEC = 45; // per-leg hold cap (seconds)
+export const SLS_CALIBRATION_SEC = 2.0; // both-feet-planted baseline window
+export const SLS_LIFT_LINE_NORM = 0.15; // lift-line height / stance-leg length
+export const SLS_LIFT_HYSTERESIS_NORM = 0.03; // drop margin below the line
+export const SLS_LIFT_PERSIST_FRAMES = 3; // frames above line to confirm a lift
+export const SLS_DROP_PERSIST_FRAMES = 3; // frames below line to confirm a drop
+export const SLS_CIRCLE_RADIUS_NORM = 0.6; // tolerance-circle radius / hip width
+export const SLS_LEG_ORDER = ["right", "left"] as const; // prompted lift order
 
 /** Below this capture-quality score, live feedback should warn the user instead of showing progress. */
 export const LIVE_MIN_VISIBILITY = 0.6;
