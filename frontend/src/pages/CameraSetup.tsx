@@ -101,7 +101,7 @@ export default function CameraSetup() {
         device_info: navigator.userAgent,
       });
       setSessionId(response.session_id);
-      nav(isSls ? "/sls/live" : "/live");
+      nav(isSls ? "/sls/live" : "/sts/live");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("camera.startError"));
       startedRef.current = false;

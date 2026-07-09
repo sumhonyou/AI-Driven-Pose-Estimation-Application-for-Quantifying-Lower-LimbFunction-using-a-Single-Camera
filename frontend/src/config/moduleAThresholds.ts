@@ -1,5 +1,6 @@
-// Frontend-only constants for Module A. Backend thresholds live in backend/app/module_a/config.py —
-// these are UX-only values (live counter estimate, buffer sampling), not the authoritative rules.
+// Frontend-only constants for Module A. Backend thresholds live in each exercise's
+// own config.py (backend/app/module_a/{core,sts,wblt,sls}/config.py) — these are
+// UX-only values (live counter estimate, buffer sampling), not the authoritative rules.
 
 /** Frames-per-second sampled into the buffer sent to POST /api/module-a/analyze. */
 export const SAMPLE_FPS = 15;
@@ -21,13 +22,7 @@ export const STS_TARGET_REPS = 5;
  * STS_TARGET_REPS valid reps instead of running forever. */
 export const MAX_SESSION_SECONDS = 60;
 
-/** Single-Leg Stance (legacy single-leg engine): target hold duration in seconds. */
-export const SLS_TARGET_HOLD_SEC = 30;
-/** One-leg stance detection: vertical distance (meters) between ankles above which
- * we consider the user to be standing on one leg. (legacy) */
-export const SLS_ANKLE_HEIGHT_DIFF_M = 0.15;
-
-// --- SLS REBUILD geometry — KEEP IN SYNC with backend app/module_a/config.py ---
+// --- SLS REBUILD geometry — KEEP IN SYNC with backend app/module_a/sls/config.py ---
 // These drive live feedback (lift-line, ball-in-circle) so the on-screen numbers
 // match the backend's official recompute. Prototype values, tunable after pilot.
 export const SLS_MAX_HOLD_SEC = 45; // per-leg hold cap (seconds)

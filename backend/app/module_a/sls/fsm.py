@@ -5,7 +5,7 @@ and stop reason. Hysteresis (a separate drop margin) plus persistence frames abs
 noisy foot landmarks so the timer never flickers around the lift-line.
 """
 
-from app.module_a import config
+from app.module_a.sls import config
 
 WAITING = "WAITING"
 LIFTING = "LIFTING"

@@ -1,34 +1,31 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import PoseCanvas from "../components/PoseCanvas";
-import CaptureQualityBadge from "../components/CaptureQualityBadge";
-import GeneratingReportOverlay from "../components/GeneratingReportOverlay";
-import { Close } from "../components/Icons";
-import { sessionService } from "../services/sessionService";
-import { useSessionFlow } from "../session";
-import { useWebcam } from "../hooks/useWebcam";
-import { useMediaPipePose } from "../hooks/useMediaPipePose";
-import { computeFrameQuality } from "../utils/captureQuality";
-import { useSessionRecorder } from "../hooks/useSessionRecorder";
-import { moduleAService } from "../services/moduleAService";
-import { createStsLiveEstimator } from "../utils/stsLiveEstimate";
-// import { createSlsLiveEstimator } from "../utils/slsLiveEstimate"; // TODO: Phase 3B LiveSession SLS UI
-import { humanizeLabel } from "../utils/format";
+import PoseCanvas from "../../components/PoseCanvas";
+import CaptureQualityBadge from "../../components/CaptureQualityBadge";
+import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
+import { Close } from "../../components/Icons";
+import { sessionService } from "../../services/sessionService";
+import { useSessionFlow } from "../../session";
+import { useWebcam } from "../../hooks/useWebcam";
+import { useMediaPipePose } from "../../hooks/useMediaPipePose";
+import { computeFrameQuality } from "../../utils/captureQuality";
+import { useSessionRecorder } from "../../hooks/useSessionRecorder";
+import { moduleAService } from "../../services/moduleAService";
+import { createStsLiveEstimator } from "../../utils/sts/stsLiveEstimate";
+import { humanizeLabel } from "../../utils/format";
 import {
   SAMPLE_FPS,
   STS_TARGET_REPS,
-  // SLS_TARGET_HOLD_SEC, // TODO: Phase 3B LiveSession SLS UI
   MAX_SESSION_SECONDS,
   LIVE_KNEE_STAND_ENTER,
   LIVE_KNEE_SIT_ENTER,
   LIVE_MIN_VISIBILITY,
-} from "../config/moduleAThresholds";
-import type { PoseFrame } from "../types/pose";
-import type { StsPhase, InvalidReasonCode } from "../utils/stsLiveEstimate";
-// import type { SlsEvent } from "../utils/slsLiveEstimate"; // TODO: Phase 3B LiveSession SLS UI
-import goodRepSrc from "../assets/sound effect/Rep correct sound effect.mp3";
-import wrongRepSrc from "../assets/sound effect/Wrong sound effect.mp3";
+} from "../../config/moduleAThresholds";
+import type { PoseFrame } from "../../types/pose";
+import type { StsPhase, InvalidReasonCode } from "../../utils/sts/stsLiveEstimate";
+import goodRepSrc from "../../assets/sound effect/Rep correct sound effect.mp3";
+import wrongRepSrc from "../../assets/sound effect/Wrong sound effect.mp3";
 
 const FAIL_REASON_DISPLAY_MS = 3500;
 
@@ -43,12 +40,11 @@ function reasonCodeToI18nKey(code: InvalidReasonCode): string {
   }
 }
 
-export default function LiveSession() {
+export default function StsLiveSessionPage() {
   const { t } = useTranslation();
   const nav = useNavigate();
   const { mode, exerciseCode, sessionId } = useSessionFlow();
   const isSts = exerciseCode === "sit_to_stand";
-  // const isSls = exerciseCode?.includes("single_leg"); // TODO: Phase 3B LiveSession SLS UI
 
   const [sec, setSec] = useState(0);
   // Attempted: every concluded rep-boundary the client's FSM detects. Valid: only

@@ -5,7 +5,7 @@ tunable after pilot testing. Hold time is the PRIMARY measure; the stability
 sub-score is a supporting indicator bounded by single-camera limitations.
 """
 
-from app.module_a import config
+from app.module_a.sls import config
 
 
 def hold_score(hold_seconds: float) -> float:

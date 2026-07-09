@@ -10,7 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import ModeSelection from "./pages/ModeSelection";
 import ExerciseSelection from "./pages/ExerciseSelection";
 import CameraSetup from "./pages/CameraSetup";
-import LiveSession from "./pages/LiveSession";
+import StsLiveSessionPage from "./pages/sts/StsLiveSessionPage";
 import SlsLiveSessionPage from "./pages/sls/SlsLiveSessionPage";
 import Report from "./pages/Report";
 import SessionHistory from "./pages/SessionHistory";
@@ -41,7 +41,7 @@ export default function App() {
             <Route path="mode" element={<ModeSelection />} />
             <Route path="exercise" element={<ExerciseSelection />} />
             <Route path="camera" element={<CameraSetup />} />
-            <Route path="live" element={<LiveSession />} />
+            <Route path="sts/live" element={<StsLiveSessionPage />} />
             <Route path="sls/live" element={<SlsLiveSessionPage />} />
             <Route path="report" element={<Report />} />
             <Route path="history" element={<SessionHistory />} />

@@ -3,7 +3,7 @@
 // with an optimistic best-guess reason for instant feedback. The authoritative
 // valid-rep count comes back from the backend (POST /analyze), called once per
 // boundary from LiveSession.tsx.
-import { LM, type WorldLandmark } from "../types/pose";
+import { LM, type WorldLandmark } from "../../types/pose";
 import {
   LIVE_KNEE_STAND_ENTER,
   LIVE_KNEE_STAND_EXIT,
@@ -11,7 +11,7 @@ import {
   LIVE_KNEE_RISING_ENTER,
   LIVE_MIN_REP_GAP_MS,
   LIVE_MIN_QUALITY_FOR_VALID_REP,
-} from "../config/moduleAThresholds";
+} from "../../config/moduleAThresholds";
 
 export type RepEvent = "rep_boundary" | null;
 export type StsPhase = "sitting" | "rising" | "standing";

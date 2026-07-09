@@ -6,12 +6,12 @@ single source of truth for the stored per-leg result; the frontend's live number
 are only a helper that should agree closely.
 """
 
-from app.module_a import config
-from app.module_a.quality import session_quality
+from app.module_a.core.quality import session_quality
+from app.module_a.core.smoothing import LandmarkSmoother
+from app.module_a.sls import config
 from app.module_a.sls import geometry as geo
 from app.module_a.sls import scoring
 from app.module_a.sls.fsm import HOLDING, LiftHoldFSM
-from app.module_a.smoothing import LandmarkSmoother
 
 
 def _frame_valid_for_sls(world: list[dict], stance_leg: str) -> bool:

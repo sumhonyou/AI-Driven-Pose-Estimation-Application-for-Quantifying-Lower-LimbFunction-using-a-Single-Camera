@@ -6,7 +6,7 @@ for Noisy Input in Interactive Systems" (blueprint §4.2).
 
 import math
 
-from app.module_a.config import MIN_VISIBILITY
+from app.module_a.core.config import MIN_VISIBILITY
 
 
 class OneEuroFilter:

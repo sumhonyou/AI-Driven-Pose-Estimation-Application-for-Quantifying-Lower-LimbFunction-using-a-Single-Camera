@@ -1,7 +1,10 @@
 """Capture-quality checks: per-frame validity and session-level quality band."""
 
-from app.module_a.config import (MIN_VISIBILITY, QUALITY_GOOD_MIN,
-                                 QUALITY_MODERATE_MIN)
+from app.module_a.core.config import (
+    MIN_VISIBILITY,
+    QUALITY_GOOD_MIN,
+    QUALITY_MODERATE_MIN,
+)
 
 # STS knee-angle + trunk-lean geometry only ever needs ONE leg's kinematic chain
 # (shoulder-hip-knee-ankle). A pure side-view camera structurally occludes the far

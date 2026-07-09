@@ -1,8 +1,8 @@
 import math
 import unittest
 
-from app.module_a.quality import average_visibility
-from app.module_a.session_engine import SessionEngine
+from app.module_a.core.quality import average_visibility
+from app.module_a.sts.engine import run_sts
 
 
 def _landmark(x, y, z=0.0, vis=1.0):
@@ -49,7 +49,7 @@ class ModuleAQualityTests(unittest.TestCase):
             }
         ]
 
-        result = SessionEngine().run(frames)
+        result = run_sts(frames)
 
         self.assertEqual(result["metrics"]["rep_count"], 0)
         self.assertEqual(result["quality"]["valid_frame_ratio"], 0.0)
@@ -84,7 +84,7 @@ class ModuleAQualityTests(unittest.TestCase):
             )
             t += 33
 
-        result = SessionEngine().run(frames)
+        result = run_sts(frames)
 
         self.assertEqual(result["metrics"]["tracked_leg"], "left")
         self.assertEqual(result["metrics"]["rep_count"], 1)

@@ -1,5 +1,5 @@
-"""Replay harness: re-runs a stored (or offline JSON) landmark log through a fresh
-SessionEngine and prints the resulting metrics/band. Proves the engine is deterministic —
+"""Replay harness: re-runs a stored (or offline JSON) landmark log through the STS
+engine and prints the resulting metrics/band. Proves the engine is deterministic —
 the same frames always produce the same result as the live analyze endpoint.
 
 Usage:
@@ -11,15 +11,14 @@ import argparse
 import json
 from uuid import UUID
 
-from app.module_a import banding
-from app.module_a.session_engine import SessionEngine
+from app.module_a.core import banding
+from app.module_a.sts.engine import run_sts
 
 
 def load_frames_from_db(session_id: str) -> list[dict]:
-    from sqlalchemy import select
-
     from app.db.database import SessionLocal
     from app.db.models import ModuleALandmarkLog
+    from sqlalchemy import select
 
     with SessionLocal() as db:
         rows = db.scalars(
@@ -61,7 +60,7 @@ def main() -> None:
 
     print(f"[replay] Loaded {len(frames)} frames")
 
-    engine_result = SessionEngine().run(frames)
+    engine_result = run_sts(frames)
     band_result = banding.compute_band(
         engine_result["metrics"], engine_result["quality"]
     )

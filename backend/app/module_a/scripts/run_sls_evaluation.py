@@ -17,14 +17,16 @@ import argparse
 import json
 from pathlib import Path
 
-from app.module_a import config
-from app.module_a.evaluation.agreement import bland_altman, cohens_kappa, icc_2_1
-from app.module_a.sls import analysis
+from app.module_a.sls import analysis, config
+from app.module_a.sls.evaluation.agreement import bland_altman, cohens_kappa, icc_2_1
 from app.module_a.sls.scoring import hold_time_band
 
 CORPUS_DIR = Path(__file__).resolve().parents[1] / "replay_corpus" / "sls"
 DEFAULT_REPORT_PATH = (
-    Path(__file__).resolve().parents[1] / "evaluation" / "SLS_EVALUATION_REPORT.md"
+    Path(__file__).resolve().parents[1]
+    / "sls"
+    / "evaluation"
+    / "SLS_EVALUATION_REPORT.md"
 )
 
 

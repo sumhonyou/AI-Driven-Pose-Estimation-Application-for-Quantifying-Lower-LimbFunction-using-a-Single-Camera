@@ -7,7 +7,7 @@ this project has no numpy/scipy/pingouin dependency to compare against.
 
 import unittest
 
-from app.module_a.evaluation.agreement import bland_altman, cohens_kappa, icc_2_1
+from app.module_a.sls.evaluation.agreement import bland_altman, cohens_kappa, icc_2_1
 
 
 class IccTests(unittest.TestCase):

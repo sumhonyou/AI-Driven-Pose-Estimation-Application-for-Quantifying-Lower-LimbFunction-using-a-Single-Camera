@@ -9,19 +9,22 @@ sls.analysis core — so there is no duplicated auth/persistence logic.
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session as DbSession
-
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import Session as SessionModel
 from app.db.models import User
-from app.module_a import config, crud
-from app.module_a.schemas import (SlsAnalyzeRequest, SlsLegResultResponse,
-                                  SlsSessionSummaryResponse, SlsSupportRequest)
-from app.module_a.sls import analysis
+from app.module_a.core.crud import save_landmark_log
+from app.module_a.sls import analysis, config, crud
+from app.module_a.sls.schemas import (
+    SlsAnalyzeRequest,
+    SlsLegResultResponse,
+    SlsSessionSummaryResponse,
+    SlsSupportRequest,
+)
 from app.module_a.sls.scoring import score_to_band
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DbSession
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +150,7 @@ def analyze_leg(
         best_hold_sec=summary["best_hold_sec"],
         stability_proxy=stability,
     )
-    crud.save_landmark_log(db, session.id, frames)
+    save_landmark_log(db, session.id, frames)
     logger.info(
         "sls result session=%s leg=%s hold=%ss band=%s",
         payload.sessionId,
