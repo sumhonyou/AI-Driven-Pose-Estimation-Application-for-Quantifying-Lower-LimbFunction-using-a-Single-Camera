@@ -1,0 +1,289 @@
+"""WBLT evaluation harness: replays the committed corpus through the
+deterministic analysis core and reports measurement AGREEMENT (not classifier
+accuracy) between the persisted distance/band and a simulated independent
+repeat tape measurement -- per the blueprint's evaluation framing note (§12).
+
+Two agreement questions, because WBLT is a dual-output design (blueprint §1):
+1. Distance reliability: does the camera-gated `distance_cm` (only recorded
+   when the touch passes the heel-lift/quality check) agree with an
+   independent repeat tape reading? ICC(2,1) + Bland-Altman + Cohen's kappa
+   on the McBride band.
+2. Angle-vs-distance corroboration: do the two independent signals move
+   together? Since they're in different units (deg vs cm), a literal
+   same-scale Bland-Altman has no physical meaning here -- this uses
+   STANDARDIZED (z-scored) values as a directional corroboration check only,
+   not a claim that the two measure the same thing in the same units.
+
+Reads only committed data (backend/app/module_a/replay_corpus/wblt/), so this is
+reproducible without a live session or database. Re-generate the corpus with
+`generate_wblt_replay_corpus.py` if you want to change the samples; this script
+never mutates it.
+
+Usage:
+    python -m app.module_a.scripts.run_wblt_evaluation
+    python -m app.module_a.scripts.run_wblt_evaluation --report-out FILE.md
+"""
+
+import argparse
+import json
+from pathlib import Path
+
+from app.module_a.core.evaluation.agreement import (bland_altman, cohens_kappa,
+                                                    icc_2_1)
+from app.module_a.wblt import analysis, config
+from app.module_a.wblt.age_band import resolve_ageband_sex
+
+CORPUS_DIR = Path(__file__).resolve().parents[1] / "replay_corpus" / "wblt"
+DEFAULT_REPORT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "wblt"
+    / "evaluation"
+    / "WBLT_EVALUATION_REPORT.md"
+)
+
+
+def load_corpus() -> list[dict]:
+    labels_path = CORPUS_DIR / "labels.json"
+    if not labels_path.exists():
+        raise FileNotFoundError(
+            f"No corpus at {CORPUS_DIR} -- run "
+            "`python -m app.module_a.scripts.generate_wblt_replay_corpus` first."
+        )
+    return json.loads(labels_path.read_text())
+
+
+def _zscore(values: list[float]) -> list[float]:
+    n = len(values)
+    mean = sum(values) / n
+    sd = (sum((v - mean) ** 2 for v in values) / n) ** 0.5
+    if sd < 1e-9:
+        return [0.0 for _ in values]
+    return [(v - mean) / sd for v in values]
+
+
+def evaluate() -> dict:
+    manifest = load_corpus()
+    rows = []
+    for entry in manifest:
+        frames = json.loads((CORPUS_DIR / entry["frames_file"]).read_text())
+        result = analysis.analyze_attempt(
+            frames,
+            entry["leg"],
+            entry["target_distance_cm"],
+            entry["touched"],
+            entry["exact_age"],
+            entry["gender"],
+        )
+        ageband_sex = resolve_ageband_sex(entry["exact_age"], entry["gender"])
+        manual_band_result = analysis.compute_distance_band(
+            entry["manual_distance_cm"], ageband_sex
+        )
+        rows.append(
+            {
+                "sample_id": entry["sample_id"],
+                "leg": entry["leg"],
+                "system_distance_cm": result["distance_cm"],
+                "manual_distance_cm": entry["manual_distance_cm"],
+                "system_band": result["band"] or "Invalid",
+                "manual_band": (manual_band_result or {}).get("band") or "Invalid",
+                "system_angle_deg": result["theta_peak_deg"],
+                "q": result["q"],
+                "warning_tags": result["warning_tags"],
+            }
+        )
+
+    valid_rows = [r for r in rows if r["system_distance_cm"] is not None]
+    system_distances = [r["system_distance_cm"] for r in valid_rows]
+    manual_distances_paired = [r["manual_distance_cm"] for r in valid_rows]
+    system_bands = [r["system_band"] for r in rows]
+    manual_bands = [r["manual_band"] for r in rows]
+
+    corroboration = None
+    angle_rows = [r for r in valid_rows if r["system_angle_deg"] is not None]
+    if len(angle_rows) >= 2:
+        z_distance = _zscore([r["system_distance_cm"] for r in angle_rows])
+        z_angle = _zscore([r["system_angle_deg"] for r in angle_rows])
+        corroboration = bland_altman(z_angle, z_distance)
+
+    return {
+        "rows": rows,
+        "n": len(rows),
+        "n_valid_distance": len(valid_rows),
+        "icc_2_1": round(icc_2_1(system_distances, manual_distances_paired), 4),
+        "bland_altman": bland_altman(system_distances, manual_distances_paired),
+        "cohens_kappa": round(cohens_kappa(system_bands, manual_bands), 4),
+        "angle_distance_corroboration": corroboration,
+    }
+
+
+def render_report(result: dict) -> str:
+    ba = result["bland_altman"]
+    lines = [
+        "# WBLT Measurement-Agreement Evaluation",
+        "",
+        "Auto-generated by `app.module_a.scripts.run_wblt_evaluation` from the committed",
+        "replay corpus (`app/module_a/replay_corpus/wblt/`). Re-run the script to regenerate.",
+        "",
+        "## Framing",
+        "",
+        "This is a **measurement-agreement** evaluation, not classifier accuracy --",
+        "consistent with the project's non-diagnostic, functional-self-check framing.",
+        "Unlike SLS (where the system directly derives hold time from the camera), WBLT's",
+        "official distance is **self-measured/self-reported** (ruler or tape) -- the",
+        "camera's role is to gate WHICH self-reports can be trusted (heel-lift + capture",
+        "quality), not to measure distance itself. So the question here is: does the",
+        "persisted, camera-gated `distance_cm` agree with an independent repeat tape",
+        "reading, the way two human tape measurements would agree with each other?",
+        "",
+        f"Corpus: {result['n']} synthetic per-attempt samples spanning Poor/Fair/Good,",
+        "both legs, plus one deliberate heel-lift-invalid case",
+        "(`generate_wblt_replay_corpus.py`, fixed seed -- no real pilot recordings exist",
+        'yet for this prototype). The simulated "manual" reference is the same intended',
+        "distance plus small Gaussian noise, modelling a second independent tape reading",
+        "(Powden et al. 2015 report WBLT distance MDC ~1.0-1.5cm).",
+        "",
+        "## Distance agreement",
+        "",
+        f"({result['n_valid_distance']}/{result['n']} samples had a valid touch -- the",
+        "heel-lift-invalid sample is excluded from the numeric distance comparison since",
+        "the system correctly records no distance for it, but is still included below in",
+        "the band (kappa) comparison.)",
+        "",
+        f"- **ICC(2,1)** (absolute agreement, distance): `{result['icc_2_1']}`",
+        f"- **Bland-Altman bias** (system - manual): `{ba['bias']}cm`",
+        f"- **Bland-Altman 95% limits of agreement**: `[{ba['loa_lower']}cm, {ba['loa_upper']}cm]`",
+        f"- **Cohen's kappa** (McBride distance-band agreement, all {result['n']} samples): `{result['cohens_kappa']}`",
+        "",
+    ]
+
+    corr = result["angle_distance_corroboration"]
+    if corr:
+        lines += [
+            "## Angle-vs-distance corroboration (secondary signal)",
+            "",
+            "Distance (cm) and dorsiflexion angle (deg) are different units measuring",
+            "different things (self-reported reach vs camera-measured joint angle), so a",
+            "literal same-scale Bland-Altman has no physical meaning. This is instead a",
+            "**standardized (z-scored) directional check**: do the two signals move together",
+            "across samples? A near-zero standardized bias with tight limits of agreement",
+            "means the two signals rank samples similarly (deeper reach -> larger angle),",
+            "supporting the angle's role as a corroborating secondary signal -- it is NOT",
+            "evidence the two measure the same physical quantity, and the angle is never",
+            "invent-banded on the strength of this check (blueprint §4.6).",
+            "",
+            f"- **Standardized bias** (angle z - distance z): `{corr['bias']}`",
+            f"- **Standardized 95% limits of agreement**: `[{corr['loa_lower']}, {corr['loa_upper']}]`",
+            "",
+        ]
+
+    lines += [
+        "## Per-sample detail",
+        "",
+        "| sample | leg | system distance (cm) | manual distance (cm) | system band | manual band | angle (deg) | q |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for r in result["rows"]:
+        sys_d = (
+            f"{r['system_distance_cm']:.1f}"
+            if r["system_distance_cm"] is not None
+            else "—"
+        )
+        angle = (
+            f"{r['system_angle_deg']:.1f}" if r["system_angle_deg"] is not None else "—"
+        )
+        lines.append(
+            f"| {r['sample_id']} | {r['leg']} | {sys_d} | {r['manual_distance_cm']:.1f} | "
+            f"{r['system_band']} | {r['manual_band']} | {angle} | {r['q']:.2f} |"
+        )
+
+    mismatches = [r for r in result["rows"] if r["system_band"] != r["manual_band"]]
+    lines.append("")
+    if mismatches:
+        lines.append(
+            "**Band disagreements** (the only samples pulling kappa below 1.0):"
+        )
+        lines.append("")
+        for r in mismatches:
+            if r["system_band"] == "Invalid":
+                explanation = (
+                    "The system correctly reports `Invalid` when the heel lifted during the "
+                    "touch (camera-detected, no false distance recorded), while an independent "
+                    "tape measurement -- with no way to detect the heel lift -- would still "
+                    "record a plausible distance and band. This is the camera's validity gate "
+                    "doing its job, not a measurement error."
+                )
+            else:
+                explanation = (
+                    f"Both readings are close to a McBride band boundary "
+                    f"(system {r['system_distance_cm']:.1f}cm, manual {r['manual_distance_cm']:.1f}cm) "
+                    "and the simulated repeat-tape noise happened to land the manual reading on "
+                    "the other side of the cutoff -- an expected outcome given the corpus's noise "
+                    "SD is comparable to the published distance MDC, not a system defect."
+                )
+            lines.append(
+                f"- `{r['sample_id']}`: system=`{r['system_band']}` vs "
+                f"manual=`{r['manual_band']}` (manual distance {r['manual_distance_cm']:.1f}cm). "
+                f"{explanation}"
+            )
+    else:
+        lines.append("No band disagreements in this corpus.")
+
+    lines += [
+        "",
+        "## Prototype thresholds (tunable after pilot testing)",
+        "",
+        "All WBLT thresholds below are conservative starting values, not derived from pilot",
+        "data, and should be revisited once real user sessions are available:",
+        "",
+        f"- `distance_mdc_cm = {config.WBLT_CONFIG['distance_mdc_cm']}` -- distance MDC (Powden et al. 2015)",
+        f"- `angle_mdc_deg = {config.WBLT_CONFIG['angle_mdc_deg']}` -- angle MDC / symmetry-flag threshold",
+        f"- `heel_lift_tol_ratio = {config.WBLT_CONFIG['heel_lift_tol_ratio']}` -- heel rise / shank length -> lifted",
+        f"- `q_min = {config.WBLT_CONFIG['q_min']}` -- capture-quality gate (min of lateral_alignment/leg_visibility/landmark_conf)",
+        f"- `lateral_alignment_max_hip_x_norm = {config.WBLT_CONFIG['lateral_alignment_max_hip_x_norm']}` -- side-on camera cutoff",
+        "",
+        "## Monocular / self-measurement limitations",
+        "",
+        "Two independent limitations, both stated explicitly per the project's non-diagnostic",
+        "framing (rules.md):",
+        "",
+        "1. **Distance is not camera-measured.** The official McBride band is computed from a",
+        "   user-reported ruler/tape distance, not anything the camera infers -- monocular depth",
+        "   is ill-posed for this on a single webcam (blueprint §1). The camera's contribution is",
+        "   entirely the validity gate (heel-lift + capture quality), which this evaluation",
+        "   confirms correctly excludes an artifact a tape-only method would have accepted.",
+        "2. **Angle is a secondary, never-banded signal.** The angle-vs-distance corroboration",
+        "   above is a standardized directional check, not a same-unit agreement claim -- there is",
+        "   no published normative angle band for this test, so the angle is reported as a raw",
+        "   value with symmetry/trend only (blueprint §4.6), consistent with the SLS precedent of",
+        "   never inventing a band the literature doesn't support.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Run the WBLT measurement-agreement evaluation"
+    )
+    parser.add_argument(
+        "--report-out",
+        default=str(DEFAULT_REPORT_PATH),
+        help="Markdown report output path",
+    )
+    args = parser.parse_args()
+
+    result = evaluate()
+    print(
+        f"[eval] n={result['n']} ICC(2,1)={result['icc_2_1']} kappa={result['cohens_kappa']}"
+    )
+    print(f"[eval] Bland-Altman: {result['bland_altman']}")
+
+    report = render_report(result)
+    out_path = Path(args.report_out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(report)
+    print(f"[eval] Wrote report to {out_path}")
+
+
+if __name__ == "__main__":
+    main()

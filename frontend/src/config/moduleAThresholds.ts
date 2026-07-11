@@ -46,3 +46,11 @@ export const LIVE_MIN_VISIBILITY = 0.6;
  * guess for why a rep didn't count is "low visibility" — stricter than
  * LIVE_MIN_VISIBILITY since it judges a whole completed attempt, not one frame. */
 export const LIVE_MIN_QUALITY_FOR_VALID_REP = 0.7;
+
+// --- WBLT (Weight-Bearing Lunge Test) fallback values, used only until
+// GET /api/wblt/config resolves (see wbltGeometry.ts's createWbltLiveTracker).
+// Once fetched, the live tracker uses the backend's app/module_a/wblt/config.py
+// values directly, so these never need hand-syncing after that point.
+export const WBLT_HEEL_BASELINE_FRAMES = 30;
+export const WBLT_HEEL_LIFT_TOL_RATIO = 0.15; // heel rise / shank length -> lifted
+export const WBLT_HEEL_LIFT_HYSTERESIS_RATIO = 0.1;

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useState, useEffect, useRef } from "react";
 import stsDemoSrc from "../assets/videos/sit to stand.mp4";
 import slsDemoSrc from "../assets/videos/Balance & Flexibility_ Single Leg Stance Test and Side Leg Raises.mp4";
+import wbltDemoSrc from "../assets/videos/(WBLT) Knee to Wall Dorsiflexion Lunge Test for the Ankle.mp4";
 import { DashTopbar } from "../layouts/DashboardLayout";
 import PoseCanvas from "../components/PoseCanvas";
 import CaptureQualityBadge from "../components/CaptureQualityBadge";
@@ -62,6 +63,7 @@ export default function CameraSetup() {
 
   const viewGuidance = getViewGuidance(exerciseCode);
   const isSls = !!exerciseCode?.includes("single_leg");
+  const isWblt = !!(exerciseCode?.includes("lunge") || exerciseCode?.includes("wblt"));
 
   const guidanceSteps = isSls
     ? [
@@ -70,10 +72,18 @@ export default function CameraSetup() {
         t("sls.setupGuidanceTouchdown"),
         t("sls.setupGuidanceBall"),
       ]
-    : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
+    : isWblt
+      ? [t("wblt.setupGuidanceSide"), t("wblt.setupGuidanceDistance"), t("wblt.setupGuidanceLunge")]
+      : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
 
   // Pick the tutorial clip per exercise; null hides the demo panel.
-  const demoSrc = isSls ? slsDemoSrc : exerciseCode === "sit_to_stand" ? stsDemoSrc : null;
+  const demoSrc = isSls
+    ? slsDemoSrc
+    : isWblt
+      ? wbltDemoSrc
+      : exerciseCode === "sit_to_stand"
+        ? stsDemoSrc
+        : null;
 
   // Log FPS once pose model is ready
   useEffect(() => {
@@ -105,7 +115,7 @@ export default function CameraSetup() {
         device_info: navigator.userAgent,
       });
       setSessionId(response.session_id);
-      nav(isSls ? "/sls/live" : "/sts/live");
+      nav(isSls ? "/sls/live" : isWblt ? "/wblt/live" : "/sts/live");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("camera.startError"));
       startedRef.current = false;

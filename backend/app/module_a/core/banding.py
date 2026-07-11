@@ -35,13 +35,14 @@ def compute_band(
 ) -> dict:
     """Returns {score, band, warning_tags, session_status, is_partial_score}.
 
-    Exercise-specific scoring: STS uses rep count; WBLT uses trial ROM/symmetry.
+    STS is the only exercise left on this shared dispatcher -- SLS and WBLT
+    each have their own dedicated banding, called from their own routers.
     Band/score computed from valid data only; session_status (complete/incomplete/
     low_confidence) tracks completeness/confidence separately from quality band.
 
-    Imports the per-exercise banding modules locally (not at module import time)
-    since those modules import `score_to_band`/`compute_session_status` back from
-    this one -- a top-level import here would be circular.
+    Imports the per-exercise banding module locally (not at module import time)
+    since it imports `score_to_band`/`compute_session_status` back from this one
+    -- a top-level import here would be circular.
     """
     warning_tags: list[str] = []
     quality_band = quality["quality_band"]
@@ -50,9 +51,5 @@ def compute_band(
         from app.module_a.sts.banding import compute_sts_band
 
         return compute_sts_band(metrics, quality_band, warning_tags)
-    elif exercise_type == "weight_bearing_lunge_test":
-        from app.module_a.wblt.banding import compute_wblt_band
-
-        return compute_wblt_band(metrics, quality_band, warning_tags)
     else:
         raise ValueError(f"Unknown exercise_type: {exercise_type}")

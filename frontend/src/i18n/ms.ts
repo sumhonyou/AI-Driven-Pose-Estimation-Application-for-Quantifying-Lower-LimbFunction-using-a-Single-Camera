@@ -73,7 +73,7 @@ const ms: Dict = {
     slsName: "Berdiri Sebelah Kaki (disokong)",
     slsMeta: "Pandangan depan · Kedua-dua kaki · tahan 45s · keseimbangan & kestabilan",
     wbltName: "Ujian Lunge Menanggung Berat",
-    wbltMeta: "Pandangan sisi · 3 percubaan · dorsifleksi & simetri",
+    wbltMeta: "Pandangan sisi · Kaki kanan · jarak + sudut buku lali",
     romName: "Kelengkapan ROM",
     romDesc: "Sejauh mana anda bergerak melalui julat",
     tempoName: "Konsistensi tempo",
@@ -135,14 +135,11 @@ const ms: Dict = {
     logIn: "Log masuk",
     or: "atau",
     continueGuest: "Teruskan sebagai tetamu",
-    ageGroup: "Kumpulan umur",
+    age: "Berapa umur anda?",
+    agePh: "cth. 34",
     gender: "Jantina",
     userType: "Saya seorang",
     focusArea: "Kawasan fokus",
-    optional: "pilihan",
-    ageUnder40: "Bawah 40",
-    age40_60: "40–60",
-    ageOver60: "Atas 60",
     genderF: "Perempuan",
     genderM: "Lelaki",
     genderOther: "Tidak mahu nyatakan",
@@ -160,6 +157,7 @@ const ms: Dict = {
     invalidCredentials:
       "E-mel atau kata laluan tidak betul. Sila semak butiran anda dan cuba lagi.",
     passwordTooShort: "Kata laluan mestilah sekurang-kurangnya 8 aksara.",
+    invalidAge: "Sila masukkan umur anda (1–120).",
     logout: "Log keluar",
   },
   dash: {
@@ -355,8 +353,11 @@ const ms: Dict = {
     noSession: "Tiada sesi dinyatakan. Mula semakan baharu dari papan pemuka.",
     metrics: "Metrik Duduk-ke-Berdiri",
     slsMetrics: "Metrik Pendirian Satu Kaki Disokong",
+    wbltMetrics: "Metrik Ujian Lunge Menanggung Berat",
     incompleteStatus: "Sesi tidak lengkap: {{valid}}/{{target}} ulangan sah selesai",
     incompleteSlsStatus: "Tahan tidak lengkap: {{duration}}s / {{target}}s ditahan",
+    incompleteWbltStatus:
+      "Ujian tidak lengkap: selesaikan kedua-dua kaki untuk melihat keputusan penuh.",
     lowConfidenceStatus:
       "Keyakinan rendah: penjejakan kamera tidak cukup boleh dipercayai untuk menilai sesi ini sepenuhnya",
     validReps: "Ulangan sah",
@@ -513,6 +514,79 @@ const ms: Dict = {
     stopReason_unknown: "tamat",
     disclaimer:
       "Ini ialah semakan kendiri fungsi, bukan diagnosis klinikal. Ia tidak memberitahu sama ada keseimbangan atau buku lali anda sihat. Berhenti serta-merta jika anda berasa sakit, pening, atau tidak selamat.",
+  },
+  wblt: {
+    setupGuidanceSide:
+      "Berdiri sisi menghadap kamera supaya lutut, buku lali, tumit dan tapak kaki anda kelihatan jelas.",
+    setupGuidanceDistance:
+      "Ukur jarak dari dinding menggunakan pita ukur atau pembaris sebelum bermula.",
+    setupGuidanceLunge:
+      "Lunge ke hadapan dan cuba sentuhkan lutut ke dinding sambil memastikan tumit rata di lantai.",
+    legLabel: "Kaki",
+    legRight: "Kaki kanan",
+    legLeft: "Kaki kiri",
+    legPromptRight: "Cubaan kaki kanan",
+    legPromptLeft: "Cubaan kaki kiri",
+    attemptOf: "Cubaan {{n}} daripada {{total}}",
+    bonusAttempt: "Cubaan bonus — anda boleh mengatasi rekod terbaik anda!",
+    targetInstruction: "Berdiri supaya hujung jari kaki anda berjarak ini dari dinding:",
+    distanceLabel: "Jarak sasaran dari dinding (cm)",
+    distanceHelper: "Tetapkan jarak hujung jari kaki dari dinding untuk cubaan ini.",
+    startAttempt: "Mula Cubaan",
+    calibrating: "Berdiri diam dengan tapak kaki rata — sedang menentukur...",
+    lungeNow: "Lunge ke hadapan. Pastikan tumit rata di lantai.",
+    heelDown: "Tumit: rata",
+    heelLifted: "Tumit terangkat!",
+    angleLabel: "Sudut dorsifleksi",
+    iAttemptedTouch: "Saya telah cuba sentuh",
+    touchQuestion: "Adakah lutut anda menyentuh dinding?",
+    touchYes: "Ya",
+    touchNo: "Tidak",
+    retry: "Cuba lagi",
+    nextAttempt: "Cubaan Seterusnya",
+    attemptResultTitle: "Keputusan cubaan",
+    finishTest: "Selesaikan ujian",
+    resultTitle: "Kaki Kanan — Keputusan Cubaan",
+    legCompleteTitle: "Kaki selesai",
+    legBestDistanceLabel: "Jarak terbaik",
+    continueNextLeg: "Teruskan ke kaki seterusnya",
+    viewFinalResults: "Lihat keputusan akhir",
+    floorFlagMessage:
+      "Tiada sentuhan berjaya direkodkan untuk kaki ini — julat sebenar anda mungkin lebih pendek daripada yang diuji.",
+    symmetryTitle: "Simetri kiri/kanan",
+    symmetryFlag: "Perbezaan yang ketara dikesan antara kedua-dua kaki anda.",
+    symmetrySymmetric: "Kedua-dua kaki anda menunjukkan prestasi yang serupa.",
+    sessionResultTitle: "Ujian Lunge Menanggung Berat — Keputusan",
+    distanceResultLabel: "Jarak",
+    angleResultLabel: "Sudut",
+    noBandTitle: "Tiada gred tersedia",
+    noBandProfileIncomplete:
+      "Tambah umur dan jantina sebenar anda dalam profil untuk mendapatkan gred jarak rasmi.",
+    noBandRetry: "Cubaan ini tidak dapat dinilai — sila cuba lagi.",
+    warn_poor_capture_quality:
+      "Kualiti tangkapan kamera terlalu rendah untuk dipercayai bagi cubaan ini.",
+    warn_heel_lift_detected: "Tumit anda terangkat dari lantai semasa sebahagian cubaan ini.",
+    warn_heel_lifted_at_touch_override:
+      "Tumit anda terangkat sebaik sahaja anda menyentuh, jadi sentuhan ini tidak dikira. Cuba jarak yang lebih pendek.",
+    warn_profile_incomplete_no_band:
+      "Profil anda tiada umur atau jantina sebenar, jadi gred rasmi tidak dapat dikira.",
+    warn_borderline_distance:
+      "Keputusan ini hampir dengan sempadan gred — anggap sebagai anggaran.",
+    warn_retry_lateral_alignment:
+      "Sudut kamera tidak cukup dari sisi — pusing supaya kamera melihat kaki anda betul-betul dari sisi.",
+    warn_retry_leg_visibility:
+      "Lutut, buku lali, tumit, atau kaki anda keluar dari bingkai — undur supaya seluruh kaki kelihatan.",
+    warn_retry_landmark_conf:
+      "Penjejakan terlalu tidak boleh dipercayai — cuba pencahayaan yang lebih baik atau latar belakang yang lebih ringkas.",
+    reportTitle: "Ujian Lunge Menanggung Berat",
+    disclaimer:
+      "Ini adalah semakan kendiri fungsi, bukan diagnosis klinikal. Ia tidak memberitahu sama ada buku lali anda sihat. Berhenti serta-merta jika anda berasa sakit atau tidak selamat.",
+    trendVsLast: "Berbanding sesi lepas",
+    trendNoPrevious: "Belum ada sesi sebelumnya untuk dibandingkan.",
+    trendDistanceChanged: "jarak {{sign}}{{value}}cm",
+    trendDistanceNoChange: "jarak lebih kurang sama",
+    trendAngleChanged: "sudut {{sign}}{{value}}°",
+    trendAngleNoChange: "sudut lebih kurang sama",
   },
 };
 export default ms;

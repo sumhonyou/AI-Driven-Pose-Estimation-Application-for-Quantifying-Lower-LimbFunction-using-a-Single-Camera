@@ -17,8 +17,9 @@ import argparse
 import json
 from pathlib import Path
 
+from app.module_a.core.evaluation.agreement import (bland_altman, cohens_kappa,
+                                                    icc_2_1)
 from app.module_a.sls import analysis, config
-from app.module_a.sls.evaluation.agreement import bland_altman, cohens_kappa, icc_2_1
 from app.module_a.sls.scoring import hold_time_band
 
 CORPUS_DIR = Path(__file__).resolve().parents[1] / "replay_corpus" / "sls"
@@ -97,8 +98,8 @@ def render_report(result: dict) -> str:
         "## Aggregate results",
         "",
         f"- **ICC(2,1)** (absolute agreement, hold time): `{result['icc_2_1']}`",
-        f"- **Bland-Altman bias** (system - manual): `{ba['bias_sec']}s`",
-        f"- **Bland-Altman 95% limits of agreement**: `[{ba['loa_lower_sec']}s, {ba['loa_upper_sec']}s]`",
+        f"- **Bland-Altman bias** (system - manual): `{ba['bias']}s`",
+        f"- **Bland-Altman 95% limits of agreement**: `[{ba['loa_lower']}s, {ba['loa_upper']}s]`",
         f"- **Cohen's kappa** (hold-time band agreement): `{result['cohens_kappa']}`",
         "",
         "## Per-sample detail",

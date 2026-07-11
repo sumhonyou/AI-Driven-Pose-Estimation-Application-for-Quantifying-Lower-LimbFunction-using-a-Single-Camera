@@ -14,7 +14,7 @@ def _profile_response(user: User, profile: UserProfile) -> ProfileRead:
         user_id=profile.user_id,
         full_name=user.full_name,
         avatar_image=user.avatar_image,
-        age_group=profile.age_group,
+        exact_age=profile.exact_age,
         gender=profile.gender,
         height_cm=float(profile.height_cm) if profile.height_cm is not None else None,
         weight_kg=float(profile.weight_kg) if profile.weight_kg is not None else None,

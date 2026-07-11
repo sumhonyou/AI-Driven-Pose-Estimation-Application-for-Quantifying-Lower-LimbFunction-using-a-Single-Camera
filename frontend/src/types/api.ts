@@ -11,7 +11,7 @@ export type Profile = {
   user_id: string;
   full_name: string | null;
   avatar_image: string | null;
-  age_group: string | null;
+  exact_age: number | null;
   gender: string | null;
   height_cm: number | null;
   weight_kg: number | null;
@@ -64,7 +64,7 @@ export type RegisterPayload = {
   email: string;
   password: string;
   full_name?: string;
-  age_group?: string;
+  exact_age?: number;
   gender?: string;
   user_type?: string;
   focus_area?: string;
@@ -78,7 +78,7 @@ export type LoginPayload = {
 export type ProfileUpdatePayload = Partial<{
   full_name: string;
   avatar_image: string | null;
-  age_group: string;
+  exact_age: number | null;
   gender: string;
   height_cm: number | null;
   weight_kg: number | null;

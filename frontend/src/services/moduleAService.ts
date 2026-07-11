@@ -33,6 +33,24 @@ export type ModuleAMetrics = {
   leftRightHoldDifferenceSeconds?: number | null;
   best_hold_sec?: number;
   both_legs_done?: boolean;
+  // WBLT (guided bracket) metrics — presence of `legs` is the shape signal
+  // Report/Dashboard/SessionHistory use to pick this render.
+  legs?: Partial<
+    Record<
+      "left" | "right",
+      {
+        attempts: unknown[];
+        best_distance_cm: number | null;
+        band: "Poor" | "Fair" | "Good" | null;
+        score_0_10: number | null;
+        borderline: boolean;
+        leg_angle_deg: number | null;
+        floor_flag: boolean;
+        leg_complete: boolean;
+      }
+    >
+  >;
+  symmetry?: { asym_deg: number | null; status: "symmetric" | "asymmetry_flag" | null };
 };
 
 export type SessionStatus = "complete" | "incomplete" | "low_confidence";

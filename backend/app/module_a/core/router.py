@@ -1,7 +1,8 @@
-"""Module A REST endpoints: analyze a finished STS or WBLT session, then read it back.
+"""Module A REST endpoints: analyze a finished STS session, then read it back.
 
-SLS has its own dedicated router (app/module_a/sls/router.py) since its both-legs
-contract differs from this shared single-buffer analyze endpoint.
+SLS and WBLT each have their own dedicated router (app/module_a/sls/router.py,
+app/module_a/wblt/router.py) since their contracts (both-legs; dual distance+angle
+output) differ from this shared single-buffer analyze endpoint.
 """
 
 import logging
@@ -14,7 +15,6 @@ from app.db.models import User
 from app.module_a.core import banding, crud
 from app.module_a.core.schemas import AnalyzeRequest, ModuleAResultResponse
 from app.module_a.sts.engine import run_sts
-from app.module_a.wblt.engine import run_wblt
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -40,8 +40,6 @@ def _get_owned_session(db: DbSession, session_id: UUID, user_id: UUID) -> Sessio
 def _run_engine(frames: list[dict], exercise_type: str) -> dict:
     if exercise_type == "sit_to_stand":
         return run_sts(frames)
-    elif exercise_type == "weight_bearing_lunge_test":
-        return run_wblt(frames)
     else:
         raise ValueError(f"Unknown exercise_type: {exercise_type}")
 
@@ -86,7 +84,7 @@ def analyze_session(
     a session in progress can be checked repeatedly without writing until complete.
     """
     session = _get_owned_session(db, payload.sessionId, current_user.id)
-    if payload.exerciseType not in ("sit_to_stand", "weight_bearing_lunge_test"):
+    if payload.exerciseType not in ("sit_to_stand",):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported exercise type",

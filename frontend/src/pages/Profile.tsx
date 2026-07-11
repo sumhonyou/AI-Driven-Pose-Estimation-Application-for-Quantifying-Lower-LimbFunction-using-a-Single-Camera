@@ -9,18 +9,11 @@ import { Pencil } from "../components/Icons";
 import type { Profile } from "../types/api";
 
 const MAX_AVATAR_FILE_BYTES = 2 * 1024 * 1024;
+const MIN_AGE = 1;
+const MAX_AGE = 120;
 
-function ageGroupLabel(t: (k: string) => string, code: string | null) {
-  switch (code) {
-    case "under_40":
-      return t("auth.ageUnder40");
-    case "40_60":
-      return t("auth.age40_60");
-    case "over_60":
-      return t("auth.ageOver60");
-    default:
-      return t("profile.notSet");
-  }
+function ageLabel(t: (k: string) => string, age: number | null) {
+  return age != null ? String(age) : t("profile.notSet");
 }
 
 function genderLabel(t: (k: string) => string, code: string | null) {
@@ -118,17 +111,23 @@ export default function Profile() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSaving(true);
     setError("");
     setMessage("");
     const form = new FormData(event.currentTarget);
     const height = String(form.get("height_cm") || "");
     const weight = String(form.get("weight_kg") || "");
+    const ageValue = Number(form.get("exact_age"));
+    // Age is required for WBLT McBride banding — never send null.
+    if (!Number.isFinite(ageValue) || ageValue < MIN_AGE || ageValue > MAX_AGE) {
+      setError(t("auth.invalidAge"));
+      return;
+    }
 
+    setSaving(true);
     try {
       const updated = await profileService.update({
         full_name: String(form.get("full_name") || ""),
-        age_group: String(form.get("age_group") || ""),
+        exact_age: ageValue,
         gender: String(form.get("gender") || ""),
         height_cm: height ? Number(height) : null,
         weight_kg: weight ? Number(weight) : null,
@@ -202,7 +201,7 @@ export default function Profile() {
         { label: t("auth.fullName"), value: profile.full_name || t("profile.notSet") },
         { label: t("auth.email"), value: user?.email || t("profile.notSet") },
         { label: t("auth.userType"), value: userTypeLabel(t, profile.user_type) },
-        { label: t("auth.ageGroup"), value: ageGroupLabel(t, profile.age_group) },
+        { label: t("auth.age"), value: ageLabel(t, profile.exact_age) },
         { label: t("auth.gender"), value: genderLabel(t, profile.gender) },
         {
           label: t("profile.height"),
@@ -261,8 +260,8 @@ export default function Profile() {
             </span>
             <div className="profile-mini-list" aria-label={t("profile.detailsHeading")}>
               <div>
-                <span>{t("auth.ageGroup")}</span>
-                <b>{ageGroupLabel(t, profile.age_group)}</b>
+                <span>{t("auth.age")}</span>
+                <b>{ageLabel(t, profile.exact_age)}</b>
               </div>
               <div>
                 <span>{t("auth.focusArea")}</span>
@@ -362,17 +361,17 @@ export default function Profile() {
                       </div>
                       <div className="field-row">
                         <div className="field">
-                          <label htmlFor="age_group">{t("auth.ageGroup")}</label>
-                          <select
-                            id="age_group"
-                            name="age_group"
-                            className="select"
-                            defaultValue={profile.age_group || "under_40"}
-                          >
-                            <option value="under_40">{t("auth.ageUnder40")}</option>
-                            <option value="40_60">{t("auth.age40_60")}</option>
-                            <option value="over_60">{t("auth.ageOver60")}</option>
-                          </select>
+                          <label htmlFor="exact_age">{t("auth.age")}</label>
+                          <input
+                            id="exact_age"
+                            name="exact_age"
+                            className="input"
+                            type="number"
+                            min={1}
+                            max={120}
+                            placeholder={t("auth.agePh")}
+                            defaultValue={profile.exact_age ?? ""}
+                          />
                         </div>
                         <div className="field">
                           <label htmlFor="gender">{t("auth.gender")}</label>

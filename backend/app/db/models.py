@@ -56,7 +56,10 @@ class UserProfile(Base):
     user_id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    age_group: Mapped[str | None] = mapped_column(String(50))
+    # Exact age (collected directly at signup, required alongside gender) --
+    # the single source of truth wherever an age is needed, including WBLT's
+    # McBride age-band lookup. Replaced the old 3-bucket age_group column.
+    exact_age: Mapped[int | None] = mapped_column(Integer)
     gender: Mapped[str | None] = mapped_column(String(50))
     height_cm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))

@@ -8,9 +8,16 @@ import { ApiError } from "../services/apiClient";
 import { isValidEmailFormat } from "../utils/format";
 
 type AuthMode = "login" | "register";
-type InvalidFields = { fullName: boolean; email: boolean; password: boolean };
+type InvalidFields = { fullName: boolean; email: boolean; password: boolean; age: boolean };
 
-const emptyInvalid: InvalidFields = { fullName: false, email: false, password: false };
+const emptyInvalid: InvalidFields = {
+  fullName: false,
+  email: false,
+  password: false,
+  age: false,
+};
+const MIN_AGE = 1;
+const MAX_AGE = 120;
 
 export default function Login() {
   const { t } = useTranslation();
@@ -19,10 +26,12 @@ export default function Login() {
   const reduceMotion = useReducedMotion();
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const ageRef = useRef<HTMLInputElement>(null);
 
   const [mode, setMode] = useState<AuthMode>("login");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [ageError, setAgeError] = useState("");
   const [formAlert, setFormAlert] = useState("");
   const [invalid, setInvalid] = useState<InvalidFields>(emptyInvalid);
   const [shaking, setShaking] = useState(false);
@@ -32,6 +41,7 @@ export default function Login() {
   const clearFeedback = () => {
     setEmailError("");
     setPasswordError("");
+    setAgeError("");
     setFormAlert("");
     setInvalid(emptyInvalid);
   };
@@ -64,15 +74,19 @@ export default function Login() {
     const fullName = String(form.get("full_name") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
+    const ageValue = Number(form.get("exact_age"));
     const emailOk = isValidEmailFormat(email);
     const passwordOk = mode === "login" || password.length >= 8;
+    const ageOk =
+      mode === "login" || (Number.isFinite(ageValue) && ageValue >= MIN_AGE && ageValue <= MAX_AGE);
 
-    if (!emailOk || !passwordOk) {
+    if (!emailOk || !passwordOk || !ageOk) {
       if (!emailOk) setEmailError(t("auth.invalidEmailFormat"));
       if (!passwordOk) setPasswordError(t("auth.passwordTooShort"));
-      setInvalid({ fullName: false, email: !emailOk, password: !passwordOk });
+      if (!ageOk) setAgeError(t("auth.invalidAge"));
+      setInvalid({ fullName: false, email: !emailOk, password: !passwordOk, age: !ageOk });
       triggerShake();
-      (emailOk ? passwordRef : emailRef).current?.focus();
+      (!emailOk ? emailRef : !passwordOk ? passwordRef : ageRef).current?.focus();
       return;
     }
 
@@ -86,7 +100,7 @@ export default function Login() {
           full_name: fullName,
           email,
           password,
-          age_group: String(form.get("age_group")),
+          exact_age: ageValue,
           gender: String(form.get("gender")),
           user_type: String(form.get("user_type")),
           focus_area: String(form.get("focus_area")),
@@ -109,6 +123,7 @@ export default function Login() {
         fullName: false,
         email: true,
         password: isBadCredentials,
+        age: false,
       });
       triggerShake();
       console.info(`${mode === "login" ? "Login" : "Registration"} failed.`);
@@ -246,14 +261,25 @@ export default function Login() {
                 <>
                   <div className="field-row auth-field-row">
                     <div className="field">
-                      <label htmlFor="age">
-                        {t("auth.ageGroup")} <span className="muted">({t("auth.optional")})</span>
-                      </label>
-                      <select id="age" name="age_group" className="select">
-                        <option value="under_40">{t("auth.ageUnder40")}</option>
-                        <option value="40_60">{t("auth.age40_60")}</option>
-                        <option value="over_60">{t("auth.ageOver60")}</option>
-                      </select>
+                      <label htmlFor="age">{t("auth.age")}</label>
+                      <input
+                        id="age"
+                        name="exact_age"
+                        ref={ageRef}
+                        className={getInputClass("age")}
+                        type="number"
+                        min={MIN_AGE}
+                        max={MAX_AGE}
+                        placeholder={t("auth.agePh")}
+                        aria-invalid={invalid.age || undefined}
+                        aria-describedby={ageError ? "age-error" : undefined}
+                      />
+                      {ageError && (
+                        <p className="field-error" id="age-error">
+                          <Alert />
+                          {ageError}
+                        </p>
+                      )}
                     </div>
                     <div className="field">
                       <label htmlFor="type">{t("auth.userType")}</label>
@@ -266,9 +292,7 @@ export default function Login() {
                   </div>
                   <div className="field-row auth-field-row">
                     <div className="field">
-                      <label htmlFor="gender">
-                        {t("auth.gender")} <span className="muted">({t("auth.optional")})</span>
-                      </label>
+                      <label htmlFor="gender">{t("auth.gender")}</label>
                       <select id="gender" name="gender" className="select">
                         <option value="female">{t("auth.genderF")}</option>
                         <option value="male">{t("auth.genderM")}</option>

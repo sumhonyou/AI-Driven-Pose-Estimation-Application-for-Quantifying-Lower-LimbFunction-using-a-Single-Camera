@@ -1,13 +1,15 @@
 # FYP Project Description and Implementation Plan
 
 **Project Title:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Current Recommended Architecture:** React + TypeScript frontend, MediaPipe Pose in browser, FastAPI backend, PostgreSQL database, Google Cloud deployment  
+**Current Recommended Architecture:** React + TypeScript frontend, MediaPipe Pose in browser, FastAPI backend, PostgreSQL database, Google Cloud deployment
 
 **Related files:**
+
 - [task.md](./task.md) — phased tasks, deliverables, and milestones
 - [rules.md](./rules.md) — coding agent rules (must be followed on every development request)
 
 ---
+
 - [FYP Project Description and Implementation Plan](#fyp-project-description-and-implementation-plan)
   - [1. Short Project Summary](#1-short-project-summary)
   - [2. Current High-Level Goal](#2-current-high-level-goal)
@@ -130,48 +132,48 @@ Build a deployed AI web application that can:
 
 ### 3.1 Frontend
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| Web Framework | React | Build interactive web app UI |
-| Language | TypeScript | Type-safe frontend development |
-| Build Tool | Vite | Fast development and build process |
-| Styling | Tailwind CSS | Fast and consistent UI styling |
-| Webcam Access | Browser MediaDevices API | Access user webcam in browser |
-| Pose Estimation | MediaPipe Pose / MediaPipe Tasks Vision | Extract body landmarks from webcam frames |
-| Charts | Recharts or Chart.js | Dashboard progress visualization |
-| API Communication | Axios or Fetch API | REST API calls to backend |
-| Live Feedback | Frontend local rule calculation first; optional WebSocket later | Avoid latency during live session |
+| Layer             | Technology                                                      | Purpose                                   |
+| ----------------- | --------------------------------------------------------------- | ----------------------------------------- |
+| Web Framework     | React                                                           | Build interactive web app UI              |
+| Language          | TypeScript                                                      | Type-safe frontend development            |
+| Build Tool        | Vite                                                            | Fast development and build process        |
+| Styling           | Tailwind CSS                                                    | Fast and consistent UI styling            |
+| Webcam Access     | Browser MediaDevices API                                        | Access user webcam in browser             |
+| Pose Estimation   | MediaPipe Pose / MediaPipe Tasks Vision                         | Extract body landmarks from webcam frames |
+| Charts            | Recharts or Chart.js                                            | Dashboard progress visualization          |
+| API Communication | Axios or Fetch API                                              | REST API calls to backend                 |
+| Live Feedback     | Frontend local rule calculation first; optional WebSocket later | Avoid latency during live session         |
 
 ### 3.2 Backend
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| Backend Framework | Python FastAPI | REST API, session handling, scoring, report generation |
-| Validation | Pydantic | Validate request and response data |
-| Database ORM | SQLAlchemy or SQLModel | PostgreSQL database mapping |
-| Migration | Alembic | Database schema migrations |
-| ML Libraries | scikit-learn, NumPy, pandas, joblib | Feature processing and model inference |
-| ML Model | Extra Trees Classifier | Exercise-specific rehab grading model |
-| External Feedback | External LLM API | Rewrite structured feedback after the set only |
-| Testing | Pytest | Backend unit and integration testing |
+| Layer             | Technology                          | Purpose                                                |
+| ----------------- | ----------------------------------- | ------------------------------------------------------ |
+| Backend Framework | Python FastAPI                      | REST API, session handling, scoring, report generation |
+| Validation        | Pydantic                            | Validate request and response data                     |
+| Database ORM      | SQLAlchemy or SQLModel              | PostgreSQL database mapping                            |
+| Migration         | Alembic                             | Database schema migrations                             |
+| ML Libraries      | scikit-learn, NumPy, pandas, joblib | Feature processing and model inference                 |
+| ML Model          | Extra Trees Classifier              | Exercise-specific rehab grading model                  |
+| External Feedback | External LLM API                    | Rewrite structured feedback after the set only         |
+| Testing           | Pytest                              | Backend unit and integration testing                   |
 
 ### 3.3 Database
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| Local Database | PostgreSQL in Docker | Local development database |
-| Cloud Database | Cloud SQL for PostgreSQL | Production/deployed database |
-| DB GUI | DBeaver or pgAdmin | View and manage database tables |
+| Layer          | Technology               | Purpose                         |
+| -------------- | ------------------------ | ------------------------------- |
+| Local Database | PostgreSQL in Docker     | Local development database      |
+| Cloud Database | Cloud SQL for PostgreSQL | Production/deployed database    |
+| DB GUI         | DBeaver or pgAdmin       | View and manage database tables |
 
 ### 3.4 Deployment
 
-| Component | Recommended Platform |
-|---|---|
-| Frontend | Firebase Hosting or Cloud Run static container |
-| Backend | Google Cloud Run |
-| Database | Google Cloud SQL for PostgreSQL |
-| Container Registry | Google Artifact Registry |
-| CI/CD, optional | Google Cloud Build |
+| Component          | Recommended Platform                           |
+| ------------------ | ---------------------------------------------- |
+| Frontend           | Firebase Hosting or Cloud Run static container |
+| Backend            | Google Cloud Run                               |
+| Database           | Google Cloud SQL for PostgreSQL                |
+| Container Registry | Google Artifact Registry                       |
+| CI/CD, optional    | Google Cloud Build                             |
 
 ---
 
@@ -402,11 +404,11 @@ Module A uses deterministic rule-based quantification. It does not require machi
 
 ### 9.1 Functional Checks
 
-| Check | View Guidance | Reps/Duration | Main Outputs |
-|---|---|---|---|
-| Sit-to-Stand | Side view | 5 reps | Completion time, knee ROM band, trunk lean proxy, grade |
-| Supported Single-Leg Stance | Front view preferred | 30 seconds | Hold duration, sway/stability proxy, grade |
-| Weight-Bearing Lunge Test | Side view | 3 trials | Dorsiflexion ROM band, symmetry proxy, grade |
+| Check                       | View Guidance        | Reps/Duration | Main Outputs                                            |
+| --------------------------- | -------------------- | ------------- | ------------------------------------------------------- |
+| Sit-to-Stand                | Side view            | 5 reps        | Completion time, knee ROM band, trunk lean proxy, grade |
+| Supported Single-Leg Stance | Front view preferred | 30 seconds    | Hold duration, sway/stability proxy, grade              |
+| Weight-Bearing Lunge Test   | Side view            | 3 trials      | Dorsiflexion ROM band, symmetry proxy, grade            |
 
 ### 9.2 Module A Output
 
@@ -455,11 +457,11 @@ Module A checks are **deterministic rule-based measurements**, not trained class
 
 **Statistics used** (pure-Python, no numpy/scipy dependency — closed-form formulas over a small sample):
 
-| Statistic | What it measures | Why chosen |
-|---|---|---|
-| ICC(2,1) | Absolute agreement between system hold-time and manual hold-time | Two-way random effects, single measurement, absolute agreement (Shrout & Fleiss, 1979) — we care whether the seconds literally match, not just move proportionally together |
-| Bland-Altman | Bias (mean difference) and 95% limits of agreement | Standard method-comparison analysis (Bland & Altman, 1986); difference is defined as `system − manual` |
-| Cohen's kappa | Categorical agreement of the Good/Fair/Poor/Invalid **hold-time band** | Chance-corrected band agreement a stopwatch-only human reviewer could reproduce (Cohen, 1960) |
+| Statistic     | What it measures                                                       | Why chosen                                                                                                                                                                  |
+| ------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ICC(2,1)      | Absolute agreement between system hold-time and manual hold-time       | Two-way random effects, single measurement, absolute agreement (Shrout & Fleiss, 1979) — we care whether the seconds literally match, not just move proportionally together |
+| Bland-Altman  | Bias (mean difference) and 95% limits of agreement                     | Standard method-comparison analysis (Bland & Altman, 1986); difference is defined as `system − manual`                                                                      |
+| Cohen's kappa | Categorical agreement of the Good/Fair/Poor/Invalid **hold-time band** | Chance-corrected band agreement a stopwatch-only human reviewer could reproduce (Cohen, 1960)                                                                               |
 
 Band agreement (kappa) is computed on the **hold-time band only**, because a human with a stopwatch can independently reproduce that dimension but cannot judge the ball-in-circle stability sub-score without a separate rater protocol (future work).
 
@@ -471,12 +473,12 @@ Band agreement (kappa) is computed on the **hold-time band only**, because a hum
 
 **Results (current fixed-seed corpus, reproducible byte-identical across runs):**
 
-| Metric | Value |
-|---|---|
-| ICC(2,1) — absolute agreement, hold time | **0.995** |
-| Cohen's kappa — hold-time band agreement | **0.857** |
-| Bland-Altman bias (`system − manual`) | **−0.753 s** — system reads slightly shorter, consistent with the FSM's drop-hysteresis persistence frames |
-| Bland-Altman 95% limits of agreement | **[−4.08 s, 2.57 s]** |
+| Metric                                   | Value                                                                                                      |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| ICC(2,1) — absolute agreement, hold time | **0.995**                                                                                                  |
+| Cohen's kappa — hold-time band agreement | **0.857**                                                                                                  |
+| Bland-Altman bias (`system − manual`)    | **−0.753 s** — system reads slightly shorter, consistent with the FSM's drop-hysteresis persistence frames |
+| Bland-Altman 95% limits of agreement     | **[−4.08 s, 2.57 s]**                                                                                      |
 
 The single band disagreement (1 of 10) is a genuine edge case, not a bug: the system correctly reports `invalid` for a leg that never validly crossed the lift-line, while the naive time-based reference calls a small positive duration `poor`. The monocular-depth limitation (frontal-plane-only stability scoring) and all prototype thresholds (`sls/config.py`) are documented in the generated report for the final report's limitations chapter.
 
@@ -728,6 +730,7 @@ CREATE TABLE user_profiles (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     age_group VARCHAR(50),
+    exact_age INTEGER, -- added for WBLT's McBride age-band lookup; see §24
     gender VARCHAR(50),
     height_cm NUMERIC(5,2),
     weight_kg NUMERIC(5,2),
@@ -904,6 +907,20 @@ GET  /api/sessions/{session_id}
 ```text
 POST /api/module-a/analyze
 GET  /api/module-a/results/{session_id}
+```
+
+Sit-to-Stand is the only exercise left on this shared endpoint. SLS and WBLT
+each have their own dedicated router instead, because their result contracts
+differ from the shared single-buffer shape (see §24):
+
+```text
+POST /api/sls/analyze
+POST /api/sls/support
+GET  /api/sls/session/{session_id}
+
+GET  /api/wblt/config
+POST /api/wblt/analyze
+GET  /api/wblt/session/{session_id}
 ```
 
 ### 14.6 Module B APIs
@@ -1218,9 +1235,11 @@ The recommended MVP target is:
 
 This section records where the implementation **added to or diverged from** the plan above, so the differences are easy to cite in the final report's "deviations from plan" discussion. The rest of this document remains the as-planned specification; the phase-by-phase progress log lives in [task.md](./task.md).
 
-| Area | Original plan (this document) | What was actually implemented | Rationale |
-|---|---|---|---|
-| Module A evaluation | No evaluation method specified for the rule-based checks — §9.3 only said Good/Fair/Poor bands would be "refined during pilot testing" | **Measurement-agreement evaluation** (ICC(2,1), Bland-Altman, Cohen's kappa) for the SLS hold-timer versus a human-timed reference — see [§9.4](#94-module-a-evaluation-measurement-agreement) | Module A is deterministic, not a trained classifier, so classifier-accuracy metrics do not apply; method-comparison statistics are the correct framing and fit the non-diagnostic boundary (§6) |
-| SLS scope | "Supported Single-Leg Stance, front view, 30 seconds" as a single check (§9.1) | Rebuilt as a **both-legs, 45-second-cap** check with a lift-line entry gate and a ball-in-circle stability sub-score (Phase 3B rebuild, see task.md) | Fuller and more defensible functional check; detailed in task.md |
+| Area                | Original plan (this document)                                                                                                          | What was actually implemented                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Rationale                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Module A evaluation | No evaluation method specified for the rule-based checks — §9.3 only said Good/Fair/Poor bands would be "refined during pilot testing" | **Measurement-agreement evaluation** (ICC(2,1), Bland-Altman, Cohen's kappa) for the SLS hold-timer versus a human-timed reference — see [§9.4](#94-module-a-evaluation-measurement-agreement)                                                                                                                                                                                                                                                                                                                                                                | Module A is deterministic, not a trained classifier, so classifier-accuracy metrics do not apply; method-comparison statistics are the correct framing and fit the non-diagnostic boundary (§6)                                                                                                                                                                                        |
+| SLS scope           | "Supported Single-Leg Stance, front view, 30 seconds" as a single check (§9.1)                                                         | Rebuilt as a **both-legs, 45-second-cap** check with a lift-line entry gate and a ball-in-circle stability sub-score (Phase 3B rebuild, see task.md)                                                                                                                                                                                                                                                                                                                                                                                                          | Fuller and more defensible functional check; detailed in task.md                                                                                                                                                                                                                                                                                                                       |
+| WBLT design         | §9.1 listed WBLT as a single camera-measured "dorsiflexion ROM band" (3 trials, no user measurement, no age/sex norms)                 | Redesigned as **dual output**: the official band is a _user-measured_ distance (ruler/tape, self-reported) scored against McBride et al. (2026) age/sex percentile bands; camera-measured dorsiflexion angle is kept as an unbanded secondary signal (corroboration, symmetry, trend). Requires the account's exact age (not the existing `age_group` range) to resolve the correct band — see the `exact_age` column above. Stage 1 (this build) covers one right-leg attempt end-to-end; guided 3-attempt bracketing and the left leg are follow-up stages. | Monocular depth/contact detection is unreliable on a single webcam (§5, non-diagnostic boundary), so camera-only ROM banding had no defensible clinical anchor. Self-measured distance unlocks a real published normative table instead of an invented cutoff; the camera's job narrows to what it _can_ reliably judge (heel-lift validity), consistent with the SLS precedent above. |
+| WBLT routing        | §14.5 put WBLT on the shared `POST /api/module-a/analyze` endpoint (like STS)                                                          | Given a **dedicated `/api/wblt/*` router** (`GET /config`, `POST /analyze`, `GET /session/{id}`), mirroring SLS's precedent                                                                                                                                                                                                                                                                                                                                                                                                                                   | The dual distance+angle, per-attempt contract doesn't fit the shared single-buffer response shape, exactly the same reasoning that put SLS on its own router                                                                                                                                                                                                                           |
 
 _These are enhancements consistent with the project goals in §23, not departures from the MVP priorities. This list covers the deviations identified so far — add further rows here as the implementation continues to evolve._

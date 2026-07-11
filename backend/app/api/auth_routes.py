@@ -1,13 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from app.api.deps import get_current_user
 from app.core.security import (create_access_token, hash_password,
                                verify_password)
 from app.db.database import get_db
 from app.db.models import User, UserProfile
 from app.db.schemas import TokenResponse, UserLogin, UserRead, UserRegister
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -30,7 +29,7 @@ def register(payload: UserRegister, db: Session = Depends(get_db)) -> TokenRespo
         full_name=payload.full_name,
     )
     user.profile = UserProfile(
-        age_group=payload.age_group,
+        exact_age=payload.exact_age,
         gender=payload.gender,
         user_type=payload.user_type,
         focus_area=payload.focus_area,

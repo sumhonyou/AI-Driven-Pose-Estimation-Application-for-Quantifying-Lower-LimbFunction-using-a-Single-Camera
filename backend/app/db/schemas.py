@@ -1,7 +1,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (BaseModel, ConfigDict, EmailStr, Field, field_validator,
+                      model_validator)
 
 # Base64 data URLs inflate ~33% over the raw file; this caps the encoded text
 # around ~3MB of original image data, generous for a profile photo.
@@ -43,7 +44,7 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     full_name: str | None = None
-    age_group: str | None = None
+    exact_age: int = Field(ge=1, le=120)
     gender: str | None = None
     user_type: str | None = None
     focus_area: str | None = None
@@ -61,7 +62,7 @@ class ProfileRead(BaseModel):
     user_id: UUID
     full_name: str | None = None
     avatar_image: str | None = None
-    age_group: str | None = None
+    exact_age: int | None = None
     gender: str | None = None
     height_cm: float | None = None
     weight_kg: float | None = None
@@ -75,7 +76,8 @@ class ProfileRead(BaseModel):
 class ProfileUpdate(BaseModel):
     full_name: str | None = None
     avatar_image: str | None = None
-    age_group: str | None = None
+    # Omit to leave unchanged (avatar-only updates); reject explicit null clear.
+    exact_age: int | None = Field(default=None, ge=1, le=120)
     gender: str | None = None
     height_cm: float | None = Field(default=None, ge=0, le=300)
     weight_kg: float | None = Field(default=None, ge=0, le=500)
@@ -87,6 +89,12 @@ class ProfileUpdate(BaseModel):
     @classmethod
     def _check_avatar_image(cls, value: str | None) -> str | None:
         return _validate_avatar_data_url(value)
+
+    @model_validator(mode="after")
+    def _reject_cleared_exact_age(self) -> "ProfileUpdate":
+        if "exact_age" in self.model_fields_set and self.exact_age is None:
+            raise ValueError("exact_age cannot be cleared")
+        return self
 
 
 class ExerciseRead(BaseModel):

@@ -1,8 +1,10 @@
 """Measurement-agreement statistics: ICC, Bland-Altman, Cohen's kappa.
 
-This is a measurement-agreement problem (system hold-time vs a human-timed
-reference), not a classifier-accuracy problem -- these three statistics are the
-standard tools for that framing (blueprint plan doc, evaluation framing note).
+Shared across Module A exercises -- SLS (hold-time, seconds) and WBLT
+(distance cm / angle deg) are both measurement-agreement problems (system
+value vs a human reference), not classifier-accuracy problems, so both use
+these same three statistics. Unit-agnostic: `bland_altman()`'s output keys
+carry no unit suffix -- callers label the unit in their own report text.
 
 No numpy/scipy/pingouin dependency: this project's requirements.txt has none of
 them, and these formulas are simple closed-form sums over a small sample, so a
@@ -30,8 +32,8 @@ def icc_2_1(system: list[float], manual: list[float]) -> float:
 
     Reference: Shrout & Fleiss (1979), "Intraclass correlations: uses in
     assessing rater reliability". Chosen over ICC(3,1) ("consistency") because
-    we care whether the system's seconds literally match a human's stopwatch
-    seconds, not just whether they move proportionally together.
+    we care whether the system's value literally matches a human reference,
+    not just whether they move proportionally together.
 
     n subjects (sessions/legs) x k=2 raters (system, manual). Returns a value
     in roughly [-1, 1]; 1.0 = perfect absolute agreement.
@@ -67,7 +69,8 @@ def bland_altman(system: list[float], manual: list[float]) -> dict:
     """Bias (mean difference) and 95% limits of agreement (Bland & Altman, 1986).
 
     `diff` is defined as system - manual: positive bias means the system tends
-    to read longer than the human-timed reference.
+    to read higher than the human reference. Output keys carry no unit suffix
+    (e.g. "_sec" or "_cm") -- callers label the unit in their own report text.
     """
     if len(system) != len(manual):
         raise ValueError("system and manual must be the same length")
@@ -78,10 +81,10 @@ def bland_altman(system: list[float], manual: list[float]) -> dict:
     bias = _mean(diffs)
     sd = _sample_stdev(diffs)
     return {
-        "bias_sec": round(bias, 3),
-        "sd_sec": round(sd, 3),
-        "loa_lower_sec": round(bias - 1.96 * sd, 3),
-        "loa_upper_sec": round(bias + 1.96 * sd, 3),
+        "bias": round(bias, 3),
+        "sd": round(sd, 3),
+        "loa_lower": round(bias - 1.96 * sd, 3),
+        "loa_upper": round(bias + 1.96 * sd, 3),
         "n": len(diffs),
     }
 

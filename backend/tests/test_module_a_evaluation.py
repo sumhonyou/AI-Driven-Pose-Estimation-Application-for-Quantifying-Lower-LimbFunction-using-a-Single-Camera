@@ -7,7 +7,8 @@ this project has no numpy/scipy/pingouin dependency to compare against.
 
 import unittest
 
-from app.module_a.sls.evaluation.agreement import bland_altman, cohens_kappa, icc_2_1
+from app.module_a.core.evaluation.agreement import (bland_altman, cohens_kappa,
+                                                    icc_2_1)
 
 
 class IccTests(unittest.TestCase):
@@ -47,18 +48,18 @@ class BlandAltmanTests(unittest.TestCase):
         system = [1.0, 2.0, 3.0]
         manual = [1.0, 2.0, 4.0]
         result = bland_altman(system, manual)
-        self.assertAlmostEqual(result["bias_sec"], -0.333, places=2)
-        self.assertAlmostEqual(result["sd_sec"], 0.577, places=2)
+        self.assertAlmostEqual(result["bias"], -0.333, places=2)
+        self.assertAlmostEqual(result["sd"], 0.577, places=2)
         self.assertAlmostEqual(
-            result["loa_upper_sec"] - result["loa_lower_sec"],
-            2 * 1.96 * result["sd_sec"],
+            result["loa_upper"] - result["loa_lower"],
+            2 * 1.96 * result["sd"],
             places=2,
         )
 
     def test_zero_bias_when_identical(self):
         result = bland_altman([5.0, 10.0, 15.0], [5.0, 10.0, 15.0])
-        self.assertEqual(result["bias_sec"], 0.0)
-        self.assertEqual(result["sd_sec"], 0.0)
+        self.assertEqual(result["bias"], 0.0)
+        self.assertEqual(result["sd"], 0.0)
 
     def test_requires_matching_lengths(self):
         with self.assertRaises(ValueError):

@@ -6,6 +6,7 @@ import { Lightbulb, ShieldCheck, History, Plus, Alert } from "../components/Icon
 import InfoTooltip from "../components/InfoTooltip";
 import { sessionService } from "../services/sessionService";
 import { moduleAService, type ModuleAResult } from "../services/moduleAService";
+import { wbltApi, type WbltLegTrend } from "../services/wblt/wbltApi";
 import type { SessionDTO } from "../types/api";
 import { useReveal } from "../useReveal";
 
@@ -16,6 +17,40 @@ function fmtSec(value: number | null | undefined) {
 
 function fmtDeg(value: number | null | undefined) {
   return value == null ? "—" : `${value.toFixed(0)}°`;
+}
+
+// §11 Stage 6: one-line vs-last-session summary for a WBLT leg. `_meaningful`
+// is already MDC-suppressed server-side -- a sub-MDC delta reads as "no
+// meaningful change" rather than a fabricated up/down signal.
+function wbltTrendText(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  trend: WbltLegTrend | null | undefined,
+) {
+  if (!trend) return t("wblt.trendNoPrevious");
+  const parts: string[] = [];
+  if (trend.distance_delta_cm != null) {
+    parts.push(
+      trend.distance_meaningful
+        ? t("wblt.trendDistanceChanged", {
+            sign: trend.distance_delta_cm >= 0 ? "+" : "",
+            value: trend.distance_delta_cm.toFixed(1),
+          })
+        : t("wblt.trendDistanceNoChange"),
+    );
+  }
+  if (trend.angle_delta_deg != null) {
+    parts.push(
+      trend.angle_meaningful
+        ? t("wblt.trendAngleChanged", {
+            sign: trend.angle_delta_deg >= 0 ? "+" : "",
+            value: trend.angle_delta_deg.toFixed(1),
+          })
+        : t("wblt.trendAngleNoChange"),
+    );
+  }
+  return parts.length
+    ? `${t("wblt.trendVsLast")}: ${parts.join(" · ")}`
+    : t("wblt.trendNoPrevious");
 }
 
 // Maps a band value to its plain-language meaning key in i18n `common`.
@@ -41,6 +76,11 @@ export default function Report() {
   const [result, setResult] = useState<ModuleAResult | null>(null);
   const [loading, setLoading] = useState(!!sessionId);
   const [error, setError] = useState("");
+  // §11 Stage 6: not part of the persisted metrics_json -- computed live from
+  // the account's previous WBLT session, so it's fetched separately.
+  const [wbltTrend, setWbltTrend] = useState<
+    Partial<Record<"left" | "right", WbltLegTrend | null>>
+  >({});
 
   // Re-run reveal animation after async data loads (elements don't exist on initial nav)
   useReveal([result]);
@@ -58,6 +98,14 @@ export default function Report() {
         setSession(sessionData);
         setResult(resultData);
         console.log(`[Report] Loaded session ${sessionId} — band=${resultData.band}`);
+        if (sessionData.exercise_type?.includes("lunge")) {
+          try {
+            const summary = await wbltApi.session(sessionId);
+            if (!cancelled) setWbltTrend(summary.trend);
+          } catch {
+            // Non-fatal: report still renders without the trend row.
+          }
+        }
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : t("report.loadError"));
@@ -77,13 +125,17 @@ export default function Report() {
     pct = Math.max(0, Math.min(1, score / 10));
 
   const isSls = session?.exercise_type?.includes("single_leg");
+  const isWblt = session?.exercise_type?.includes("lunge");
   // Migration signal: only SLS rows from the both-legs rebuild carry `perLeg`.
   // Older single-leg rows (pre-rebuild) fall through to the legacy metricRows below.
   const perLeg = result?.metrics.perLeg;
   const hasPerLeg = !!(perLeg && (perLeg.left || perLeg.right));
+  const wbltLegs = result?.metrics.legs;
+  const hasWbltLegs = !!(wbltLegs && (wbltLegs.right || wbltLegs.left));
+  const symmetry = result?.metrics.symmetry;
 
   const metricRows =
-    result && session
+    result && session && !isWblt
       ? isSls
         ? // Single-Leg Stance metrics
           [
@@ -181,27 +233,24 @@ export default function Report() {
             <div className="dash-note reveal" style={{ marginBottom: 18 }}>
               <Alert />
               <span>
-                {t(
-                  result.session_status === "low_confidence"
-                    ? "report.lowConfidenceStatus"
+                {result.session_status === "low_confidence"
+                  ? t("report.lowConfidenceStatus")
+                  : isWblt
+                    ? t("report.incompleteWbltStatus")
                     : isSls
-                      ? "report.incompleteSlsStatus"
-                      : "report.incompleteStatus",
-                  isSls
-                    ? {
-                        duration: (
-                          result.metrics.best_hold_sec ??
-                          result.metrics.hold_duration_sec ??
-                          0
-                        ).toFixed(1),
-                        target:
-                          result.metrics.maxHoldSeconds ?? result.metrics.target_hold_sec ?? 45,
-                      }
-                    : {
-                        valid: result.metrics.rep_count,
-                        target: result.metrics.target_rep_count,
-                      },
-                )}
+                      ? t("report.incompleteSlsStatus", {
+                          duration: (
+                            result.metrics.best_hold_sec ??
+                            result.metrics.hold_duration_sec ??
+                            0
+                          ).toFixed(1),
+                          target:
+                            result.metrics.maxHoldSeconds ?? result.metrics.target_hold_sec ?? 45,
+                        })
+                      : t("report.incompleteStatus", {
+                          valid: result.metrics.rep_count,
+                          target: result.metrics.target_rep_count,
+                        })}
               </span>
             </div>
           )}
@@ -280,10 +329,68 @@ export default function Report() {
           </div>
 
           <div style={{ marginBottom: 8 }}>
-            <span className="eyebrow">{t(isSls ? "report.slsMetrics" : "report.metrics")}</span>
+            <span className="eyebrow">
+              {t(isWblt ? "report.wbltMetrics" : isSls ? "report.slsMetrics" : "report.metrics")}
+            </span>
           </div>
 
-          {hasPerLeg ? (
+          {hasWbltLegs ? (
+            <div className="dash-grid-2" style={{ marginBottom: 18 }}>
+              {(["right", "left"] as const).map((leg) => {
+                const m = wbltLegs?.[leg];
+                if (!m) return null;
+                return (
+                  <div className="panel reveal" key={leg}>
+                    <div className="panel-head" style={{ marginBottom: 18 }}>
+                      <h3>{t(leg === "right" ? "wblt.legRight" : "wblt.legLeft")}</h3>
+                      {m.band && (
+                        <span className={"band " + m.band.toLowerCase()}>
+                          {t("common." + m.band.toLowerCase())}
+                        </span>
+                      )}
+                    </div>
+                    {m.best_distance_cm != null ? (
+                      <div className="sls-metric-row">
+                        <span className="sls-metric-label">{t("wblt.legBestDistanceLabel")}</span>
+                        <span className="sls-metric-value">{m.best_distance_cm} cm</span>
+                      </div>
+                    ) : (
+                      <p className="muted" style={{ fontSize: "0.82rem" }}>
+                        {t("wblt.floorFlagMessage")}
+                      </p>
+                    )}
+                    <div className="sls-metric-row">
+                      <span className="sls-metric-label">{t("wblt.angleResultLabel")}</span>
+                      <span className="sls-metric-value">
+                        {m.leg_angle_deg != null ? `${m.leg_angle_deg.toFixed(1)}°` : "—"}
+                      </span>
+                    </div>
+                    <p className="muted" style={{ fontSize: "0.82rem", marginTop: 10 }}>
+                      {wbltTrendText(t, wbltTrend[leg])}
+                    </p>
+                  </div>
+                );
+              })}
+              <div className="panel reveal">
+                <div className="panel-head" style={{ marginBottom: 18 }}>
+                  <h3>{t("wblt.symmetryTitle")}</h3>
+                </div>
+                <p className="muted" style={{ fontSize: "0.85rem" }}>
+                  {symmetry?.status === "asymmetry_flag"
+                    ? t("wblt.symmetryFlag")
+                    : symmetry?.status === "symmetric"
+                      ? t("wblt.symmetrySymmetric")
+                      : "—"}
+                </p>
+                <div className="sls-metric-row" style={{ marginTop: 12 }}>
+                  <span className="sls-metric-label">{t("report.captureQualityBand")}</span>
+                  <span className="sls-metric-value">
+                    {t("common." + result?.capture_quality_band)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : hasPerLeg ? (
             <div className="dash-grid-2" style={{ marginBottom: 18 }}>
               {(["right", "left"] as const).map((leg) => {
                 const m = perLeg?.[leg];
