@@ -2,6 +2,7 @@ export type User = {
   id: string;
   email: string;
   full_name: string | null;
+  avatar_image: string | null;
   created_at: string;
 };
 
@@ -9,6 +10,7 @@ export type Profile = {
   id: string;
   user_id: string;
   full_name: string | null;
+  avatar_image: string | null;
   age_group: string | null;
   gender: string | null;
   height_cm: number | null;
@@ -75,6 +77,7 @@ export type LoginPayload = {
 
 export type ProfileUpdatePayload = Partial<{
   full_name: string;
+  avatar_image: string | null;
   age_group: string;
   gender: string;
   height_cm: number | null;

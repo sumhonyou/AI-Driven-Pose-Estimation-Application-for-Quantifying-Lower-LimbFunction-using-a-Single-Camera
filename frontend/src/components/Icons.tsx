@@ -67,6 +67,32 @@ export const User = (p: P) => (
     <path d="M4 21a8 8 0 0 1 16 0" />
   </svg>
 );
+export const Mail = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3 7 9 6 9-6" />
+  </svg>
+);
+export const Lock = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="4" y="10" width="16" height="10" rx="2" />
+    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+  </svg>
+);
+export const Eye = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+export const EyeOff = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3 3l18 18" />
+    <path d="M10.6 10.6a3 3 0 0 0 4.2 4.2" />
+    <path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a18.6 18.6 0 0 1-3.1 4.1" />
+    <path d="M6.6 6.8C3.7 8.8 2 12 2 12s3.5 7 10 7c1.2 0 2.4-.2 3.4-.6" />
+  </svg>
+);
 export const ShieldCheck = (p: P) => (
   <svg {...base(p)}>
     <path d="M12 2a10 10 0 1 0 10 10" />
@@ -159,6 +185,13 @@ export const Target = (p: P) => (
 export const Lightbulb = (p: P) => (
   <svg {...base(p)}>
     <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A7 7 0 0 0 12 2z" />
+  </svg>
+);
+
+export const Pencil = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
   </svg>
 );
 

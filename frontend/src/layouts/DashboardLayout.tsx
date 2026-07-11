@@ -6,6 +6,20 @@ import { Grid, CirclePlus, History, Chart, Bell, User, Menu, Close } from "../co
 import { useReveal } from "../useReveal";
 import { useAuth } from "../auth";
 
+function TopbarAvatar() {
+  const { user } = useAuth();
+  const initials = user?.full_name?.trim().slice(0, 2).toUpperCase() || "PF";
+  return (
+    <Link to="/profile" className="avatar" aria-label="View profile" title="View profile">
+      {user?.avatar_image ? (
+        <img src={user.avatar_image} alt="" className="avatar-img" />
+      ) : (
+        initials
+      )}
+    </Link>
+  );
+}
+
 export default function DashboardLayout() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
@@ -139,6 +153,7 @@ export function DashTopbar({
         <ThemeToggle />
         <LanguageSwitcher />
         {actions}
+        <TopbarAvatar />
       </div>
     </div>
   );

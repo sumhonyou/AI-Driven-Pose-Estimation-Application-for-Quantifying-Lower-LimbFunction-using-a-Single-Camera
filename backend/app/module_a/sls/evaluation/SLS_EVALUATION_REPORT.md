@@ -51,7 +51,7 @@ data, and should be revisited once real user sessions are available:
 - `SLS_MAX_HOLD_SEC = 45.0` -- per-leg hold cap
 - `SLS_LIFT_LINE_NORM = 0.15` -- lift-line height / stance-leg length
 - `SLS_LIFT_HYSTERESIS_NORM = 0.03` -- drop-confirmation margin
-- `SLS_CIRCLE_RADIUS_NORM = 0.6` -- tolerance-circle radius / hip width
+- `SLS_CIRCLE_RADIUS_NORM = 0.3` -- tolerance-circle radius / hip width
 - `SLS_HOLD_WEIGHT / SLS_STABILITY_WEIGHT = 0.5 / 0.5` -- combined-score blend
 - `SLS_HOLD_POOR_MAX_SEC / SLS_HOLD_FAIR_MAX_SEC = 10.0 / 25.0` -- Table 6 hold breakpoints
 

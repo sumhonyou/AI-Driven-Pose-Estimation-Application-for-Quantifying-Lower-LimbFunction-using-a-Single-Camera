@@ -2,8 +2,6 @@
 
 **Project Title:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
 **Current Recommended Architecture:** React + TypeScript frontend, MediaPipe Pose in browser, FastAPI backend, PostgreSQL database, Google Cloud deployment  
-**Project Status:** Phase 0–1B complete · Phase 2 (MediaPipe) next · on track  
-**Last progression log update:** June 2026
 
 **Related files:**
 - [task.md](./task.md) — phased tasks, deliverables, and milestones
@@ -33,6 +31,7 @@
     - [9.1 Functional Checks](#91-functional-checks)
     - [9.2 Module A Output](#92-module-a-output)
     - [9.3 Conservative Banding](#93-conservative-banding)
+    - [9.4 Module A Evaluation (Measurement Agreement)](#94-module-a-evaluation-measurement-agreement)
   - [10. Module B: Rehabilitation Grading](#10-module-b-rehabilitation-grading)
     - [10.1 Module B Pipeline](#101-module-b-pipeline)
     - [10.2 Module B Output](#102-module-b-output)
@@ -81,6 +80,7 @@
   - [Coding agent rules are maintained in **rules.md**. They must be followed on every development request.](#coding-agent-rules-are-maintained-in-rulesmd-they-must-be-followed-on-every-development-request)
   - [22. Future Enhancements](#22-future-enhancements)
   - [23. Final Implementation Priority](#23-final-implementation-priority)
+  - [24. Additions and Deviations from the Original Plan](#24-additions-and-deviations-from-the-original-plan)
 
 ## 1. Short Project Summary
 
@@ -446,6 +446,43 @@ Poor: low performance or unreliable movement/capture quality
 ```
 
 Thresholds can start as heuristic values and be refined during pilot testing.
+
+### 9.4 Module A Evaluation (Measurement Agreement)
+
+> **Note — added beyond the original plan.** As originally written, this document specified an evaluation method only for **Module B** (classifier metrics: accuracy, precision, recall, macro-F1, confusion matrix) and for the **system** (FPS, response time, usability). It did **not** specify how the deterministic, rule-based **Module A** checks should be evaluated. This subsection records the approach actually implemented for the Single-Leg Stance (SLS) check. See [§24](#24-additions-and-deviations-from-the-original-plan) for the full list of additions beyond the original plan.
+
+Module A checks are **deterministic rule-based measurements**, not trained classifiers, so classifier-accuracy metrics do not apply. The SLS hold-timer is instead evaluated as a **measurement instrument** — how closely the system's measured hold time agrees with a human-timed (stopwatch) reference. This is the standard framing for method-comparison / inter-rater reliability and fits the project's non-diagnostic, functional-self-check boundary (§6).
+
+**Statistics used** (pure-Python, no numpy/scipy dependency — closed-form formulas over a small sample):
+
+| Statistic | What it measures | Why chosen |
+|---|---|---|
+| ICC(2,1) | Absolute agreement between system hold-time and manual hold-time | Two-way random effects, single measurement, absolute agreement (Shrout & Fleiss, 1979) — we care whether the seconds literally match, not just move proportionally together |
+| Bland-Altman | Bias (mean difference) and 95% limits of agreement | Standard method-comparison analysis (Bland & Altman, 1986); difference is defined as `system − manual` |
+| Cohen's kappa | Categorical agreement of the Good/Fair/Poor/Invalid **hold-time band** | Chance-corrected band agreement a stopwatch-only human reviewer could reproduce (Cohen, 1960) |
+
+Band agreement (kappa) is computed on the **hold-time band only**, because a human with a stopwatch can independently reproduce that dimension but cannot judge the ball-in-circle stability sub-score without a separate rater protocol (future work).
+
+**Evaluation harness (reproducible, committed):**
+
+- `backend/app/module_a/sls/evaluation/agreement.py` — the three statistics, plus unit tests using hand-verified boundary cases.
+- `backend/app/module_a/replay_corpus/sls/` — fixed-seed **synthetic** corpus (10 per-leg samples spanning Poor/Fair/Good/Invalid, steady and swaying). No real pilot recordings exist yet for this prototype; the corpus is produced by `generate_sls_replay_corpus.py`.
+- `run_sls_evaluation.py` — replays the corpus through the deterministic `analyze_leg` core, computes the statistics, and writes `SLS_EVALUATION_REPORT.md`. Run with `python -m app.module_a.scripts.run_sls_evaluation`.
+
+**Results (current fixed-seed corpus, reproducible byte-identical across runs):**
+
+| Metric | Value |
+|---|---|
+| ICC(2,1) — absolute agreement, hold time | **0.995** |
+| Cohen's kappa — hold-time band agreement | **0.857** |
+| Bland-Altman bias (`system − manual`) | **−0.753 s** — system reads slightly shorter, consistent with the FSM's drop-hysteresis persistence frames |
+| Bland-Altman 95% limits of agreement | **[−4.08 s, 2.57 s]** |
+
+The single band disagreement (1 of 10) is a genuine edge case, not a bug: the system correctly reports `invalid` for a leg that never validly crossed the lift-line, while the naive time-based reference calls a small positive duration `poor`. The monocular-depth limitation (frontal-plane-only stability scoring) and all prototype thresholds (`sls/config.py`) are documented in the generated report for the final report's limitations chapter.
+
+> **The numbers above come from the current fixed-seed corpus** and will change if the corpus or thresholds change. `SLS_EVALUATION_REPORT.md` always holds the live values — re-run the harness before quoting them in the final report.
+
+**Generalizable to STS and WBLT (future work):** the same measurement-agreement framing applies to the Sit-to-Stand completion-time and WBLT dorsiflexion-ROM measurements, but those replay/agreement harnesses are not yet built — only SLS has one today.
 
 ---
 
@@ -1122,7 +1159,7 @@ volumes:
 
 The phased development plan (Phase 0–9), recommended start order, and milestones are maintained in **[task.md](./task.md)**.
 
-Use that file to track task progress. This document keeps architecture, design, technical specifications, and the supervisor progression log (§24).
+Use that file to track task progress. This document keeps architecture, design, and technical specifications. Additions to and deviations from this plan are tracked in [§24](#24-additions-and-deviations-from-the-original-plan).
 
 **Current Phase 1 order:** Phase 1A (UI clickable prototype) → Phase 1B (register/login, JWT, sessions, backend wiring). See §8.0 and [task.md](./task.md) Phase 1.
 
@@ -1174,3 +1211,16 @@ The priority is to deliver a complete system that is:
 The recommended MVP target is:
 
 > A deployed React + FastAPI + PostgreSQL web application where users can log in, run MediaPipe webcam-based lower-limb checking, receive Good/Fair/Poor feedback, store results, view progress, and generate an after-set report using rule-based and ML-supported scoring.
+
+---
+
+## 24. Additions and Deviations from the Original Plan
+
+This section records where the implementation **added to or diverged from** the plan above, so the differences are easy to cite in the final report's "deviations from plan" discussion. The rest of this document remains the as-planned specification; the phase-by-phase progress log lives in [task.md](./task.md).
+
+| Area | Original plan (this document) | What was actually implemented | Rationale |
+|---|---|---|---|
+| Module A evaluation | No evaluation method specified for the rule-based checks — §9.3 only said Good/Fair/Poor bands would be "refined during pilot testing" | **Measurement-agreement evaluation** (ICC(2,1), Bland-Altman, Cohen's kappa) for the SLS hold-timer versus a human-timed reference — see [§9.4](#94-module-a-evaluation-measurement-agreement) | Module A is deterministic, not a trained classifier, so classifier-accuracy metrics do not apply; method-comparison statistics are the correct framing and fit the non-diagnostic boundary (§6) |
+| SLS scope | "Supported Single-Leg Stance, front view, 30 seconds" as a single check (§9.1) | Rebuilt as a **both-legs, 45-second-cap** check with a lift-line entry gate and a ball-in-circle stability sub-score (Phase 3B rebuild, see task.md) | Fuller and more defensible functional check; detailed in task.md |
+
+_These are enhancements consistent with the project goals in §23, not departures from the MVP priorities. This list covers the deviations identified so far — add further rows here as the implementation continues to evolve._

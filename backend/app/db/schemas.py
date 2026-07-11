@@ -1,7 +1,27 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+# Base64 data URLs inflate ~33% over the raw file; this caps the encoded text
+# around ~3MB of original image data, generous for a profile photo.
+MAX_AVATAR_DATA_URL_LENGTH = 4_000_000
+ALLOWED_AVATAR_MIME_PREFIXES = (
+    "data:image/png;base64,",
+    "data:image/jpeg;base64,",
+    "data:image/jpg;base64,",
+    "data:image/webp;base64,",
+)
+
+
+def _validate_avatar_data_url(value: str | None) -> str | None:
+    if value is None:
+        return value
+    if len(value) > MAX_AVATAR_DATA_URL_LENGTH:
+        raise ValueError("Image is too large. Please choose a smaller photo.")
+    if not value.startswith(ALLOWED_AVATAR_MIME_PREFIXES):
+        raise ValueError("Photo must be a PNG, JPEG, or WEBP image.")
+    return value
 
 
 class TokenResponse(BaseModel):
@@ -15,6 +35,7 @@ class UserRead(BaseModel):
     id: UUID
     email: EmailStr
     full_name: str | None = None
+    avatar_image: str | None = None
     created_at: datetime
 
 
@@ -39,6 +60,7 @@ class ProfileRead(BaseModel):
     id: UUID
     user_id: UUID
     full_name: str | None = None
+    avatar_image: str | None = None
     age_group: str | None = None
     gender: str | None = None
     height_cm: float | None = None
@@ -52,6 +74,7 @@ class ProfileRead(BaseModel):
 
 class ProfileUpdate(BaseModel):
     full_name: str | None = None
+    avatar_image: str | None = None
     age_group: str | None = None
     gender: str | None = None
     height_cm: float | None = Field(default=None, ge=0, le=300)
@@ -59,6 +82,11 @@ class ProfileUpdate(BaseModel):
     user_type: str | None = None
     focus_area: str | None = None
     self_reported_note: str | None = None
+
+    @field_validator("avatar_image")
+    @classmethod
+    def _check_avatar_image(cls, value: str | None) -> str | None:
+        return _validate_avatar_data_url(value)
 
 
 class ExerciseRead(BaseModel):

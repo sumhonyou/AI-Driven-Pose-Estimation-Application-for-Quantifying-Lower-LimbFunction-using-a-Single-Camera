@@ -18,6 +18,7 @@ const ms: Dict = {
     startNow: "Mula sekarang",
     newSession: "Sesi baharu",
     confirm: "Sahkan",
+    cancel: "Batal",
     nonDiagnostic: "Alat bukan diagnostik",
     loading: "Memuatkan...",
     loadError: "Tidak dapat memuatkan data.",
@@ -125,6 +126,7 @@ const ms: Dict = {
     fullName: "Nama penuh",
     fullNamePh: "Siti Aminah",
     forgot: "Lupa kata laluan?",
+    remember: "Ingat saya",
     login: "Log masuk",
     register: "Cipta akaun",
     noAccount: "Tiada akaun?",
@@ -259,6 +261,9 @@ const ms: Dict = {
     guidanceTitle: "Panduan pandangan",
     guidanceBody:
       "Senaman ini memerlukan pandangan sisi. Letak kamera di sisi anda supaya lutut dan pinggul jelas kelihatan.",
+    guidanceFront:
+      "Hadap kamera secara langsung supaya seluruh badan, pinggul, lutut, dan kaki anda jelas kelihatan.",
+    guidanceSide: "Letak kamera di sisi anda supaya lutut dan pinggul jelas kelihatan.",
     bannerNoBody: "Berdiri di tengah pandangan kamera.",
     bannerPartial: "Pastikan kepala, lutut, dan kaki anda berada dalam bingkai kamera.",
     bannerLowQuality: "Undur ke belakang supaya seluruh badan anda kelihatan.",
@@ -417,15 +422,28 @@ const ms: Dict = {
   },
   profile: {
     title: "Profil",
-    desc: "Kemas kini butiran yang digunakan untuk memperibadikan semakan anda.",
+    desc: "Lihat semua butiran profil anda di sini.",
+    detailsHeading: "Butiran peribadi",
+    detailsSub: "Maklumat anda digunakan untuk memperibadikan semakan pergerakan.",
+    editProfile: "Edit profil",
     height: "Tinggi (cm)",
     weight: "Berat (kg)",
     note: "Nota laporan kendiri",
+    notSet: "Belum ditetapkan",
     save: "Simpan profil",
     saving: "Menyimpan...",
     saved: "Profil disimpan.",
     loadError: "Tidak dapat memuatkan profil anda.",
     saveError: "Tidak dapat menyimpan profil anda.",
+    uploadPhoto: "Tukar gambar",
+    uploadingPhoto: "Memuat naik gambar...",
+    photoInvalidType: "Sila pilih imej PNG, JPEG, atau WEBP.",
+    photoTooLarge: "Gambar itu terlalu besar. Sila pilih yang bawah 2MB.",
+    photoUploadError: "Tidak dapat memuat naik gambar anda.",
+    focusTagKnee: "Fokus: Lutut",
+    focusTagAnkle: "Fokus: Buku lali",
+    focusTagBoth: "Fokus: Lutut & buku lali",
+    focusTagUnset: "Fokus: Belum ditetapkan",
   },
   sls: {
     // Panduan persediaan
@@ -439,6 +457,13 @@ const ms: Dict = {
       "Letakkan kerusi atau dinding di sisi anda. Sandarkan satu tangan dengan ringan padanya untuk sokongan jika anda berasa tidak stabil.",
     setupInstr5: "Pastikan mata anda terbuka.",
     setupInstr6: "Anda akan diminta mengangkat satu kaki, kemudian kaki yang satu lagi.",
+    setupGuidanceFront:
+      "Hadap kamera secara langsung supaya kedua-dua lutut dan pinggul jelas kelihatan.",
+    setupGuidanceLift:
+      "Angkat kaki anda sehingga bar tahap angkat bertukar hijau untuk mula mengira masa.",
+    setupGuidanceTouchdown:
+      "Jika kaki anda menyentuh tanah atau anda kehilangan keseimbangan, tahan akan tamat secara automatik.",
+    setupGuidanceBall: "Kekalkan bola dalam bulatan untuk mendapat lebih mata!",
     // Langsung — arahan kaki & mesej
     legPromptRight: "Angkat kaki KANAN anda",
     legPromptLeft: "Angkat kaki KIRI anda",
@@ -446,6 +471,7 @@ const ms: Dict = {
     legRight: "Kaki kanan",
     legLeft: "Kaki kiri",
     standBothFeet: "Berdiri dengan kedua-dua kaki untuk mula.",
+    pressStartHold: "Tekan Mula Tahan untuk memulakan sesi.",
     liftAboveLine: "Angkat kaki melepasi garisan untuk mula mengira masa.",
     holdSteady: "Tahan stabil — kekalkan bola dalam bulatan untuk lebih mata!",
     footDropped: "Kaki jatuh di bawah garisan. Tahan dihentikan.",

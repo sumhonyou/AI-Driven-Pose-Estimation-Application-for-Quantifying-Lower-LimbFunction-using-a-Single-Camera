@@ -89,13 +89,10 @@ export default function Dashboard() {
         }
         subtitle={t("dash.dateline")}
         actions={
-          <>
-            <Link className="btn btn-primary" to="/mode">
-              {t("common.newSession")}
-              <Plus />
-            </Link>
-            <div className="avatar">{user?.full_name?.slice(0, 2).toUpperCase() || "PF"}</div>
-          </>
+          <Link className="btn btn-primary" to="/mode">
+            {t("common.newSession")}
+            <Plus />
+          </Link>
         }
       />
 

@@ -214,15 +214,17 @@ export default function SlsLiveSessionPage() {
   const legPrompt = t(leg === "right" ? "sls.legPromptRight" : "sls.legPromptLeft");
 
   const liveMessage =
-    liveUpdate.phase === "calibrating"
-      ? t("sls.standBothFeet")
-      : liveUpdate.phase === "waiting"
-        ? t("sls.liftAboveLine")
-        : liveUpdate.phase === "holding"
-          ? t("sls.holdSteady")
-          : liveUpdate.cappedAtMax
-            ? t("sls.timeReached")
-            : t("sls.footDropped");
+    stage === "ready"
+      ? t("sls.pressStartHold")
+      : liveUpdate.phase === "calibrating"
+        ? t("sls.standBothFeet")
+        : liveUpdate.phase === "waiting"
+          ? t("sls.liftAboveLine")
+          : liveUpdate.phase === "holding"
+            ? t("sls.holdSteady")
+            : liveUpdate.cappedAtMax
+              ? t("sls.timeReached")
+              : t("sls.footDropped");
 
   const pct = Math.min(100, (liveUpdate.holdSeconds / SLS_MAX_HOLD_SEC) * 100);
   const currentLegResult = legResults[leg];

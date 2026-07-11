@@ -8,6 +8,7 @@
 import { LM, type WorldLandmark } from "../../types/pose";
 import {
   SLS_CALIBRATION_SEC,
+  SLS_CIRCLE_PERSIST_FRAMES,
   SLS_CIRCLE_RADIUS_NORM,
   SLS_DROP_PERSIST_FRAMES,
   SLS_LIFT_HYSTERESIS_NORM,
@@ -96,6 +97,11 @@ export function createSlsLiveTracker(leg: SlsLeg) {
   let holdSeconds = 0;
   let cappedAtMax = false;
 
+  // Debounces the raw inside/outside-circle signal (mirrors backend CircleDebouncer)
+  // so a single noisy frame can't flip the ball colour or reset the combo.
+  let debouncedInside: boolean | null = null;
+  let insideStreak = 0;
+
   // Combo (display-only)
   let insideSinceSec: number | null = null;
   let points = 0;
@@ -112,6 +118,8 @@ export function createSlsLiveTracker(leg: SlsLeg) {
     holdStartSec = null;
     holdSeconds = 0;
     cappedAtMax = false;
+    debouncedInside = null;
+    insideStreak = 0;
     insideSinceSec = null;
     points = 0;
     lastFrameSec = null;
@@ -157,7 +165,20 @@ export function createSlsLiveTracker(leg: SlsLeg) {
     const aboveLift = ankleY < lineY;
     const aboveHold = ankleY < lineY + dropMargin;
     const bx = ballXNorm(w, stance);
-    const inside = isInsideCircle(bx);
+    const rawInside = isInsideCircle(bx);
+    if (debouncedInside === null) {
+      debouncedInside = rawInside;
+      insideStreak = 0;
+    } else if (rawInside === debouncedInside) {
+      insideStreak = 0;
+    } else {
+      insideStreak += 1;
+      if (insideStreak >= SLS_CIRCLE_PERSIST_FRAMES) {
+        debouncedInside = rawInside;
+        insideStreak = 0;
+      }
+    }
+    const inside = debouncedInside;
     const liftSpan = (baselineAnkleY as number) - lineY;
     const liftProgress = liftSpan > 1e-9 ? ((baselineAnkleY as number) - ankleY) / liftSpan : 0;
 

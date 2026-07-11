@@ -11,7 +11,7 @@ from app.module_a.core.smoothing import LandmarkSmoother
 from app.module_a.sls import config
 from app.module_a.sls import geometry as geo
 from app.module_a.sls import scoring
-from app.module_a.sls.fsm import HOLDING, LiftHoldFSM
+from app.module_a.sls.fsm import HOLDING, CircleDebouncer, LiftHoldFSM
 
 
 def _frame_valid_for_sls(world: list[dict], stance_leg: str) -> bool:
@@ -104,6 +104,7 @@ def analyze_leg(frames: list[dict], leg: str) -> dict:
     drop_margin = config.SLS_LIFT_HYSTERESIS_NORM * leg_len
 
     fsm = LiftHoldFSM()
+    circle_debouncer = CircleDebouncer()
     holding_frames = 0
     inside_frames = 0
     excursion_sum = 0.0
@@ -119,7 +120,8 @@ def analyze_leg(frames: list[dict], leg: str) -> dict:
             holding_frames += 1
             ball_x = geo.ball_x_norm(world, stance_leg)
             excursion_sum += abs(ball_x)
-            if geo.is_inside_circle(ball_x, config.SLS_CIRCLE_RADIUS_NORM):
+            raw_inside = geo.is_inside_circle(ball_x, config.SLS_CIRCLE_RADIUS_NORM)
+            if circle_debouncer.update(raw_inside):
                 inside_frames += 1
 
     fsm.finalize()

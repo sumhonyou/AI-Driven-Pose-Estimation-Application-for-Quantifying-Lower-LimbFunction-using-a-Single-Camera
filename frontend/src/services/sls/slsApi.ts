@@ -5,6 +5,8 @@ import { apiRequest } from "../apiClient";
 import type { PoseFrame } from "../../types/pose";
 import type { SlsLeg } from "./liveGeometry";
 
+export type { SlsLeg } from "./liveGeometry";
+
 export type UsedSupport = "none" | "slight" | "support";
 
 /** One leg's official (backend-computed) per-leg metrics. */

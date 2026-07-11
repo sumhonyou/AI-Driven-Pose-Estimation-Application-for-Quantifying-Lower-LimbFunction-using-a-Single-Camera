@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import User, UserProfile
 from app.db.schemas import ProfileRead, ProfileUpdate
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -14,6 +13,7 @@ def _profile_response(user: User, profile: UserProfile) -> ProfileRead:
         id=profile.id,
         user_id=profile.user_id,
         full_name=user.full_name,
+        avatar_image=user.avatar_image,
         age_group=profile.age_group,
         gender=profile.gender,
         height_cm=float(profile.height_cm) if profile.height_cm is not None else None,
@@ -53,8 +53,12 @@ def update_profile(
     profile = _ensure_profile(db, current_user)
     updates = payload.model_dump(exclude_unset=True)
 
+    # full_name and avatar_image live on User, not UserProfile — pop them off
+    # before the generic loop below applies everything else to the profile row.
     if "full_name" in updates:
         current_user.full_name = updates.pop("full_name")
+    if "avatar_image" in updates:
+        current_user.avatar_image = updates.pop("avatar_image")
     for field, value in updates.items():
         setattr(profile, field, value)
 

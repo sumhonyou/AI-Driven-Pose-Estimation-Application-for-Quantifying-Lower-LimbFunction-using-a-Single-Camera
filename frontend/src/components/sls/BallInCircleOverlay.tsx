@@ -18,10 +18,11 @@ interface Props {
 
 const SIZE = 192;
 const CENTER = SIZE / 2;
-// Map the tolerance-circle radius (a ratio of hip width) to a fixed pixel radius,
-// then scale the ball's offset by the same factor so both stay geometrically consistent.
-const CIRCLE_PX_RADIUS = 70;
-const PX_PER_NORM = CIRCLE_PX_RADIUS / SLS_CIRCLE_RADIUS_NORM;
+// Keep the ball's pixels-per-hip-width sensitivity constant across radius tweaks
+// (matches the prior 0.55 -> 64px mapping, ~116 px/unit) and let the ring itself
+// shrink with the tighter tolerance.
+const PX_PER_NORM = 64 / 0.55;
+const CIRCLE_PX_RADIUS = PX_PER_NORM * SLS_CIRCLE_RADIUS_NORM;
 const BALL_RADIUS = 16;
 
 export default function BallInCircleOverlay({ ballXNorm, ballInside, visible }: Props) {

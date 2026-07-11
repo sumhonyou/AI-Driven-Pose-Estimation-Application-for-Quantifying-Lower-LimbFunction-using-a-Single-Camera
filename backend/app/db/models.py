@@ -22,6 +22,10 @@ class User(Base):
     )
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255))
+    # Profile photo as a base64 data URL (e.g. "data:image/png;base64,...").
+    # Stored on User (not UserProfile) so it's available from the same /api/auth/me
+    # call every page already makes, with no extra request needed to render it.
+    avatar_image: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -78,3 +78,32 @@ class LiftHoldFSM:
         elif self.state == WAITING and self.stop_reason is None:
             # Never crossed the line — no valid hold happened.
             self.stop_reason = "unknown"
+
+
+class CircleDebouncer:
+    """Debounces the raw ball-in-circle signal so a single noisy frame can't flip
+    the inside/outside state -- used for both the persisted stability score and
+    the live gauge colour/combo. The first sample sets the state directly (no
+    startup delay); after that a new side only takes effect once it has held for
+    `persist_frames` consecutive frames.
+    """
+
+    def __init__(self, persist_frames: int = config.SLS_CIRCLE_PERSIST_FRAMES):
+        self.persist_frames = persist_frames
+        self.inside: bool | None = None
+        self._streak = 0
+
+    def update(self, raw_inside: bool) -> bool:
+        if self.inside is None:
+            self.inside = raw_inside
+            return self.inside
+
+        if raw_inside == self.inside:
+            self._streak = 0
+            return self.inside
+
+        self._streak += 1
+        if self._streak >= self.persist_frames:
+            self.inside = raw_inside
+            self._streak = 0
+        return self.inside

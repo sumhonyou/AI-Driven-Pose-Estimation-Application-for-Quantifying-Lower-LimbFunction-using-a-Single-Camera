@@ -31,7 +31,13 @@ export const SLS_LIFT_LINE_NORM = 0.15; // lift-line height / stance-leg length
 export const SLS_LIFT_HYSTERESIS_NORM = 0.03; // drop margin below the line
 export const SLS_LIFT_PERSIST_FRAMES = 3; // frames above line to confirm a lift
 export const SLS_DROP_PERSIST_FRAMES = 3; // frames below line to confirm a drop
-export const SLS_CIRCLE_RADIUS_NORM = 0.6; // tolerance-circle radius / hip width
+// Provisional: tightened from 0.55 (too generous -- visible wobble never left
+// the circle). Pending live-webcam validation; may move either direction once
+// real resting/wobbling ball offsets are observed.
+export const SLS_CIRCLE_RADIUS_NORM = 0.3; // tolerance-circle radius / hip width
+// Consecutive frames required to flip the inside/outside circle state -- damps
+// single-frame landmark jitter without adding real scoring lag.
+export const SLS_CIRCLE_PERSIST_FRAMES = 2;
 export const SLS_LEG_ORDER = ["right", "left"] as const; // prompted lift order
 
 /** Below this capture-quality score, live feedback should warn the user instead of showing progress. */

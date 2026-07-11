@@ -63,10 +63,14 @@ export default function CameraSetup() {
   const viewGuidance = getViewGuidance(exerciseCode);
   const isSls = !!exerciseCode?.includes("single_leg");
 
-  const guidanceText =
-    viewGuidance === "front"
-      ? "This exercise needs a front view. Face the camera directly so both knees and hips are clearly visible."
-      : "This exercise needs a side view. Place your camera to your side so your knee and hip are clearly visible.";
+  const guidanceSteps = isSls
+    ? [
+        t("sls.setupGuidanceFront"),
+        t("sls.setupGuidanceLift"),
+        t("sls.setupGuidanceTouchdown"),
+        t("sls.setupGuidanceBall"),
+      ]
+    : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
 
   // Pick the tutorial clip per exercise; null hides the demo panel.
   const demoSrc = isSls ? slsDemoSrc : exerciseCode === "sit_to_stand" ? stsDemoSrc : null;
@@ -207,7 +211,7 @@ export default function CameraSetup() {
       <DashTopbar title={t("camera.title")} subtitle={t("camera.desc")} />
       <div className="cam-grid">
         <div className="stack" style={{ gap: 14 }}>
-          <div className="cam-stage reveal" style={stageBorderStyle}>
+          <div className="cam-stage" style={stageBorderStyle}>
             <CaptureQualityBadge quality={bodyQuality} label={t("camera.quality")} />
             <PoseCanvas
               videoRef={videoRef}
@@ -253,8 +257,8 @@ export default function CameraSetup() {
           )}
         </div>
 
-        <div className="stack" style={{ gap: 18 }}>
-          <div className="panel reveal">
+        <div className="stack" style={{ gap: 14 }}>
+          <div className="panel">
             <div className="panel-head" style={{ marginBottom: 16 }}>
               <div>
                 <h3>{t("camera.checklist")}</h3>
@@ -274,7 +278,7 @@ export default function CameraSetup() {
             </div>
           </div>
 
-          <div className="panel reveal">
+          <div className="panel">
             <div className="panel-head" style={{ marginBottom: 12 }}>
               <div>
                 <h3>{t("camera.guidanceTitle")}</h3>
@@ -294,25 +298,16 @@ export default function CameraSetup() {
                 <Camera width={19} height={19} />
               </span>
             </div>
-            <p style={{ color: "var(--text-2)", fontSize: "0.94rem" }}>{guidanceText}</p>
-            {/* SLS-specific safety guidance: one hand lightly on a chair/wall if needed. */}
-            {isSls && (
-              <p
-                style={{
-                  color: "var(--text-2)",
-                  fontSize: "0.94rem",
-                  marginTop: 10,
-                  paddingTop: 10,
-                  borderTop: "1px solid var(--border-soft)",
-                }}
-              >
-                {t("sls.supportGuidance")}
-              </p>
-            )}
+            <ol className="setup-guidance-list">
+              {guidanceSteps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            {isSls && <p className="setup-guidance-note">{t("sls.supportGuidance")}</p>}
           </div>
 
           {demoSrc && (
-            <div className="panel reveal">
+            <div className="panel">
               <div className="panel-head" style={{ marginBottom: demoOpen ? 14 : 0 }}>
                 <div>
                   <h3>{t("camera.demoTitle")}</h3>
@@ -343,7 +338,7 @@ export default function CameraSetup() {
           )}
 
           <button
-            className="btn btn-primary btn-lg btn-block reveal"
+            className="btn btn-primary btn-lg btn-block"
             onClick={beginSession}
             disabled={starting || hasAutoStarted}
           >

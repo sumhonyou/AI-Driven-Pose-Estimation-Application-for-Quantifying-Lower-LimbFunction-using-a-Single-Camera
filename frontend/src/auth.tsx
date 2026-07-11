@@ -11,6 +11,8 @@ type AuthContextValue = {
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
+  /** Re-fetches the current user (e.g. after the profile page changes the avatar or name). */
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -70,6 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(TOKEN_KEY);
         setToken(null);
         setUser(null);
+      },
+      async refreshUser() {
+        setUser(await authService.me());
       },
     }),
     [token, user, loading],
