@@ -1,8 +1,11 @@
 // Weight-Bearing Lunge Test live session — Stage 2 (guided bracket, both legs, symmetry).
-// Per leg: LOADING (fetch bracket target) -> SETUP -> COUNTDOWN -> RECORDING
-// (calibrate + lunge, buffered together) -> SELF_REPORT_TOUCH -> posting ->
-// ATTEMPT_RESULT (more attempts left) or LEG_RESULT (leg complete). After the
-// last leg: SESSION_RESULT (symmetry + both legs) -> finish.
+// Per leg: LOADING (fetch bracket target) -> SETUP -> POSITIONING (quality-gated hold,
+// waits until the tested leg + hips are stably visible) -> GET_READY (fixed 5s countdown
+// to get into the lunge stance) -> CALIBRATING (fixed 2s "stand still, foot flat" — the
+// heel-lift baseline is captured here) -> RECORDING (fixed 10s lunge hold; a confirmed
+// heel lift ends it immediately) -> SELF_REPORT_TOUCH (full-page modal) -> posting ->
+// ATTEMPT_RESULT (more attempts left) or LEG_RESULT (leg complete). After the last leg:
+// SESSION_RESULT (symmetry + both legs) -> finish.
 //
 // Live feedback (heel-down indicator, angle gauge) is computed entirely
 // client-side via wbltGeometry.ts for instant response — it is a helper only.
@@ -28,15 +31,28 @@ import {
   type WbltLiveUpdate,
 } from "../../services/wblt/wbltGeometry";
 import { useSessionFlow } from "../../session";
+import { useReveal } from "../../useReveal";
 import { useWebcam } from "../../hooks/useWebcam";
 import { useMediaPipePose } from "../../hooks/useMediaPipePose";
 import { useSessionRecorder } from "../../hooks/useSessionRecorder";
-import { computeFrameQuality } from "../../utils/captureQuality";
+import { useAutoStartGate } from "../../hooks/useAutoStartGate";
+import {
+  computeFrameQuality,
+  computeWbltLegQuality,
+  isWbltLegVisible,
+  areWbltHipsVisible,
+  WBLT_READY_QUALITY_THRESHOLD,
+} from "../../utils/captureQuality";
+import WbltTouchSelfReportModal from "../../components/wblt/WbltTouchSelfReportModal";
+import WbltGetReadyCountdown from "../../components/wblt/WbltGetReadyCountdown";
+import WbltAttemptResultOverlay from "../../components/wblt/WbltAttemptResultOverlay";
 
 type Stage =
   | "loading"
   | "setup"
-  | "countdown"
+  | "positioning"
+  | "get_ready"
+  | "calibrating"
   | "recording"
   | "self_report"
   | "posting"
@@ -44,7 +60,21 @@ type Stage =
   | "leg_result"
   | "session_result";
 
-const COUNTDOWN_START_SEC = 3;
+// Positioning phase requires knee/ankle/heel/foot_index of the tested leg + both hips
+// to stay visible for this long before moving on to the get-ready countdown — mirrors
+// the backend's own per-frame validity gate instead of a blind fixed timer, so an
+// attempt can never start on a frame the backend would have rejected anyway.
+const WBLT_POSITION_STABLE_MS = 1500;
+// Fixed countdown once framing is confirmed stable, giving the user a predictable
+// moment to settle into the lunge stance before recording actually starts.
+const WBLT_GET_READY_DURATION_SEC = 10;
+// "Stand still, foot flat" window at the very start of recording. The heel-lift
+// baseline is captured here, so it MUST match backend CALIBRATION_SECONDS — a
+// mismatch would let lunge frames poison the neutral baseline (see config.py).
+const WBLT_CALIBRATION_DURATION_SEC = 2;
+// After calibration, the user holds the lunge for this long — the attempt then
+// auto-completes and moves to the touch self-report, no manual "done" click needed.
+const WBLT_RECORDING_DURATION_SEC = 10;
 const DEFAULT_LEG_ORDER: WbltLeg[] = ["right", "left"];
 const DEFAULT_ATTEMPTS_PER_LEG = 3;
 
@@ -69,8 +99,18 @@ export default function WbltLiveSessionPage() {
   const [sessionSummary, setSessionSummary] = useState<WbltSessionSummary | null>(null);
   const [error, setError] = useState("");
   const [ending, setEnding] = useState(false);
-  const [countdownSeconds, setCountdownSeconds] = useState(COUNTDOWN_START_SEC);
-  const countdownTimerRef = useRef<number | null>(null);
+  const [recordingSecondsLeft, setRecordingSecondsLeft] = useState(WBLT_RECORDING_DURATION_SEC);
+  const recordingTimerRef = useRef<number | null>(null);
+  const [getReadySecondsLeft, setGetReadySecondsLeft] = useState(WBLT_GET_READY_DURATION_SEC);
+  const getReadyTimerRef = useRef<number | null>(null);
+  const [calibrationSecondsLeft, setCalibrationSecondsLeft] = useState(
+    WBLT_CALIBRATION_DURATION_SEC,
+  );
+  const calibrationTimerRef = useRef<number | null>(null);
+  // Display-only countdown length, synced to the fetched config once it lands (see
+  // the config-fetch effect below); the tracker's actual calibration boundary is
+  // frame-timestamp-driven and doesn't depend on this value at all.
+  const calibrationDisplaySecRef = useRef(WBLT_CALIBRATION_DURATION_SEC);
 
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
   const { landmarks, worldLandmarks } = useMediaPipePose(videoRef, webcamReady);
@@ -80,6 +120,10 @@ export default function WbltLiveSessionPage() {
   const qualitySamplesRef = useRef<{ score: number; validFrameRatio: number }[]>([]);
 
   const captureQuality = computeFrameQuality(landmarks ?? []);
+
+  // Re-run reveal when stage panels mount after async bracket fetch (pathname-only
+  // useReveal in DashboardLayout misses elements added later).
+  useReveal([stage, attemptNumber, targetDistanceCm, lastResult, sessionSummary]);
 
   // Fetch bracket/attempts_per_leg config once, then load the first leg's target.
   useEffect(() => {
@@ -92,10 +136,17 @@ export default function WbltLiveSessionPage() {
         setLegOrder(cfg.leg_order);
         setAttemptsPerLeg(cfg.attempts_per_leg);
         heelLiftConfigRef.current = {
-          heelBaselineFrames: cfg.heel_baseline_frames,
+          calibrationSeconds: cfg.calibration_seconds,
+          heelMinCalibrationFrames: cfg.heel_min_calibration_frames,
           heelLiftTolRatio: cfg.heel_lift_tol_ratio,
           heelLiftHysteresisRatio: cfg.heel_lift_hysteresis_ratio,
+          heelLiftDebounceFrames: cfg.heel_lift_debounce_frames,
         };
+        // Keep the visible "Calibrating" countdown in step with the ACTUAL frame-
+        // timestamp boundary the tracker now enforces internally (see
+        // wbltGeometry.ts) — purely cosmetic, but a mismatched display duration
+        // would be confusing even though it can no longer cause a detection bug.
+        calibrationDisplaySecRef.current = Math.round(cfg.calibration_seconds);
       })
       .catch(() => {
         // Non-fatal: falls back to DEFAULT_LEG_ORDER/DEFAULT_ATTEMPTS_PER_LEG.
@@ -123,60 +174,175 @@ export default function WbltLiveSessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, leg]);
 
-  function startRecording() {
+  // Start buffering + a fresh tracker for the "stand still, foot flat" calibration
+  // window. The heel-lift baseline is captured from these neutral-stance frames.
+  function startCalibration() {
     trackerRef.current = createWbltLiveTracker(leg, heelLiftConfigRef.current);
     recorder.start();
     setLiveUpdate(IDLE_UPDATE);
     setError("");
+    setCalibrationSecondsLeft(calibrationDisplaySecRef.current);
+    setStage("calibrating");
+  }
+
+  // Calibration window has ended — lock the live tracker's baseline NOW (not on
+  // some later frame count), so heel-lift detection is live from the very first
+  // frame of the hold instead of lagging in on a slow/low-fps camera. Mirrors the
+  // backend's own finalize-at-window-boundary (analysis.py). Recording keeps
+  // buffering into the SAME recorder (calibration + hold posted together; the
+  // backend splits them by timestamp against CALIBRATION_SECONDS).
+  function startHold() {
+    trackerRef.current.finalizeCalibration();
+    setRecordingSecondsLeft(WBLT_RECORDING_DURATION_SEC);
     setStage("recording");
   }
 
-  function beginCountdown() {
-    setCountdownSeconds(COUNTDOWN_START_SEC);
-    setStage("countdown");
+  function beginPositioning() {
+    setError("");
+    setStage("positioning");
   }
 
+  function beginGetReady() {
+    setGetReadySecondsLeft(WBLT_GET_READY_DURATION_SEC);
+    setStage("get_ready");
+  }
+
+  function cancelGetReady() {
+    if (getReadyTimerRef.current != null) {
+      window.clearInterval(getReadyTimerRef.current);
+      getReadyTimerRef.current = null;
+    }
+    setStage("setup");
+  }
+
+  // Positioning phase: gate the move to the get-ready countdown on live landmark
+  // quality instead of a blind timer, so the backend's calibration window never opens
+  // on a frame where the tested leg or hips aren't actually visible yet (the root
+  // cause of attempts silently getting flagged low-confidence).
+  const positionEnabled = stage === "positioning";
+  const legQuality = positionEnabled ? computeWbltLegQuality(landmarks ?? [], leg) : 0;
+  const { progress: positionProgress, active: positionActive } = useAutoStartGate(
+    legQuality,
+    WBLT_READY_QUALITY_THRESHOLD,
+    WBLT_POSITION_STABLE_MS,
+    positionEnabled,
+    beginGetReady,
+  );
+  const positionSecondsLeft = Math.max(
+    1,
+    Math.ceil(((1 - positionProgress) * WBLT_POSITION_STABLE_MS) / 1000),
+  );
+
+  // Fixed get-ready countdown: once framing is confirmed stable, give the user a
+  // predictable few seconds to settle into the lunge stance before recording starts.
   useEffect(() => {
-    if (stage !== "countdown") return;
-    countdownTimerRef.current = window.setInterval(() => {
-      setCountdownSeconds((prev) => {
+    if (stage !== "get_ready") return;
+    getReadyTimerRef.current = window.setInterval(() => {
+      setGetReadySecondsLeft((prev) => {
         if (prev <= 1) {
-          if (countdownTimerRef.current != null) {
-            window.clearInterval(countdownTimerRef.current);
-            countdownTimerRef.current = null;
+          if (getReadyTimerRef.current != null) {
+            window.clearInterval(getReadyTimerRef.current);
+            getReadyTimerRef.current = null;
           }
-          startRecording();
+          startCalibration();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => {
-      if (countdownTimerRef.current != null) {
-        window.clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
+      if (getReadyTimerRef.current != null) {
+        window.clearInterval(getReadyTimerRef.current);
+        getReadyTimerRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
+  const legVisible = isWbltLegVisible(landmarks ?? [], leg);
+  const hipsVisible = areWbltHipsVisible(landmarks ?? []);
+  const positionGuidance = !landmarks?.length
+    ? t("wblt.setupGuidanceSide")
+    : !legVisible
+      ? t("wblt.warn_retry_leg_visibility")
+      : !hipsVisible
+        ? t("wblt.warn_retry_lateral_alignment")
+        : t("wblt.positioningHold");
 
-  // Buffer frames + run the live tracker only while an attempt is actively recording.
+  // Buffer frames + run the live tracker across BOTH the calibration window and the
+  // lunge hold — the tracker calibrates its baseline during "calibrating", then
+  // detects lifts during "recording".
   useEffect(() => {
-    if (!landmarks || stage !== "recording") return;
+    if (!landmarks || (stage !== "calibrating" && stage !== "recording")) return;
     const now = performance.now();
     recorder.record(
       { timestampMs: now, landmarks, worldLandmarks: worldLandmarks ?? [] },
       captureQuality,
     );
     if (worldLandmarks) {
-      setLiveUpdate(trackerRef.current.update(worldLandmarks));
+      // Seconds, matching how the backend derives t from the posted timestampMs —
+      // keeps the live tracker's One Euro Filter dt sequence in step with the
+      // backend's recompute (see wbltGeometry.ts's createWbltLiveTracker doc).
+      setLiveUpdate(trackerRef.current.update(worldLandmarks, now / 1000));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarks, stage]);
 
+  // Fixed calibration countdown: hold the neutral stance while the baseline is
+  // captured, then roll into the lunge hold.
+  useEffect(() => {
+    if (stage !== "calibrating") return;
+    calibrationTimerRef.current = window.setInterval(() => {
+      setCalibrationSecondsLeft((prev) => {
+        if (prev <= 1) {
+          if (calibrationTimerRef.current != null) {
+            window.clearInterval(calibrationTimerRef.current);
+            calibrationTimerRef.current = null;
+          }
+          startHold();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (calibrationTimerRef.current != null) {
+        window.clearInterval(calibrationTimerRef.current);
+        calibrationTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
+
   function stopAndAskTouch() {
     setStage("self_report");
   }
+
+  // Recording auto-completes after WBLT_RECORDING_DURATION_SEC of holding the lunge —
+  // no manual "done" click needed. Frames buffered before the timer fires are unaffected;
+  // the backend only uses heel-down, in-frame frames for the analysis regardless.
+  useEffect(() => {
+    if (stage !== "recording") return;
+    recordingTimerRef.current = window.setInterval(() => {
+      setRecordingSecondsLeft((prev) => {
+        if (prev <= 1) {
+          if (recordingTimerRef.current != null) {
+            window.clearInterval(recordingTimerRef.current);
+            recordingTimerRef.current = null;
+          }
+          stopAndAskTouch();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (recordingTimerRef.current != null) {
+        window.clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
 
   async function submitTouch(touched: boolean) {
     if (busyRef.current || !sessionId || targetDistanceCm == null) return;
@@ -196,11 +362,40 @@ export default function WbltLiveSessionPage() {
     }
   }
 
+  // Item 3: a confirmed (debounced) heel lift during the hold ends the attempt
+  // immediately — no point asking "did you touch?", the camera already knows this
+  // attempt is invalid. We still post the buffered frames (touched=false) so the
+  // attempt persists and the backend's authoritative recompute records the lift.
+  useEffect(() => {
+    if (stage !== "recording") return;
+    if (!liveUpdate.calibrated || !liveUpdate.heelLifted) return;
+    if (recordingTimerRef.current != null) {
+      window.clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    void submitTouch(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, liveUpdate.calibrated, liveUpdate.heelLifted]);
+
   function nextAttempt() {
     if (!lastResult) return;
     setAttemptNumber(lastResult.attempt_number);
     setTargetDistanceCm(lastResult.next_target_distance_cm);
     setStage("setup");
+  }
+
+  // Ends the session (aggregated capture-quality) and navigates to the report.
+  // Assumes the caller already holds busyRef — does not manage it itself.
+  async function endSessionAndNavigate() {
+    if (!sessionId) return;
+    const samples = qualitySamplesRef.current;
+    const avg = (vals: number[]) =>
+      vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    await sessionService.end(sessionId, {
+      capture_quality: avg(samples.map((s) => s.score)),
+      valid_frame_ratio: avg(samples.map((s) => s.validFrameRatio)),
+    });
+    nav(`/report?session=${sessionId}`);
   }
 
   async function continueOrFinish() {
@@ -215,10 +410,16 @@ export default function WbltLiveSessionPage() {
     try {
       const summary = await wbltApi.session(sessionId);
       setSessionSummary(summary);
-      setStage("session_result");
+      // Both legs are done — go straight to the report instead of an extra
+      // "session complete" screen the user has to click through; the loading
+      // overlay stays up the whole time so this reads as one continuous transition.
+      await endSessionAndNavigate();
     } catch (err) {
+      // Something failed on the way to the report (summary fetch or session-end) --
+      // fall back to the manual session_result screen so the user isn't stuck on a
+      // spinner and can retry via its "Finish test" button.
       setError(err instanceof Error ? err.message : t("camera.startError"));
-      setStage("leg_result");
+      setStage("session_result");
     } finally {
       busyRef.current = false;
     }
@@ -228,14 +429,7 @@ export default function WbltLiveSessionPage() {
     if (!sessionId || busyRef.current) return;
     busyRef.current = true;
     try {
-      const samples = qualitySamplesRef.current;
-      const avg = (vals: number[]) =>
-        vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-      await sessionService.end(sessionId, {
-        capture_quality: avg(samples.map((s) => s.score)),
-        valid_frame_ratio: avg(samples.map((s) => s.validFrameRatio)),
-      });
-      nav(`/report?session=${sessionId}`);
+      await endSessionAndNavigate();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("live.endError"));
       busyRef.current = false;
@@ -281,6 +475,16 @@ export default function WbltLiveSessionPage() {
   return (
     <>
       {(stage === "posting" || stage === "loading") && <GeneratingReportOverlay />}
+      {stage === "get_ready" && (
+        <WbltGetReadyCountdown
+          secondsLeft={getReadySecondsLeft}
+          legLabel={legLabel}
+          onCancel={cancelGetReady}
+        />
+      )}
+      {stage === "attempt_result" && lastResult && (
+        <WbltAttemptResultOverlay result={lastResult} onNext={nextAttempt} />
+      )}
 
       <div className="topbar">
         <div>
@@ -343,10 +547,19 @@ export default function WbltLiveSessionPage() {
             </div>
             {stage !== "leg_result" && stage !== "session_result" && (
               <div className="hud-card reveal">
-                <div className="hl2">
-                  {isBonusAttempt
-                    ? t("wblt.bonusAttempt")
-                    : t("wblt.attemptOf", { n: attemptNumber, total: attemptsPerLeg })}
+                <div className="hl2">{t("wblt.attemptLabel")}</div>
+                <div className="hv">
+                  {isBonusAttempt ? (
+                    t("wblt.bonusShort")
+                  ) : (
+                    <>
+                      {attemptNumber}
+                      <span style={{ fontSize: "0.9rem", color: "var(--text-3)" }}>
+                        {" "}
+                        / {attemptsPerLeg}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -357,8 +570,28 @@ export default function WbltLiveSessionPage() {
               <div className="panel-head" style={{ marginBottom: 14 }}>
                 <h3>{t("wblt.targetInstruction")}</h3>
               </div>
-              <div className="hv" style={{ fontSize: "2rem", marginBottom: 16 }}>
-                {targetDistanceCm.toFixed(1)} cm
+              <div
+                style={{
+                  fontSize: "3.5rem",
+                  fontWeight: 800,
+                  lineHeight: 1.1,
+                  color: "var(--accent-text)",
+                  fontVariantNumeric: "tabular-nums",
+                  letterSpacing: "-0.03em",
+                  marginBottom: 16,
+                }}
+              >
+                {targetDistanceCm.toFixed(1)}
+                <span
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: 700,
+                    color: "var(--text-3)",
+                    marginLeft: 8,
+                  }}
+                >
+                  cm
+                </span>
               </div>
               <ol className="setup-guidance-list">
                 <li>{t("wblt.setupGuidanceSide")}</li>
@@ -367,7 +600,7 @@ export default function WbltLiveSessionPage() {
               </ol>
               <button
                 className="btn btn-primary btn-block"
-                onClick={beginCountdown}
+                onClick={beginPositioning}
                 style={{ marginTop: 16 }}
               >
                 {t("wblt.startAttempt")}
@@ -375,14 +608,56 @@ export default function WbltLiveSessionPage() {
             </div>
           )}
 
-          {stage === "countdown" && (
+          {stage === "positioning" && (
             <div className="panel reveal">
-              <div className="hv" style={{ fontSize: "3rem", textAlign: "center" }}>
-                {countdownSeconds}
+              <div className="panel-head" style={{ marginBottom: 14 }}>
+                <h3>{t("wblt.positioningTitle")}</h3>
               </div>
-              <p className="muted" style={{ textAlign: "center" }}>
-                {t("wblt.setupGuidanceSide")}
-              </p>
+              {positionActive && (
+                <div
+                  className="hv"
+                  style={{
+                    fontSize: "3rem",
+                    textAlign: "center",
+                    color: "var(--accent-text)",
+                    marginBottom: 8,
+                  }}
+                >
+                  {positionSecondsLeft}
+                </div>
+              )}
+              <div className="sls-live-status-box">
+                <span className="sls-live-status-text">{positionGuidance}</span>
+              </div>
+              <button
+                className="btn btn-ghost btn-block"
+                onClick={() => setStage("setup")}
+                style={{ marginTop: 16 }}
+              >
+                {t("common.back")}
+              </button>
+            </div>
+          )}
+
+          {stage === "calibrating" && (
+            <div className="panel reveal">
+              <div className="panel-head" style={{ marginBottom: 14 }}>
+                <h3>{t("wblt.calibrationTitle")}</h3>
+              </div>
+              <div
+                className="hv"
+                style={{
+                  fontSize: "3rem",
+                  textAlign: "center",
+                  color: "var(--accent-text)",
+                  marginBottom: 8,
+                }}
+              >
+                {calibrationSecondsLeft}
+              </div>
+              <div className="sls-live-status-box">
+                <span className="sls-live-status-text">{t("wblt.calibrating")}</span>
+              </div>
             </div>
           )}
 
@@ -391,69 +666,25 @@ export default function WbltLiveSessionPage() {
               <div className="panel-head" style={{ marginBottom: 14 }}>
                 <h3>{t("live.liveBand")}</h3>
               </div>
+              <div
+                className="hv"
+                style={{
+                  fontSize: "3rem",
+                  textAlign: "center",
+                  color: "var(--accent-text)",
+                  marginBottom: 8,
+                }}
+              >
+                {recordingSecondsLeft}
+              </div>
               <div className="sls-live-status-box">
                 <span className="sls-live-status-text">{liveMessage}</span>
               </div>
-              <button
-                className="btn btn-primary btn-block"
-                onClick={stopAndAskTouch}
-                style={{ marginTop: 20 }}
-                disabled={!liveUpdate.calibrated}
-              >
-                {t("wblt.iAttemptedTouch")}
-              </button>
             </div>
           )}
 
           {stage === "self_report" && (
-            <div className="panel reveal">
-              <div className="panel-head" style={{ marginBottom: 14 }}>
-                <h3>{t("wblt.touchQuestion")}</h3>
-              </div>
-              <div className="sls-modal-actions">
-                <button className="btn btn-ghost btn-block" onClick={() => void submitTouch(false)}>
-                  {t("wblt.touchNo")}
-                </button>
-                <button
-                  className="btn btn-primary btn-block"
-                  onClick={() => void submitTouch(true)}
-                >
-                  {t("wblt.touchYes")}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {stage === "attempt_result" && lastResult && (
-            <div className="panel reveal">
-              <div className="panel-head" style={{ marginBottom: 14 }}>
-                <h3>{t("wblt.attemptResultTitle")}</h3>
-              </div>
-              <p>
-                <strong>
-                  {lastResult.valid_touch ? t("wblt.touchYes") : t("wblt.touchNo")} —{" "}
-                  {lastResult.target_distance_cm} cm
-                </strong>
-              </p>
-              <p className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
-                {t("wblt.angleResultLabel")}:{" "}
-                {lastResult.theta_peak_deg != null
-                  ? `${lastResult.theta_peak_deg.toFixed(1)}°`
-                  : "—"}
-              </p>
-              {lastResult.warning_tags.map((tag) => (
-                <p key={tag} className="muted" style={{ fontSize: "0.8rem", marginTop: 4 }}>
-                  {t(`wblt.warn_${tag}`, { defaultValue: tag })}
-                </p>
-              ))}
-              <button
-                className="btn btn-primary btn-block"
-                onClick={nextAttempt}
-                style={{ marginTop: 18 }}
-              >
-                {t("wblt.nextAttempt")}
-              </button>
-            </div>
+            <WbltTouchSelfReportModal onSelect={(touched) => void submitTouch(touched)} />
           )}
 
           {stage === "leg_result" && lastResult && (

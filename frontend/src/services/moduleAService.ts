@@ -2,6 +2,20 @@ import { apiRequest } from "./apiClient";
 import type { PoseFrame } from "../types/pose";
 import type { SlsLeg, SlsLegMetrics } from "./sls/slsApi";
 
+/** One stored WBLT attempt inside `legs[leg].attempts` — the per-attempt audit
+ * trail the report's attempts table renders. Mirrors the dict analysis.py stores. */
+export type WbltAttemptRecord = {
+  target_distance_cm: number;
+  touched: boolean;
+  heel_lift_detected: boolean;
+  attempt_valid: boolean;
+  valid_touch: boolean;
+  theta_peak_deg: number | null;
+  distance_cm: number | null;
+  band: "Poor" | "Fair" | "Good" | null;
+  warning_tags: string[];
+};
+
 export type ModuleAMetrics = {
   rep_count: number;
   target_rep_count: number;
@@ -39,7 +53,7 @@ export type ModuleAMetrics = {
     Record<
       "left" | "right",
       {
-        attempts: unknown[];
+        attempts: WbltAttemptRecord[];
         best_distance_cm: number | null;
         band: "Poor" | "Fair" | "Good" | null;
         score_0_10: number | null;

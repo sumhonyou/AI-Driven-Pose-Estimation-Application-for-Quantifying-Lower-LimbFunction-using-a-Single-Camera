@@ -99,9 +99,11 @@ export type WbltConfig = {
   fallback_seed_distance_cm: number;
   distance_mdc_cm: number;
   leg_order: WbltLeg[];
-  heel_baseline_frames: number;
+  calibration_seconds: number;
+  heel_min_calibration_frames: number;
   heel_lift_tol_ratio: number;
   heel_lift_hysteresis_ratio: number;
+  heel_lift_debounce_frames: number;
   min_valid_frames_per_attempt: number;
   angle_symmetry_flag_deg: number;
   angle_mdc_deg: number;

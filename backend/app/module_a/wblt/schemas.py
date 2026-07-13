@@ -126,9 +126,11 @@ class WbltConfigResponse(BaseModel):
     fallback_seed_distance_cm: float
     distance_mdc_cm: float
     leg_order: list[str]
-    heel_baseline_frames: int
+    calibration_seconds: float
+    heel_min_calibration_frames: int
     heel_lift_tol_ratio: float
     heel_lift_hysteresis_ratio: float
+    heel_lift_debounce_frames: int
     min_valid_frames_per_attempt: int
     angle_symmetry_flag_deg: float
     angle_mdc_deg: float

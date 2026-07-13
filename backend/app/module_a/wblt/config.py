@@ -10,6 +10,17 @@ so a single edit to this file changes both live feedback (once the frontend
 fetches GET /api/wblt/config) and the official backend analysis.
 """
 
+# Calibration window at the start of each attempt, before the lunge — foot-flat
+# baseline for the heel-lift detector (§5.2). Mirrors sls/config.CALIBRATION_SECONDS
+# in spirit but WBLT calibrates per-attempt, not once per session. Declared here
+# (not inline in the dict below) because analysis.py references it directly as
+# `config.CALIBRATION_SECONDS`; also mirrored into WBLT_CONFIG so GET /api/wblt/config
+# exposes it — the frontend's live tracker uses it to decide the EXACT SAME
+# calibration/hold frame boundary the backend uses (by frame timestamp, not a
+# separately-drifting UI timer), so the two can't disagree about which frames
+# were "baseline" vs "evaluated for a lift".
+CALIBRATION_SECONDS = 2.0
+
 WBLT_CONFIG = {
     "version": 1,
     # === OFFICIAL DISTANCE BANDS — McBride et al. (2026), Table 2 ===
@@ -64,10 +75,21 @@ WBLT_CONFIG = {
     "fallback_seed_distance_cm": 10.0,
     "distance_mdc_cm": 1.5,  # distance MDC; suppress sub-MDC trend/borderline
     "leg_order": ["right", "left"],
+    "calibration_seconds": CALIBRATION_SECONDS,
     # === Heel-lift detection (camera validity gate) — §5.2 ===
-    "heel_baseline_frames": 30,
-    "heel_lift_tol_ratio": 0.15,  # heel rise / shank length -> lifted
-    "heel_lift_hysteresis_ratio": 0.10,
+    # Calibration is TIME-windowed (all valid frames with t <= CALIBRATION_SECONDS),
+    # finalising on whatever was collected as long as at least `heel_min_calibration_frames`
+    # arrived — never depends on hitting an exact frame count at an assumed frame rate
+    # (the old silent-fail bug). The frontend live tracker mirrors this exactly, frame
+    # timestamp for frame timestamp (not a separately-drifting UI countdown), so the
+    # two can't disagree about which frames were "baseline" vs "evaluated for a lift".
+    "heel_min_calibration_frames": 5,
+    "heel_lift_tol_ratio": 0.10,  # heel rise / shank length -> lifted (was 0.15 ≈ 6cm; 0.10 ≈ 4cm)
+    "heel_lift_hysteresis_ratio": 0.06,  # drop below this to clear the lifted state
+    # A lift must persist this many frames above tol before it's flagged, so a single
+    # noisy world-landmark frame can't spuriously invalidate an honest attempt (or,
+    # with the immediate-abort UX, cut a good hold short).
+    "heel_lift_debounce_frames": 3,
     "min_valid_frames_per_attempt": 10,
     # === Secondary angle (reported, NOT officially banded) ===
     "angle_symmetry_flag_deg": 4.6,  # |theta_R - theta_L| >= this -> asymmetry flag
@@ -87,8 +109,4 @@ WBLT_CONFIG = {
     "lateral_alignment_max_hip_x_norm": 0.45,
 }
 
-# Calibration window at the start of each attempt, before the lunge — foot-flat
-# baseline for the heel-lift detector (§5.2). Mirrors sls/config.CALIBRATION_SECONDS
-# in spirit but WBLT calibrates per-attempt, not once per session.
-CALIBRATION_SECONDS = 1.0
 MIN_VISIBILITY = 0.5

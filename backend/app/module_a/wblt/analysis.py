@@ -140,10 +140,11 @@ def analyze_attempt(
 
     smoother = LandmarkSmoother()
     heel_detector = geo.HeelLiftDetector(
-        baseline_frames=_CFG["heel_baseline_frames"],
         lift_tol_ratio=_CFG["heel_lift_tol_ratio"],
         hysteresis_ratio=_CFG["heel_lift_hysteresis_ratio"],
         leg=leg,
+        min_calibration_frames=_CFG["heel_min_calibration_frames"],
+        lift_debounce_frames=_CFG["heel_lift_debounce_frames"],
     )
     t0 = frames[0]["timestampMs"] / 1000.0
 
@@ -173,11 +174,20 @@ def analyze_attempt(
                         smoothed[geo.HIP["left"]]["x"] - smoothed[geo.HIP["right"]]["x"]
                     )
                 )
-            continue
+                continue
+            # Calibration window has ended -- lock the baseline from whatever
+            # foot-flat frames we collected. If too few arrived to trust it, we
+            # can't evaluate this frame (attempt handled as a retry post-loop).
+            if not heel_detector.finalize():
+                continue
 
-        heel_valid = heel_detector.update(smoothed)
-        if not heel_valid:
-            heel_lift_detected = True
+        heel_down = heel_detector.update(smoothed)
+        if not heel_down:
+            # This frame's heel is up -> exclude it from theta. Only flag the
+            # attempt as heel-lifted once the debounced state has actually latched,
+            # so a lone noisy frame doesn't invalidate an otherwise-clean attempt.
+            if heel_detector.lifted:
+                heel_lift_detected = True
             continue
 
         heel_valid_count += 1
@@ -188,6 +198,15 @@ def analyze_attempt(
         theta = geo.dorsiflexion_angle_deg(knee, ankle, heel, foot_index)
         if theta is not None and (theta_peak is None or theta > theta_peak):
             theta_peak = theta
+
+    # Safety net: a recording that never ran past the calibration window (very
+    # short) leaves the baseline pending -- lock it now from what we have.
+    heel_detector.finalize()
+    if not heel_detector.calibrated:
+        # Never got enough foot-flat frames to establish a baseline (e.g. the leg
+        # wasn't clearly visible during the stand-still phase). Treat as a no-cost
+        # retry at the same target rather than a real, bracket-stepping attempt.
+        return _empty_attempt(leg, target_distance_cm, touched, "calibration_failed")
 
     quality = session_quality(frame_validity, frame_avg_visibility)
 

@@ -335,61 +335,112 @@ export default function Report() {
           </div>
 
           {hasWbltLegs ? (
-            <div className="dash-grid-2" style={{ marginBottom: 18 }}>
-              {(["right", "left"] as const).map((leg) => {
-                const m = wbltLegs?.[leg];
-                if (!m) return null;
-                return (
-                  <div className="panel reveal" key={leg}>
-                    <div className="panel-head" style={{ marginBottom: 18 }}>
-                      <h3>{t(leg === "right" ? "wblt.legRight" : "wblt.legLeft")}</h3>
-                      {m.band && (
-                        <span className={"band " + m.band.toLowerCase()}>
-                          {t("common." + m.band.toLowerCase())}
-                        </span>
-                      )}
-                    </div>
-                    {m.best_distance_cm != null ? (
-                      <div className="sls-metric-row">
-                        <span className="sls-metric-label">{t("wblt.legBestDistanceLabel")}</span>
-                        <span className="sls-metric-value">{m.best_distance_cm} cm</span>
+            <>
+              <div className="dash-grid-2" style={{ marginBottom: 18 }}>
+                {(["right", "left"] as const).map((leg) => {
+                  const m = wbltLegs?.[leg];
+                  if (!m) return null;
+                  return (
+                    <div className="panel reveal" key={leg}>
+                      <div className="panel-head" style={{ marginBottom: 18 }}>
+                        <h3>{t(leg === "right" ? "wblt.legRight" : "wblt.legLeft")}</h3>
+                        {m.band && (
+                          <span className={"band " + m.band.toLowerCase()}>
+                            {t("common." + m.band.toLowerCase())}
+                          </span>
+                        )}
                       </div>
-                    ) : (
-                      <p className="muted" style={{ fontSize: "0.82rem" }}>
-                        {t("wblt.floorFlagMessage")}
+                      {m.best_distance_cm != null ? (
+                        <div className="sls-metric-row">
+                          <span className="sls-metric-label">{t("wblt.legBestDistanceLabel")}</span>
+                          <span className="sls-metric-value">{m.best_distance_cm} cm</span>
+                        </div>
+                      ) : (
+                        <p className="muted" style={{ fontSize: "0.82rem" }}>
+                          {t("wblt.floorFlagMessage")}
+                        </p>
+                      )}
+                      <div className="sls-metric-row">
+                        <span className="sls-metric-label">{t("wblt.angleResultLabel")}</span>
+                        <span className="sls-metric-value">
+                          {m.leg_angle_deg != null ? `${m.leg_angle_deg.toFixed(1)}°` : "—"}
+                        </span>
+                      </div>
+                      <p className="muted" style={{ fontSize: "0.82rem", marginTop: 10 }}>
+                        {wbltTrendText(t, wbltTrend[leg])}
                       </p>
-                    )}
-                    <div className="sls-metric-row">
-                      <span className="sls-metric-label">{t("wblt.angleResultLabel")}</span>
-                      <span className="sls-metric-value">
-                        {m.leg_angle_deg != null ? `${m.leg_angle_deg.toFixed(1)}°` : "—"}
-                      </span>
                     </div>
-                    <p className="muted" style={{ fontSize: "0.82rem", marginTop: 10 }}>
-                      {wbltTrendText(t, wbltTrend[leg])}
-                    </p>
+                  );
+                })}
+                <div className="panel reveal">
+                  <div className="panel-head" style={{ marginBottom: 18 }}>
+                    <h3>{t("wblt.symmetryTitle")}</h3>
                   </div>
-                );
-              })}
-              <div className="panel reveal">
-                <div className="panel-head" style={{ marginBottom: 18 }}>
-                  <h3>{t("wblt.symmetryTitle")}</h3>
-                </div>
-                <p className="muted" style={{ fontSize: "0.85rem" }}>
-                  {symmetry?.status === "asymmetry_flag"
-                    ? t("wblt.symmetryFlag")
-                    : symmetry?.status === "symmetric"
-                      ? t("wblt.symmetrySymmetric")
-                      : "—"}
-                </p>
-                <div className="sls-metric-row" style={{ marginTop: 12 }}>
-                  <span className="sls-metric-label">{t("report.captureQualityBand")}</span>
-                  <span className="sls-metric-value">
-                    {t("common." + result?.capture_quality_band)}
-                  </span>
+                  <p className="muted" style={{ fontSize: "0.85rem" }}>
+                    {symmetry?.status === "asymmetry_flag"
+                      ? t("wblt.symmetryFlag")
+                      : symmetry?.status === "symmetric"
+                        ? t("wblt.symmetrySymmetric")
+                        : "—"}
+                  </p>
+                  <div className="sls-metric-row" style={{ marginTop: 12 }}>
+                    <span className="sls-metric-label">{t("report.captureQualityBand")}</span>
+                    <span className="sls-metric-value">
+                      {t("common." + result?.capture_quality_band)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+
+              <div className="panel reveal" style={{ marginBottom: 18 }}>
+                <div className="panel-head" style={{ marginBottom: 14 }}>
+                  <h3>{t("wblt.attemptsTableTitle")}</h3>
+                </div>
+                <div className="tbl-scroll">
+                  <table className="tbl">
+                    <thead>
+                      <tr>
+                        <th>{t("wblt.legLabel")}</th>
+                        <th>{t("wblt.attemptLabel")}</th>
+                        <th>{t("wblt.thDistance")}</th>
+                        <th>{t("wblt.thTouched")}</th>
+                        <th>{t("wblt.thAngle")}</th>
+                        <th>{t("wblt.thValidForm")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(["right", "left"] as const).flatMap((leg) => {
+                        const m = wbltLegs?.[leg];
+                        if (!m) return [];
+                        return m.attempts.map((a, i) => {
+                          const validForm = a.attempt_valid && !a.heel_lift_detected;
+                          return (
+                            <tr key={`${leg}-${i}`}>
+                              <td>{t(leg === "right" ? "wblt.legRight" : "wblt.legLeft")}</td>
+                              <td>{i + 1}</td>
+                              <td>{a.target_distance_cm} cm</td>
+                              <td>{t(a.valid_touch ? "wblt.touchYes" : "wblt.touchNo")}</td>
+                              <td>
+                                {a.theta_peak_deg != null ? `${a.theta_peak_deg.toFixed(1)}°` : "—"}
+                              </td>
+                              <td>
+                                {a.heel_lift_detected ? (
+                                  <span className="band poor">{t("wblt.heelLifted")}</span>
+                                ) : validForm ? (
+                                  <span className="band good">{t("common.good")}</span>
+                                ) : (
+                                  <span className="band poor">{t("common.invalid")}</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           ) : hasPerLeg ? (
             <div className="dash-grid-2" style={{ marginBottom: 18 }}>
               {(["right", "left"] as const).map((leg) => {

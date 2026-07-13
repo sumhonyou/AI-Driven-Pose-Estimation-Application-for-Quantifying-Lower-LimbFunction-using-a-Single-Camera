@@ -204,6 +204,7 @@ export default function CameraSetup() {
     },
     { id: "lighting", label: t("camera.checklistLighting"), status: "info" },
     { id: "space", label: t("camera.checklistSpace"), status: "info" },
+    { id: "noOcclusion", label: t("camera.checklistNoOcclusion"), status: "info" },
   ];
 
   const autoStartSecondsLeft = Math.max(

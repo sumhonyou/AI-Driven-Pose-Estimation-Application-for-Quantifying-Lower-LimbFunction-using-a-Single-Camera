@@ -1,7 +1,9 @@
 // Tracks how long a quality score has stayed above a threshold, and calls `onReady`
 // once it has been stable for long enough (e.g. auto-start a session once the full
-// body is reliably detected). Debounced so a single lucky frame cannot trigger it,
-// and `onReady` fires at most once per hook lifetime.
+// body is reliably detected). Debounced so a single lucky frame cannot trigger it.
+// `onReady` fires once per "arming" of the gate: it re-arms whenever `enabled`
+// transitions from false to true, so a caller can reuse one hook instance across
+// multiple gated moments (e.g. once per attempt) by toggling `enabled` off and on.
 import { useEffect, useRef, useState } from "react";
 
 export interface AutoStartGateResult {
@@ -50,9 +52,25 @@ export function useAutoStartGate(
   const accumulatedMsRef = useRef(0);
   const badStreakMsRef = useRef(0);
   const hasTriggeredRef = useRef(false);
+  const wasEnabledRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled || hasTriggeredRef.current) return;
+    if (!enabled) {
+      wasEnabledRef.current = false;
+      return;
+    }
+    // Re-arm: a fresh false->true transition means a new gated moment (e.g. the
+    // next attempt), so any previous run's progress/trigger must not leak in.
+    if (!wasEnabledRef.current) {
+      accumulatedMsRef.current = 0;
+      badStreakMsRef.current = 0;
+      hasTriggeredRef.current = false;
+      setProgress(0);
+      setActive(false);
+    }
+    wasEnabledRef.current = true;
+
+    if (hasTriggeredRef.current) return;
 
     const intervalId = window.setInterval(() => {
       if (hasTriggeredRef.current) return;

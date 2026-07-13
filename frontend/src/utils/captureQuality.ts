@@ -83,6 +83,51 @@ export function areHeadAndFeetVisible(landmarks: Landmark[]): boolean {
   return EDGE_INDICES.every((idx) => landmarks[idx]?.visibility >= VISIBILITY_THRESHOLD);
 }
 
+/** Landmarks the WBLT backend hard-requires per frame for the tested leg
+ * (analysis.py `_frame_valid_for_wblt`), keyed by which leg is under test. */
+const WBLT_LEG_INDICES: Record<"left" | "right", number[]> = {
+  left: [LM.LEFT_KNEE, LM.LEFT_ANKLE, LM.LEFT_HEEL, LM.LEFT_FOOT_INDEX],
+  right: [LM.RIGHT_KNEE, LM.RIGHT_ANKLE, LM.RIGHT_HEEL, LM.RIGHT_FOOT_INDEX],
+};
+
+/** Both hips — needed for the backend's lateral_alignment quality sub-check
+ * (analysis.py, computed from hip x-separation during the calibration window). */
+const WBLT_HIP_INDICES = [LM.LEFT_HIP, LM.RIGHT_HIP];
+
+/** Fraction (0-1) of the WBLT-required landmark set (both hips + the tested
+ * leg's knee/ankle/heel/foot_index) currently visible. Feed this into
+ * useAutoStartGate to gate WBLT's per-attempt positioning phase, so an
+ * attempt never starts recording before the backend's own validity gate
+ * would actually accept the frames. */
+export function computeWbltLegQuality(landmarks: Landmark[], leg: "left" | "right"): number {
+  if (!landmarks || landmarks.length === 0) return 0;
+  const indices = [...WBLT_HIP_INDICES, ...WBLT_LEG_INDICES[leg]];
+  let visible = 0;
+  for (const idx of indices) {
+    if (landmarks[idx]?.visibility >= VISIBILITY_THRESHOLD) visible++;
+  }
+  return visible / indices.length;
+}
+
+/** computeWbltLegQuality must equal this (i.e. every required landmark
+ * visible) before a WBLT attempt is allowed to start — mirrors the backend's
+ * all-or-nothing per-frame validity check rather than a lenient fraction. */
+export const WBLT_READY_QUALITY_THRESHOLD = 1;
+
+/** True once the tested leg's knee/ankle/heel/foot_index are all visible,
+ * regardless of the hips — lets the UI tell "leg out of frame" apart from
+ * "camera isn't side-on enough" (see areWbltHipsVisible). */
+export function isWbltLegVisible(landmarks: Landmark[], leg: "left" | "right"): boolean {
+  if (!landmarks || landmarks.length === 0) return false;
+  return WBLT_LEG_INDICES[leg].every((idx) => landmarks[idx]?.visibility >= VISIBILITY_THRESHOLD);
+}
+
+/** True once both hips are visible — see isWbltLegVisible. */
+export function areWbltHipsVisible(landmarks: Landmark[]): boolean {
+  if (!landmarks || landmarks.length === 0) return false;
+  return WBLT_HIP_INDICES.every((idx) => landmarks[idx]?.visibility >= VISIBILITY_THRESHOLD);
+}
+
 /**
  * Tracks valid-frame ratio across a session.
  * A frame is "valid" when capture quality >= minQuality.

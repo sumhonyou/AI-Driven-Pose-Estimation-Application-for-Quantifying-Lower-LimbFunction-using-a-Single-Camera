@@ -114,26 +114,38 @@ def hip_x_separation_norm(left_hip: dict, right_hip: dict, shank_len: float) -> 
 
 
 class HeelLiftDetector:
-    """Stateful heel-lift validity gate (§5.2), hysteresis on rise_ratio.
+    """Stateful heel-lift validity gate (§5.2), debounced hysteresis on rise_ratio.
 
-    Calibrate on the first `heel_baseline_frames` foot-flat frames, then feed
-    frames one at a time via `update()`. `frame_valid` is False whenever the
-    heel is judged lifted -- those frames are excluded from theta_peak.
+    Feed foot-flat frames via `feed_calibration()` during the calibration window,
+    then call `finalize()` once (at the window boundary) to lock the baseline from
+    whatever frames were collected -- as long as at least `min_calibration_frames`
+    arrived. This is deliberately NOT tied to an exact frame count at an assumed
+    frame rate: the old "need 30 frames in 1s" rule silently never calibrated on
+    sub-30fps webcams, discarding otherwise-valid attempts.
+
+    After calibration, feed frames one at a time via `update()`. A lift is only
+    flagged once rise_ratio stays above tolerance for `lift_debounce_frames`
+    consecutive frames, so a single noisy world-landmark frame can't invalidate an
+    honest attempt. `frame_valid` is False whenever the heel is judged lifted --
+    those frames are excluded from theta_peak.
     """
 
     def __init__(
         self,
-        baseline_frames: int,
         lift_tol_ratio: float,
         hysteresis_ratio: float,
         leg: str,
+        min_calibration_frames: int = 5,
+        lift_debounce_frames: int = 1,
     ) -> None:
-        self._baseline_frames = baseline_frames
         self._lift_tol_ratio = lift_tol_ratio
         self._hysteresis_ratio = hysteresis_ratio
         self._leg = leg
+        self._min_calibration_frames = max(1, min_calibration_frames)
+        self._lift_debounce_frames = max(1, lift_debounce_frames)
         self._cal_heel_y: list[float] = []
         self._cal_shank_len: list[float] = []
+        self._lift_streak = 0
         self.baseline_heel_y: float | None = None
         self.shank_len: float | None = None
         self.lifted = False
@@ -148,24 +160,40 @@ class HeelLiftDetector:
         ankle = world[ANKLE[self._leg]]
         self._cal_heel_y.append(heel["y"])
         self._cal_shank_len.append(shank_length(knee, ankle))
-        if len(self._cal_heel_y) >= self._baseline_frames:
-            self._finalize_calibration()
 
-    def _finalize_calibration(self) -> None:
+    def finalize(self) -> bool:
+        """Lock the baseline from collected calibration frames. Returns whether
+        calibration succeeded (enough foot-flat frames were seen). Idempotent."""
+        if self.calibrated:
+            return True
+        if len(self._cal_heel_y) < self._min_calibration_frames:
+            return False
         ys = sorted(self._cal_heel_y)
         lens = sorted(self._cal_shank_len)
         self.baseline_heel_y = ys[len(ys) // 2]
         self.shank_len = lens[len(lens) // 2] or 1e-6
+        return True
 
     def update(self, world: list[dict]) -> bool:
-        """Returns True if this frame is heel-down VALID (not lifted)."""
+        """Feed one frame. Returns True if THIS frame's heel is DOWN (rise within
+        tolerance) so it may contribute to theta. Separately, `self.lifted` latches
+        the debounced attempt-level lift (raised for `lift_debounce_frames` in a
+        row) -- that's what invalidates the attempt / triggers the abort, so a
+        single noisy above-tolerance frame excludes only itself from theta without
+        condemning the whole attempt."""
         if self.baseline_heel_y is None or self.shank_len is None:
             return False
         heel_y = world[HEEL[self._leg]]["y"]
         # Y increases downward -> a raised heel has a SMALLER y than baseline.
         rise_ratio = (self.baseline_heel_y - heel_y) / self.shank_len
-        if not self.lifted and rise_ratio > self._lift_tol_ratio:
-            self.lifted = True
-        elif self.lifted and rise_ratio < self._hysteresis_ratio:
+        if rise_ratio > self._lift_tol_ratio:
+            self._lift_streak += 1
+        elif rise_ratio < self._hysteresis_ratio:
+            self._lift_streak = 0
+        # else: dead zone between hysteresis and tolerance -- hold the streak as-is.
+        if not self.lifted:
+            if self._lift_streak >= self._lift_debounce_frames:
+                self.lifted = True
+        elif rise_ratio < self._hysteresis_ratio:
             self.lifted = False
-        return not self.lifted
+        return rise_ratio <= self._lift_tol_ratio

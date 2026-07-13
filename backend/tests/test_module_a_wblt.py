@@ -1,6 +1,6 @@
 import unittest
 
-from app.module_a.wblt import analysis, config
+from app.module_a.wblt import analysis, config, geometry
 from app.module_a.wblt.age_band import age_to_band, resolve_ageband_sex
 
 RIGHT_KNEE, RIGHT_ANKLE, RIGHT_HEEL, RIGHT_FOOT_INDEX = 26, 28, 30, 32
@@ -48,14 +48,17 @@ def _build_frames(
 
     frames = []
     t = 0.0
-    step_ms = 1000.0 / n_calibration  # keep the whole calibration window <= 1s
+    # Pack the calibration frames into the first ~0.8s of the calibration window
+    # (which is config.CALIBRATION_SECONDS long) so they all land inside it.
+    step_ms = 800.0 / n_calibration
     for _ in range(n_calibration):
         frames.append(
             _frame(t, leg, knee_flat, ankle, heel_flat, foot_index, hip_x_sep)
         )
         t += step_ms
 
-    t = 1200.0
+    # Hold starts just after the calibration window closes.
+    t = config.CALIBRATION_SECONDS * 1000.0 + 200.0
     knee_hold = _landmark(knee_xy_offset, 0.0)
     heel_hold = _landmark(0.0, 0.5 - heel_rise)
     for _ in range(n_hold):
@@ -195,6 +198,80 @@ class WbltAnalysisTests(unittest.TestCase):
         self.assertTrue(result["attempt_valid"])
         self.assertFalse(result["heel_lift_detected"])
         self.assertGreater(result["theta_peak_deg"], 15.0)
+
+    def test_too_few_calibration_frames_is_a_no_cost_retry(self):
+        """Fewer than heel_min_calibration_frames foot-flat frames -> can't trust a
+        baseline; surfaced as a low-Q-style retry, not a bracket-stepping attempt."""
+        frames = _build_frames(
+            knee_xy_offset=0.0,
+            heel_rise=0.0,
+            n_calibration=config.WBLT_CONFIG["heel_min_calibration_frames"] - 1,
+        )
+        result = analysis.analyze_attempt(
+            frames,
+            "right",
+            target_distance_cm=10.0,
+            touched=True,
+            exact_age=30,
+            gender="male",
+        )
+
+        self.assertFalse(result["attempt_valid"])
+        self.assertIsNone(result["theta_peak_deg"])
+        self.assertIsNotNone(result["q_limiting_factor"])
+        self.assertIn("calibration_failed", result["warning_tags"])
+
+
+def _detector_world(heel_y):
+    """A minimal world-landmark list for HeelLiftDetector: knee above ankle
+    (shank_len 0.5), heel at the given y. Only the right-leg indices matter."""
+    world = [_landmark(0.0, 0.0) for _ in range(33)]
+    world[RIGHT_KNEE] = _landmark(0.0, 0.0)
+    world[RIGHT_ANKLE] = _landmark(0.0, 0.5)
+    world[RIGHT_HEEL] = _landmark(0.0, heel_y)
+    world[RIGHT_FOOT_INDEX] = _landmark(0.15, 0.5)
+    return world
+
+
+class HeelLiftDetectorTests(unittest.TestCase):
+    def _calibrated_detector(self, debounce=3):
+        det = geometry.HeelLiftDetector(
+            lift_tol_ratio=0.10,
+            hysteresis_ratio=0.06,
+            leg="right",
+            min_calibration_frames=5,
+            lift_debounce_frames=debounce,
+        )
+        for _ in range(10):
+            det.feed_calibration(_detector_world(0.5))  # foot-flat baseline
+        self.assertTrue(det.finalize())
+        return det
+
+    def test_too_few_frames_never_calibrates(self):
+        det = geometry.HeelLiftDetector(
+            lift_tol_ratio=0.10,
+            hysteresis_ratio=0.06,
+            leg="right",
+            min_calibration_frames=5,
+        )
+        for _ in range(4):  # one short of the floor
+            det.feed_calibration(_detector_world(0.5))
+        self.assertFalse(det.finalize())
+        self.assertFalse(det.calibrated)
+
+    def test_single_raised_frame_does_not_latch(self):
+        det = self._calibrated_detector(debounce=3)
+        det.update(_detector_world(0.2))  # clearly raised, but only one frame
+        self.assertFalse(det.lifted)
+        det.update(_detector_world(0.5))  # back down -> streak resets
+        det.update(_detector_world(0.5))
+        self.assertFalse(det.lifted)
+
+    def test_sustained_raise_latches_after_debounce(self):
+        det = self._calibrated_detector(debounce=3)
+        for _ in range(3):
+            det.update(_detector_world(0.2))
+        self.assertTrue(det.lifted)
 
 
 def _attempt(

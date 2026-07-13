@@ -7,24 +7,31 @@
 
 import { LM, type WorldLandmark } from "../../types/pose";
 import {
-  WBLT_HEEL_BASELINE_FRAMES,
+  WBLT_CALIBRATION_SECONDS,
+  WBLT_HEEL_LIFT_DEBOUNCE_FRAMES,
   WBLT_HEEL_LIFT_HYSTERESIS_RATIO,
   WBLT_HEEL_LIFT_TOL_RATIO,
+  WBLT_HEEL_MIN_CALIBRATION_FRAMES,
 } from "../../config/moduleAThresholds";
+import { LandmarkSmoother } from "../../utils/oneEuroFilter";
 
 /** Heel-lift tuning, normally sourced from GET /api/wblt/config so live
  * feedback matches the backend's official recompute; falls back to the
  * hardcoded moduleAThresholds constants if the config fetch hasn't landed yet. */
 export type WbltHeelLiftConfig = {
-  heelBaselineFrames: number;
+  calibrationSeconds: number;
+  heelMinCalibrationFrames: number;
   heelLiftTolRatio: number;
   heelLiftHysteresisRatio: number;
+  heelLiftDebounceFrames: number;
 };
 
 const DEFAULT_HEEL_LIFT_CONFIG: WbltHeelLiftConfig = {
-  heelBaselineFrames: WBLT_HEEL_BASELINE_FRAMES,
+  calibrationSeconds: WBLT_CALIBRATION_SECONDS,
+  heelMinCalibrationFrames: WBLT_HEEL_MIN_CALIBRATION_FRAMES,
   heelLiftTolRatio: WBLT_HEEL_LIFT_TOL_RATIO,
   heelLiftHysteresisRatio: WBLT_HEEL_LIFT_HYSTERESIS_RATIO,
+  heelLiftDebounceFrames: WBLT_HEEL_LIFT_DEBOUNCE_FRAMES,
 };
 
 export type WbltLeg = "left" | "right";
@@ -99,17 +106,43 @@ export interface WbltLiveUpdate {
   thetaDeg: number | null;
 }
 
-/** Stateful per-attempt live tracker: heel-lift baseline + dorsiflexion angle. */
+/** Stateful per-attempt live tracker: heel-lift baseline + dorsiflexion angle.
+ *
+ * Calibration finalizes on a FRAME-TIMESTAMP boundary, not a UI timer: the
+ * tracker records the timestamp of its own first frame, and once a later
+ * frame's time-since-first exceeds `calibrationSeconds`, it locks the baseline
+ * from whatever was collected and evaluates THAT SAME frame for a lift — this
+ * mirrors backend analysis.py's loop EXACTLY (`if t <= CALIBRATION_SECONDS:
+ * feed_calibration(); continue` / `else: finalize()`), frame for frame, using
+ * the same clock the posted frames' timestampMs comes from. A page-level UI
+ * countdown can still show "2...1...0" for the user, but it no longer decides
+ * which frames count as baseline vs hold — that was the actual bug behind
+ * live/backend detection disagreements (a UI setInterval can drift a frame or
+ * two relative to the backend's timestamp-exact boundary). finalizeCalibration()
+ * is kept as an idempotent manual safety net a caller may still invoke.
+ *
+ * Landmarks are smoothed with the SAME One Euro Filter the backend applies
+ * (LandmarkSmoother, see analysis.py) before any geometry runs, for the same
+ * reason: reacting to raw/noisy landmarks while the backend smooths first is
+ * another way the two can disagree on borderline signals. Caller must pass a
+ * monotonically increasing timestamp (seconds) — use the SAME clock/values that
+ * get posted as each frame's timestampMs so both the filter's dt sequence and
+ * the calibration boundary match what the backend recomputes from. */
 export function createWbltLiveTracker(
   leg: WbltLeg,
   heelLiftConfig: WbltHeelLiftConfig = DEFAULT_HEEL_LIFT_CONFIG,
 ) {
-  const { heelBaselineFrames, heelLiftTolRatio, heelLiftHysteresisRatio } = heelLiftConfig;
+  const { calibrationSeconds, heelLiftTolRatio, heelLiftHysteresisRatio } = heelLiftConfig;
+  const minCalibrationFrames = Math.max(1, heelLiftConfig.heelMinCalibrationFrames);
+  const debounceFrames = Math.max(1, heelLiftConfig.heelLiftDebounceFrames);
   let calHeelY: number[] = [];
   let calShankLen: number[] = [];
   let baselineHeelY: number | null = null;
   let shankLen: number | null = null;
   let lifted = false;
+  let liftStreak = 0;
+  let smoother = new LandmarkSmoother<WorldLandmark>();
+  let firstTimestampSec: number | null = null;
 
   function reset() {
     calHeelY = [];
@@ -117,6 +150,9 @@ export function createWbltLiveTracker(
     baselineHeelY = null;
     shankLen = null;
     lifted = false;
+    liftStreak = 0;
+    smoother = new LandmarkSmoother<WorldLandmark>();
+    firstTimestampSec = null;
   }
 
   function median(values: number[]): number {
@@ -124,32 +160,65 @@ export function createWbltLiveTracker(
     return sorted[Math.floor(sorted.length / 2)];
   }
 
-  function update(w: WorldLandmark[]): WbltLiveUpdate {
-    if (!w || w.length < 33)
+  /** Lock the baseline from whatever calibration frames were collected. Returns
+   * whether calibration actually succeeded (enough foot-flat frames were seen).
+   * Idempotent — safe to call more than once. Normally fires automatically from
+   * within update() at the frame-timestamp boundary; exposed for a caller that
+   * wants to force it (e.g. a UI-driven safety net). */
+  function finalizeCalibration(): boolean {
+    if (baselineHeelY !== null) return true;
+    if (calHeelY.length < minCalibrationFrames) return false;
+    baselineHeelY = median(calHeelY);
+    shankLen = median(calShankLen) || 1e-6;
+    return true;
+  }
+
+  function update(rawW: WorldLandmark[], timestampSec: number): WbltLiveUpdate {
+    if (!rawW || rawW.length < 33)
       return { calibrated: baselineHeelY !== null, heelLifted: lifted, thetaDeg: null };
 
+    if (firstTimestampSec === null) firstTimestampSec = timestampSec;
+    const relativeSec = timestampSec - firstTimestampSec;
+
+    const w = smoother.smoothFrame(timestampSec, rawW);
     const knee = w[KNEE[leg]];
     const ankle = w[ANKLE[leg]];
     const heel = w[HEEL[leg]];
     const footIndex = w[FOOT_INDEX[leg]];
 
     if (baselineHeelY === null) {
-      calHeelY.push(heel.y);
-      calShankLen.push(shankLength(knee, ankle));
-      if (calHeelY.length >= heelBaselineFrames) {
-        baselineHeelY = median(calHeelY);
-        shankLen = median(calShankLen) || 1e-6;
+      if (relativeSec <= calibrationSeconds) {
+        // Still inside the calibration window (by frame timestamp, not a UI
+        // timer) -- accumulate and don't evaluate this frame for a lift yet.
+        calHeelY.push(heel.y);
+        calShankLen.push(shankLength(knee, ankle));
+        return { calibrated: false, heelLifted: false, thetaDeg: null };
       }
-      return { calibrated: baselineHeelY !== null, heelLifted: false, thetaDeg: null };
+      // Boundary crossed -- finalize now, using whatever was collected, then
+      // fall through to evaluate THIS frame for a lift (no early return here),
+      // exactly like the backend's loop does.
+      if (!finalizeCalibration()) {
+        return { calibrated: false, heelLifted: false, thetaDeg: null };
+      }
     }
 
-    const riseRatio = (baselineHeelY - heel.y) / (shankLen as number);
-    if (!lifted && riseRatio > heelLiftTolRatio) lifted = true;
-    else if (lifted && riseRatio < heelLiftHysteresisRatio) lifted = false;
-
-    const thetaDeg = lifted ? null : dorsiflexionAngleDeg(knee, ankle, heel, footIndex);
+    // Y increases downward -> a raised heel has a SMALLER y than baseline.
+    const riseRatio = ((baselineHeelY as number) - heel.y) / (shankLen as number);
+    if (riseRatio > heelLiftTolRatio) liftStreak += 1;
+    else if (riseRatio < heelLiftHysteresisRatio) liftStreak = 0;
+    // else: dead zone between hysteresis and tolerance -- hold the streak as-is.
+    if (!lifted) {
+      if (liftStreak >= debounceFrames) lifted = true;
+    } else if (riseRatio < heelLiftHysteresisRatio) {
+      lifted = false;
+    }
+    // Exclude a frame from the live angle whenever its own heel is up, but only
+    // surface heelLifted (the HUD / auto-abort signal) once the debounced state
+    // has latched -- mirrors backend geometry.HeelLiftDetector exactly.
+    const frameHeelUp = riseRatio > heelLiftTolRatio;
+    const thetaDeg = frameHeelUp ? null : dorsiflexionAngleDeg(knee, ankle, heel, footIndex);
     return { calibrated: true, heelLifted: lifted, thetaDeg };
   }
 
-  return { update, reset };
+  return { update, reset, finalizeCalibration };
 }

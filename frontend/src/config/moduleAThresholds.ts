@@ -51,6 +51,8 @@ export const LIVE_MIN_QUALITY_FOR_VALID_REP = 0.7;
 // GET /api/wblt/config resolves (see wbltGeometry.ts's createWbltLiveTracker).
 // Once fetched, the live tracker uses the backend's app/module_a/wblt/config.py
 // values directly, so these never need hand-syncing after that point.
-export const WBLT_HEEL_BASELINE_FRAMES = 30;
-export const WBLT_HEEL_LIFT_TOL_RATIO = 0.15; // heel rise / shank length -> lifted
-export const WBLT_HEEL_LIFT_HYSTERESIS_RATIO = 0.1;
+export const WBLT_CALIBRATION_SECONDS = 2; // "stand still, foot flat" window length
+export const WBLT_HEEL_MIN_CALIBRATION_FRAMES = 5; // fewest baseline frames to trust a calibration
+export const WBLT_HEEL_LIFT_TOL_RATIO = 0.1; // heel rise / shank length -> lifted
+export const WBLT_HEEL_LIFT_HYSTERESIS_RATIO = 0.06;
+export const WBLT_HEEL_LIFT_DEBOUNCE_FRAMES = 3; // consecutive raised frames before a lift latches
