@@ -492,20 +492,20 @@ The single band disagreement (1 of 10) is a genuine edge case, not a bug: the sy
 
 Module B is the main AI contribution of the project.
 
-The exact rehab exercise is not decided yet. The system must be designed as an **exercise-specific grading module** so that the exercise can be configured later.
+> **Update (2026-07-15, see [§24](#24-additions-and-deviations-from-the-original-plan)):** the exact rehab exercise has since been decided — **squat first (Phase 4/5), fully verified, then lunge (Phase 5B)**. The module remains an **exercise-specific grading module** exactly as designed below: exercise is still configurable, added via a **registry of exercise plugins** behind one thin shared router, not hardcoded per exercise. The full staged build plan (Phases 4–7) lives in [task.md](./task.md); this section stays the architectural specification those phases implement.
 
 ### 10.1 Module B Pipeline
 
 ```text
 User selects Rehab Grading mode
-→ user selects exercise type
+→ user selects exercise type (squat first; lunge is Phase 5B)
 → frontend starts webcam and MediaPipe Pose
 → landmarks extracted in browser
 → frontend performs capture quality check and lightweight live cue
 → after set ends, frontend sends session landmark/features summary to backend
 → backend preprocesses/validates features
 → rule-based sub-scores are calculated
-→ Extra Trees model predicts quality label and confidence
+→ Extra Trees model predicts quality label and confidence (a deterministic, clearly-announced stub model stands in until the real model is trained — Phase 4 ships end-to-end on the stub; Phase 5 swaps it in)
 → error tags are generated
 → rule score and ML score are fused
 → final report is generated
@@ -515,53 +515,72 @@ User selects Rehab Grading mode
 
 ### 10.2 Module B Output
 
+> **Update (2026-07-15):** field names below now match the actual `module_b_results`/`module_b_error_tags`/`feedback_texts` schema in [§13](#13-postgresql-database-design), resolved during the Phase 4–7 planning pass (see [§24](#24-additions-and-deviations-from-the-original-plan)). `exercise_type` reflects the real squat/lunge exercises, not the original placeholder.
+
 ```json
 {
   "session_id": "uuid",
   "mode": "rehab_grading",
-  "exercise_type": "placeholder_exercise",
+  "exercise_type": "squat",
   "capture_quality": 0.86,
-  "rule_score": 7.2,
-  "ml_score": 6.8,
-  "final_score": 7.0,
-  "final_band": "good",
-  "ml_label": "good",
-  "ml_confidence": 0.78,
-  "sub_scores": {
-    "rom_completeness": 7.5,
-    "tempo_consistency": 6.8,
-    "stability_control": 7.1
+  "score": 7.0,
+  "band": "Good",
+  "confidence": 0.78,
+  "model_version": "squat-1.0.0+rehab246-loso-<shorthash>",
+  "feature_schema_version": "1.0.0",
+  "metrics_json": {
+    "rule_score": 7.2,
+    "ml_score": 6.8,
+    "w_rule": 0.4,
+    "w_ml": 0.6,
+    "sub_scores": {
+      "rom_completeness": 7.5,
+      "tempo_consistency": 6.8,
+      "stability_control": 7.1
+    },
+    "feature_vector": {
+      "...": "ordered per FeatureVector.names, see task.md Phase 4 Stage 4.2"
+    }
   },
   "error_tags": [
     {
-      "tag": "minor_tempo_inconsistency",
-      "severity": "low",
-      "message": "Your movement speed was slightly inconsistent."
+      "tag": "inconsistent_tempo",
+      "severity": "Low",
+      "source": "rule",
+      "message": "Aim for a steadier pace across your reps."
     }
   ],
   "structured_feedback": "Your overall movement quality was good...",
   "rewritten_feedback": "Good job. Your movement was mostly controlled...",
+  "feedback_source": "llm",
+  "llm_attempted": true,
+  "disclaimer_version": "v2",
   "created_at": "timestamp"
 }
 ```
+
+> **Placeholder-model note:** during Phase 4 (before Phase 5 trains the real model), `model_version` reads `"stub-0"` and the response/report both carry a visible placeholder-model notice — see task.md Phase 4 Stage 4.5.
 
 ### 10.3 Why Extra Trees Classifier
 
 Extra Trees Classifier is chosen because the ML input is expected to be **tabular pose-derived features**, not raw video.
 
-Example feature vector:
+> **Update (2026-07-15):** the illustrative feature vector below is superseded by squat's actual, decided `FeatureVector` (side-view-computable only, valgus deliberately excluded) — see task.md Phase 4 Stage 4.2 for the full definition table with landmarks and `[clinical norm]`/`[dataset-derived]`/`[proposed heuristic]` tags per feature:
 
 ```text
-knee_angle_min
-knee_angle_max
-knee_rom
-hip_displacement
-trunk_lean_proxy
-tempo_mean
-tempo_variability
-stability_proxy
-symmetry_proxy
-valid_frame_ratio
+knee_flex_peak_deg
+knee_flex_min_deg
+knee_rom_deg
+hip_flex_peak_deg
+trunk_lean_peak_deg
+trunk_lean_mean_deg
+knee_ang_vel_max_dps
+rep_duration_s
+descent_ascent_ratio
+symmetry_index_pct
+ankle_df_proxy_deg
+hip_mid_jitter_norm
+stance_width_norm
 ```
 
 Reasons:
@@ -583,7 +602,9 @@ S_final = w_rule * S_rule + w_ml * S_ml
 where w_rule + w_ml = 1
 ```
 
-Recommended initial weights:
+> **Update (2026-07-16, resolved during Phase 4–7 planning — see [§24](#24-additions-and-deviations-from-the-original-plan)):** the "recommended initial weights" and capture-quality example below were a starting illustration only; the fusion planning for Phase 4/5 fully supersedes them. **Starting default (Phase 4, before training):** `w_rule = 0.4` / `w_ml = 0.6` — the opposite split from the original recommendation below, chosen so the plan doesn't over-trust an untrained stub model's rule-derived placeholder score. **This default is not final** — Phase 5 Stage 5.6 sweeps `w_rule` from 0.2–0.8 and picks the winner empirically, evaluated against **both macro-F1 and the severe-misclassification rate** (Poor↔Good confusions specifically), not precision alone, because telling a poor-form user they're fine is the failure mode that matters most for a rehab-grading system. The result is written back into `backend/app/module_b/core/config.py` and retagged `[dataset-derived]`.
+
+Recommended initial weights (superseded by the update above — kept here for historical reference):
 
 ```text
 w_rule = 0.6
@@ -592,15 +613,17 @@ w_ml = 0.4
 
 Reason: The rule-based score is more transparent and safer. ML confidence can be uncertain due to public dataset limitations.
 
-If capture quality is low:
+**Actual capture-quality/confidence adaptive rule (Phase 4 Stage 4.5, replacing the illustrative 3-tier example below):**
 
 ```text
-increase rule weight
-reduce ML weight
-or return low-confidence warning instead of confident grade
+If ML confidence is high (max(P) >= confidence_low_threshold) AND Q >= q_min:
+  w_rule = 0.4, w_ml = 0.6         (the Stage 5.6-tuned value, once available)
+Else (low ML confidence OR Q < q_min):
+  w_rule = 0.7, w_ml = 0.3         # rule-heavy fallback
+  band is forced to Fair, low_confidence flag raised
 ```
 
-Example:
+Original illustrative example (superseded — kept for historical reference; the real gate uses a single `q_min` threshold plus a `confidence_low_threshold`, not three capture-quality tiers):
 
 ```text
 If capture_quality >= 0.80:
@@ -762,8 +785,11 @@ Seed data:
 sit_to_stand, Functional Check
 supported_single_leg_stance, Functional Check
 weight_bearing_lunge_test, Functional Check
-module_b_placeholder_exercise, Rehab Grading
+squat, Rehab Grading            # Phase 4 — replaces module_b_placeholder_exercise
+lunge, Rehab Grading            # Phase 5B — added once squat (Phase 5 Stage 5.8) is verified live
 ```
+
+> **Update (2026-07-15):** `module_b_placeholder_exercise` is superseded now that the exercise is decided (squat first, lunge second — see [§24](#24-additions-and-deviations-from-the-original-plan)). Note for whoever implements Phase 4 Stage 4.1: `ExerciseSelection.tsx` has no hardcoded placeholder branch of its own — it renders whatever this table returns via `exerciseService.list()` — so "replacing the placeholder" means updating this seed row, not editing the frontend component (see task.md Phase 4 Stage 4.1).
 
 #### sessions
 
@@ -807,6 +833,27 @@ CREATE TABLE module_a_results (
 
 #### module_b_results
 
+> **Update (2026-07-16, resolved during Phase 4–7 planning — see [§24](#24-additions-and-deviations-from-the-original-plan)):** replaced the original all-flat-columns design below with a **hybrid** schema (task.md Phase 4 Stage 4.6). Flat, typed, exercise-agnostic columns for what Phase 7's dashboard queries directly by `WHERE`/`ORDER BY`/aggregate (mirrors the `sessions.score`/`sessions.band` precedent this repo already uses for Module A); a JSONB column for the part that's genuinely variable-shape across exercises (squat's three rule sub-scores aren't guaranteed to be lunge's three sub-scores, or any future exercise's). The named `rom_score`/`tempo_score`/`stability_score` columns below assumed every Module B exercise has exactly those three sub-scores — already false in principle once a second exercise (lunge) exists — so they moved into JSONB instead of staying named columns.
+
+```sql
+CREATE TABLE module_b_results (
+    id UUID PRIMARY KEY,
+    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    exercise_code VARCHAR(100) NOT NULL,
+    score NUMERIC(5,2),
+    band VARCHAR(50),
+    confidence NUMERIC(5,4),
+    model_version VARCHAR(100),
+    feature_schema_version VARCHAR(20),
+    q NUMERIC(5,4),
+    metrics_json JSONB,          -- rule_score, ml_score, w_rule/w_ml actually used,
+                                  -- rule sub-score breakdown, feature_vector, per-rep summaries
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Original all-flat design (superseded — kept for historical reference):
+
 ```sql
 CREATE TABLE module_b_results (
     id UUID PRIMARY KEY,
@@ -826,20 +873,42 @@ CREATE TABLE module_b_results (
 );
 ```
 
-#### error_tags
+#### module_b_error_tags
+
+> **Renamed from `error_tags`** (2026-07-16) to make the FK direction unambiguous now that it references `sessions` directly rather than `module_b_results` — needed so Phase 7 Stage 7.1's "common error tags" panel can `GROUP BY tag` across sessions without an extra join, and so a rejected/low-Q attempt that never produced a `module_b_results` row can still (in principle) be tagged. Added `source` to distinguish rule-derived tags from ML-derived and system tags (task.md Phase 6 Stage 6.1's taxonomy has both).
 
 ```sql
-CREATE TABLE error_tags (
+CREATE TABLE module_b_error_tags (
     id UUID PRIMARY KEY,
-    module_b_result_id UUID NOT NULL REFERENCES module_b_results(id) ON DELETE CASCADE,
-    tag_code VARCHAR(100) NOT NULL,
+    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    tag VARCHAR(100) NOT NULL,
     severity VARCHAR(50),
+    source VARCHAR(20),          -- 'rule' | 'ml' | 'system'
     message TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
 #### feedback_texts
+
+> **Update (2026-07-16, resolved during Phase 4–7 planning — see [§24](#24-additions-and-deviations-from-the-original-plan)):** `llm_used BOOLEAN` collapsed two different situations into one bit — "the LLM was never called" and "the LLM was called but Stage 6.3's safety filter rejected the output" both read as `FALSE`, losing exactly the information an examiner would ask about. Replaced with `feedback_source` + `llm_attempted` so both cases are distinguishable (`source="template"` + `attempted=true` = tried and rejected; `attempted=false` = never tried). Dropped stored `safety_disclaimer` text — the disclaimer the user actually sees always comes from the current i18n render (rules.md #19), so storing a duplicate copy per row is redundant; `disclaimer_version` gives audit-grade traceability ("this session was shown disclaimer v2") without duplicating text that already lives in i18n.
+
+```sql
+CREATE TABLE feedback_texts (
+    id UUID PRIMARY KEY,
+    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    structured_feedback TEXT,
+    rewritten_feedback TEXT,
+    feedback_source VARCHAR(20) NOT NULL DEFAULT 'template',  -- 'llm' | 'template'
+    llm_attempted BOOLEAN NOT NULL DEFAULT FALSE,
+    provider VARCHAR(50),
+    model_version VARCHAR(100),
+    disclaimer_version VARCHAR(20),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Original design (superseded — kept for historical reference):
 
 ```sql
 CREATE TABLE feedback_texts (
@@ -925,8 +994,18 @@ GET  /api/wblt/session/{session_id}
 
 ### 14.6 Module B APIs
 
+`POST /analyze` and `GET /results/{session_id}` stay generic, resolved the same way
+Module A resolved this in §14.5: a thin router dispatching by `exercise_code`
+through a **registry of exercise plugins** (task.md Phase 4 Stage 4.1), not a
+per-exercise-code URL or a per-exercise duplicated router. The one addition
+beyond the original plan is `GET /{code}/config`, added for the same reason
+WBLT's `GET /api/wblt/config` was added beyond §14.5 — the frontend can't sync
+its thresholds without a config endpoint to sync from (X7 in task.md's
+Cross-Cutting Rules).
+
 ```text
-POST /api/module-b/analyze
+GET  /api/module-b/{code}/config          -- added 2026-07-16, see above
+POST /api/module-b/analyze                -- exercise_code carried in the request body
 GET  /api/module-b/results/{session_id}
 ```
 
@@ -939,10 +1018,12 @@ POST /api/reports/{session_id}/rewrite-feedback
 
 ### 14.8 Dashboard APIs
 
+> **Update (2026-07-16):** both endpoints below return their payload **keyed by `exercise_type`** in a single response (e.g. `{"sts": {...}, "sls": {...}, "wblt": {...}, "squat": {...}, "lunge": {...}}`), not one call per exercise — this is what actually satisfies Phase 7's goal of fixing the trend/band panels for every exercise (Module A + B) in one dashboard load. `error-tags` only has entries for Module B exercise types (Module A has warning tags, not error tags — task.md Phase 7 Stage 7.1 keeps the two vocabularies separate).
+
 ```text
 GET /api/dashboard/summary
-GET /api/dashboard/trends
-GET /api/dashboard/error-tags
+GET /api/dashboard/trends            -- response keyed by exercise_type
+GET /api/dashboard/error-tags        -- response keyed by exercise_type (Module B only)
 ```
 
 ### 14.9 Reminder APIs
@@ -958,6 +1039,8 @@ DELETE /api/reminders/{reminder_id}
 
 ## 15. External LLM API Usage
 
+> **Update (2026-07-15/16):** the default provider is **Groq / Llama 3.3 70B** (task.md Locked Assumptions #6, Phase 6 Stage 6.4); the template fallback (task.md Phase 6 Stage 6.2) is built **first**, before the LLM client, so the LLM is provably optional polish rather than a dependency. Groq's free-tier limits and exact model name must be re-verified at build time and the retrieval date recorded — free-tier model lists have drifted before.
+
 The external LLM API is only used **after the set is completed**.
 
 It must not:
@@ -967,6 +1050,8 @@ It must not:
 - create new medical claims
 - diagnose the user
 - prescribe treatment
+
+A dedicated safety filter (task.md Phase 6 Stage 6.3) enforces this on every LLM response **before** it is stored or shown: it strips/rejects diagnostic language, verifies the band/score in the rewritten text matches the structured input exactly (a mismatch discards the LLM output and falls back to the template), rejects any tag not present in the structured input, and caps length. A test asserts the grade is byte-identical before and after the rewrite.
 
 Input to LLM:
 
@@ -997,6 +1082,7 @@ Always store both:
 
 - structured feedback
 - rewritten feedback
+- `feedback_source` (`"llm"` or `"template"`) and `llm_attempted` (whether the LLM was called at all, distinct from whether its output survived the safety filter) — see the updated `feedback_texts` schema in [§13](#13-postgresql-database-design)
 
 The structured feedback is the trusted source. The LLM text is only a readability layer.
 
@@ -1235,11 +1321,16 @@ The recommended MVP target is:
 
 This section records where the implementation **added to or diverged from** the plan above, so the differences are easy to cite in the final report's "deviations from plan" discussion. The rest of this document remains the as-planned specification; the phase-by-phase progress log lives in [task.md](./task.md).
 
-| Area                | Original plan (this document)                                                                                                          | What was actually implemented                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Rationale                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Module A evaluation | No evaluation method specified for the rule-based checks — §9.3 only said Good/Fair/Poor bands would be "refined during pilot testing" | **Measurement-agreement evaluation** (ICC(2,1), Bland-Altman, Cohen's kappa) for the SLS hold-timer versus a human-timed reference — see [§9.4](#94-module-a-evaluation-measurement-agreement)                                                                                                                                                                                                                                                                                                                                                                | Module A is deterministic, not a trained classifier, so classifier-accuracy metrics do not apply; method-comparison statistics are the correct framing and fit the non-diagnostic boundary (§6)                                                                                                                                                                                        |
-| SLS scope           | "Supported Single-Leg Stance, front view, 30 seconds" as a single check (§9.1)                                                         | Rebuilt as a **both-legs, 45-second-cap** check with a lift-line entry gate and a ball-in-circle stability sub-score (Phase 3B rebuild, see task.md)                                                                                                                                                                                                                                                                                                                                                                                                          | Fuller and more defensible functional check; detailed in task.md                                                                                                                                                                                                                                                                                                                       |
-| WBLT design         | §9.1 listed WBLT as a single camera-measured "dorsiflexion ROM band" (3 trials, no user measurement, no age/sex norms)                 | Redesigned as **dual output**: the official band is a _user-measured_ distance (ruler/tape, self-reported) scored against McBride et al. (2026) age/sex percentile bands; camera-measured dorsiflexion angle is kept as an unbanded secondary signal (corroboration, symmetry, trend). Requires the account's exact age (not the existing `age_group` range) to resolve the correct band — see the `exact_age` column above. Stage 1 (this build) covers one right-leg attempt end-to-end; guided 3-attempt bracketing and the left leg are follow-up stages. | Monocular depth/contact detection is unreliable on a single webcam (§5, non-diagnostic boundary), so camera-only ROM banding had no defensible clinical anchor. Self-measured distance unlocks a real published normative table instead of an invented cutoff; the camera's job narrows to what it _can_ reliably judge (heel-lift validity), consistent with the SLS precedent above. |
-| WBLT routing        | §14.5 put WBLT on the shared `POST /api/module-a/analyze` endpoint (like STS)                                                          | Given a **dedicated `/api/wblt/*` router** (`GET /config`, `POST /analyze`, `GET /session/{id}`), mirroring SLS's precedent                                                                                                                                                                                                                                                                                                                                                                                                                                   | The dual distance+angle, per-attempt contract doesn't fit the shared single-buffer response shape, exactly the same reasoning that put SLS on its own router                                                                                                                                                                                                                           |
+| Area                                    | Original plan (this document)                                                                                                          | What was actually implemented                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Rationale                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Module A evaluation                     | No evaluation method specified for the rule-based checks — §9.3 only said Good/Fair/Poor bands would be "refined during pilot testing" | **Measurement-agreement evaluation** (ICC(2,1), Bland-Altman, Cohen's kappa) for the SLS hold-timer versus a human-timed reference — see [§9.4](#94-module-a-evaluation-measurement-agreement)                                                                                                                                                                                                                                                                                                                                                                | Module A is deterministic, not a trained classifier, so classifier-accuracy metrics do not apply; method-comparison statistics are the correct framing and fit the non-diagnostic boundary (§6)                                                                                                                                                                                        |
+| SLS scope                               | "Supported Single-Leg Stance, front view, 30 seconds" as a single check (§9.1)                                                         | Rebuilt as a **both-legs, 45-second-cap** check with a lift-line entry gate and a ball-in-circle stability sub-score (Phase 3B rebuild, see task.md)                                                                                                                                                                                                                                                                                                                                                                                                          | Fuller and more defensible functional check; detailed in task.md                                                                                                                                                                                                                                                                                                                       |
+| WBLT design                             | §9.1 listed WBLT as a single camera-measured "dorsiflexion ROM band" (3 trials, no user measurement, no age/sex norms)                 | Redesigned as **dual output**: the official band is a _user-measured_ distance (ruler/tape, self-reported) scored against McBride et al. (2026) age/sex percentile bands; camera-measured dorsiflexion angle is kept as an unbanded secondary signal (corroboration, symmetry, trend). Requires the account's exact age (not the existing `age_group` range) to resolve the correct band — see the `exact_age` column above. Stage 1 (this build) covers one right-leg attempt end-to-end; guided 3-attempt bracketing and the left leg are follow-up stages. | Monocular depth/contact detection is unreliable on a single webcam (§5, non-diagnostic boundary), so camera-only ROM banding had no defensible clinical anchor. Self-measured distance unlocks a real published normative table instead of an invented cutoff; the camera's job narrows to what it _can_ reliably judge (heel-lift validity), consistent with the SLS precedent above. |
+| WBLT routing                            | §14.5 put WBLT on the shared `POST /api/module-a/analyze` endpoint (like STS)                                                          | Given a **dedicated `/api/wblt/*` router** (`GET /config`, `POST /analyze`, `GET /session/{id}`), mirroring SLS's precedent                                                                                                                                                                                                                                                                                                                                                                                                                                   | The dual distance+angle, per-attempt contract doesn't fit the shared single-buffer response shape, exactly the same reasoning that put SLS on its own router                                                                                                                                                                                                                           |
+| Module B exercise choice                | §10 said "the exact rehab exercise is not decided yet"                                                                                 | Decided 2026-07-15: **squat first (Phase 4/5), fully verified live, then lunge (Phase 5B)** — side/sagittal view only, frontal knee valgus dropped from the taxonomy entirely                                                                                                                                                                                                                                                                                                                                                                                 | Squat has the larger usable REHAB24-6 sample and no frontal-plane dependency; lunge is committed scope but gated on squat's Stage 5.8 being verified first so mistakes aren't repeated twice in parallel — see task.md Locked Assumptions                                                                                                                                              |
+| Module B fusion weights                 | §10.4 recommended initial weights `w_rule = 0.6` / `w_ml = 0.4`, with a 3-tier capture-quality example                                 | Phase 4 starting default is `w_rule = 0.4` / `w_ml = 0.6` (opposite split), superseded by Phase 5 Stage 5.6's empirical sweep against **macro-F1 and the severe-misclassification rate**, not precision alone; the adaptive rule is a binary confident/low-confidence switch (`q_min` + `confidence_low_threshold`), not the original 3-tier capture-quality table                                                                                                                                                                                            | An untrained Phase 4 stub model shouldn't be over-trusted by a rule-favoring default; the final weight needs to be earned against data, and the rehab-grading failure mode that matters most is telling a poor-form user they're fine, which precision alone doesn't directly measure — see task.md Phase 4 Stage 4.0 and Phase 5 Stage 5.6                                            |
+| Module B `module_b_results` schema      | §13 defined all-flat typed columns (`rule_score`, `ml_score`, `rom_score`, `tempo_score`, `stability_score`, ...)                      | Hybrid: flat typed columns only for what Phase 7's dashboard queries directly (`score`, `band`, `confidence`, `model_version`, `q`, ...); rule sub-scores, feature vector, and per-rep summaries moved into JSONB `metrics_json`; `error_tags` renamed `module_b_error_tags` and keyed off `session_id` directly, with a `source` column added                                                                                                                                                                                                                | Named sub-score columns (`rom_score`/`tempo_score`/`stability_score`) assumed every Module B exercise has exactly those three sub-scores — already false once lunge exists as a second exercise; JSONB is for what's genuinely variable-shape, flat columns for what's genuinely queried — see task.md Phase 4 Stage 4.6                                                               |
+| Module B `feedback_texts` schema        | §13/§15 had `llm_used BOOLEAN` + stored `safety_disclaimer` text                                                                       | Replaced with `feedback_source` (`"llm"`/`"template"`) + `llm_attempted BOOLEAN` + `provider`/`model_version` + `disclaimer_version`                                                                                                                                                                                                                                                                                                                                                                                                                          | `llm_used=FALSE` couldn't distinguish "never called" from "called, output rejected by the safety filter" — an examiner-relevant distinction; the disclaimer shown is always the current i18n render, so storing a duplicate text copy per row was redundant — a version id gives audit traceability instead — see task.md Phase 6 Stage 6.5                                            |
+| Dashboard trend/error-tag payload shape | §14.8 listed `GET /api/dashboard/trends` and `GET /api/dashboard/error-tags` without specifying response shape                         | Both endpoints return their payload **keyed by `exercise_type`** in one response, not one call per exercise                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Phase 7's goal is fixing the trend/band panels for every exercise (Module A + B) in a single dashboard load — see task.md Phase 7 Stage 7.0                                                                                                                                                                                                                                            |
 
 _These are enhancements consistent with the project goals in §23, not departures from the MVP priorities. This list covers the deviations identified so far — add further rows here as the implementation continues to evolve._
