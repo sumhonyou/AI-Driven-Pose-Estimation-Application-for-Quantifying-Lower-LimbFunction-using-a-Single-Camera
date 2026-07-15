@@ -42,6 +42,18 @@ Since the project is at 0 progress, do **not** start with ML first. Work in this
 
 > Module A produces and stores Good/Fair/Poor results for at least one functional check.
 
+### Fourth Milestone (Module B Squat, Placeholder Model)
+
+> Module B runs end-to-end for squat with an honest, announced placeholder model (`model_version: "stub-0"`) — verified live against the real backend + Postgres. Closes Phase 4.
+
+### Data Audit Gate (Phase 5, Stage 5.0)
+
+> `ml/reports/DATA_AUDIT.md` reports the exact usable side-view squat (Ex6) rep count after the camera-orientation filter, and HY has chosen among options (a) accept the smaller N, (b) admit half-profile reps as a flagged cohort, or (c) relax to both views and add `view` as a feature. No ML training work begins before this decision (see [Open Questions](#open-questions-phases-47) Q1/Q2).
+
+### Fifth Milestone (Trained Squat Model)
+
+> A trained, calibrated, LOSO-evaluated Extra Trees squat model is loaded by the backend, replacing the Phase 4 stub — verified live end-to-end. Closes Phase 5.
+
 ---
 
 ## Phase 0: Project Setup
@@ -329,95 +341,580 @@ The deterministic-replay/agreement evaluation harness (mirroring [§9.4](./FYP_P
 
 ---
 
-## Phase 4: Module B Rehab Grading Skeleton
+## Locked Assumptions (Phases 4–7)
 
-**Goal:** Build the Module B pipeline before final exercise is decided.
-
-**Tasks:**
-
-- [ ] Create placeholder rehab exercise configuration
-- [ ] Create backend Module B analyze endpoint
-- [ ] Create feature extraction schema
-- [ ] Create rule sub-score functions:
-  - [ ] ROM score
-  - [ ] Tempo score
-  - [ ] Stability score
-- [ ] Create fusion scoring function
-- [ ] Create placeholder ML model interface
-- [ ] Return final report using mock/placeholder model output first
-
-**Deliverable:**
-
-- Module B works end-to-end with placeholder logic
-- Later ML model can be plugged in
+> Locked by HY on 2026-07-15 — if any of these is found to be wrong during implementation, stop and re-plan rather than silently working around it:
+>
+> 1. **Label design = Option A.** Train binary (Good/Poor) on REHAB24-6; derive **Fair** from a calibrated low-confidence margin. Option B is documented, not built (see Phase 5 Stage 5.10).
+> 2. **Squat first, fully verified, before lunge starts.** Lunge is committed scope, not optional — see Phase 5B.
+> 3. **Side (sagittal) view only.** Frontal knee valgus is **dropped from the taxonomy** and written up as a monocular limitation. No valgus feature, no valgus tag, no valgus rule.
+> 4. `ml/` is a new third top-level folder. Model artifacts **are committed** (examiner reproducibility).
+> 5. Module B uses a **registry + plugin** router (Phase 4 Stage 4.1) — this is _not_ Module A's rejected `if exercise_type ==` dispatcher; rationale in that stage.
+> 6. LLM default = **Groq / Llama 3.3 70B**, template fallback is the deterministic base layer.
+> 7. Phase 7 fixes the trend/band panels for **all** exercises (Module A + B), killing `dash.placeholderScoring`.
+> 8. Module B gets a **deterministic replay harness** mirroring Module A's Stage 7 precedent, _in addition to_ the classifier metrics Phase 5 Stage 5.7 requires.
 
 ---
 
-## Phase 5: Dataset and ML Training
+## Cross-Cutting Rules (Phases 4–7)
 
-**Goal:** Train Extra Trees model using public dataset or converted pose-feature dataset.
+These bind every stage in Phases 4–7. A stage that violates one is not done.
+
+| #      | Rule                                                                                                                                                                                                                                                                                                | Why                                                                                                              |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **X1** | **Runtime feature parity is enforced by construction, not by discipline.** The offline extractor in `ml/` **imports** the feature functions from `backend/app/module_b/` — it never re-implements them. If a feature can't be computed live per-rep from streamed world landmarks, it cannot exist. | Hard constraint (Phase 4 Stage 4.4). Hand-synced duplicates already burned this project once (Phase 3E Stage 5). |
+| **X2** | **No threshold without a tag.** Every constant in a `config.py` carries an inline comment tagged `[clinical norm, S1]`, `[dataset-derived]`, or `[proposed heuristic]`. No untagged number.                                                                                                         | The invented-cutoff trap. Source integrity is graded.                                                            |
+| **X3** | **World landmarks only** (3D, metric, scale-invariant), post-preprocessing (confidence filter → gap fill → One Euro → normalisation). Never raw pixels, never image landmarks.                                                                                                                      | Matches Module A precedent.                                                                                      |
+| **X4** | **No raw video persisted.** Only metrics + feature vectors in JSONB.                                                                                                                                                                                                                                | Per rules.md #2 and the architecture doc.                                                                        |
+| **X5** | **The LLM never changes the grade.** It receives structured output and returns prose. A test asserts the grade before and after the rewrite is byte-identical.                                                                                                                                      | Per rules.md #12.                                                                                                |
+| **X6** | **Non-diagnostic language everywhere.** Extend the existing `backend/tests/test_frontend_disclaimers.py` forbidden-phrase scan to cover new Module B i18n keys **and** LLM output templates.                                                                                                        | Existing precedent (rules.md #3, #19).                                                                           |
+| **X7** | **Config-driven, never inline.** Thresholds live in `config.py` and are served to the frontend via `GET /config`. The frontend's local constants are a _fallback for the pre-fetch window only_.                                                                                                    | Phase 3E Stage 5's exact lesson.                                                                                 |
+| **X8** | **Determinism.** Same input frames → byte-identical output. No wall-clock, no unseeded RNG, no dict-iteration-order dependence in analysis code.                                                                                                                                                    | Phase 3E Stage 7 precedent.                                                                                      |
+
+---
+
+## Phase 4: Module B Skeleton — Squat, Placeholder Model
+
+**Goal:** a complete, honest Module B vertical slice for **squat** that runs end-to-end with a **stub** model, so the real Extra Trees model in Phase 5 is a drop-in replacement and nothing else has to move.
+
+**Why placeholder-first:** the fusion, banding, persistence, report, and UI surface are all independent of whether the ML score came from a stub or a trained model. Building them first means Phase 5 is purely a data/ML problem, not a plumbing problem.
+
+### Stage 4.0 — Decision & config freeze _(no code yet)_
+
+- [ ] Create `docs/module_b_decisions.md` recording: Option A (with Option B named as the documented alternative), squat-first, **side-only + valgus dropped**, registry pattern, Groq default, artifacts committed. Each entry: decision, rationale, what would reverse it.
+- [ ] Create `backend/app/module_b/core/config.py` with `MODULE_B_CORE_CONFIG`:
+  - `band_thresholds`: Poor `0 ≤ S < 4.0`, Fair `4.0 ≤ S < 7.0`, Good `7.0 ≤ S ≤ 10.0` — **[fixed by D6 / proposal Table 6]**
+  - `w_rule_default = 0.4`, `w_ml_default = 0.6` — **[proposed heuristic, R7 — to be replaced by Phase 5.6's sweep result]**
+  - `w_rule_low_confidence = 0.7` — **[proposed heuristic, R7]**
+  - `confidence_low_threshold = 0.5` — **[proposed heuristic, R7 — pilot-tune]**
+  - `q_min` capture-quality gate + `confidence_threshold = 0.6`, `Q` bands (≥0.85 good / 0.70–0.85 moderate / <0.70 poor) — **[proposal §3.3.1, Tables 3 & 4]**
+  - `feature_schema_version = "1.0.0"`, `interpolation_max_gap_frames = 5` — **[proposal §3.3.2]**
+- [ ] **Gate:** every constant has an X2 tag. Reject the stage otherwise.
+
+> ✅ **Resolved 2026-07-16** (see [Contradictions found — need HY decision](#contradictions-found-need-hy-decision)): `w_rule_default = 0.4`/`w_ml_default = 0.6` above **stays as the Phase 4 starting point**, conflicting with the architecture doc's §10.4 "Recommended initial weights" (`w_rule = 0.6`/`w_ml = 0.4`) only until Stage 5.6 runs. HY's decision: the final weight is not asserted from either document — it's **earned empirically** by Stage 5.6's sweep, selected against **macro-F1 and the severe-misclassification rate** (Poor↔Good confusions), not precision alone. See Stage 5.6 below for the updated selection criteria.
+
+### Stage 4.1 — Backend package + exercise registry
+
+**Architecture decision (read before writing code).** Module A learned that a shared `if exercise_type == ...` dispatcher was wrong — but its _other_ extreme (fully duplicated `sls/router.py` + `wblt/router.py`) duplicated real logic. Module B's situation is different: one shared preprocessing + feature pipeline with one model per exercise is required. So the correct shape is neither: **one thin router + a registry of exercise plugins.**
+
+```
+backend/app/module_b/
+├── core/
+│   ├── config.py            # MODULE_B_CORE_CONFIG (Stage 4.0)
+│   ├── schemas.py           # shared Pydantic request/response
+│   ├── exercise.py          # ModuleBExercise ABC/Protocol  <-- the contract
+│   ├── registry.py          # {code: ModuleBExercise}; get_exercise(code) or 404
+│   ├── geometry.py          # angle helpers (import from module_a/core/geometry where identical — DRY)
+│   ├── fsm.py               # generic hysteresis rep FSM + refractory (parameterised)
+│   ├── features.py          # FeatureVector + shared extractors  <-- X1 contract surface
+│   ├── rules.py             # SubScore dataclass + fusion-input assembly
+│   ├── fusion.py            # S_final = w_r*S_rule + w_m*S_ml, adaptive weights, banding
+│   ├── model_registry.py    # loads joblib + feature schema + version id; StubModel for Phase 4
+│   ├── quality.py           # reuse module_a/core/quality (import, don't fork)
+│   ├── crud.py              # generic save/read of module_b results (hybrid schema — see Stage 4.6)
+│   ├── router.py            # generic /api/module-b/* endpoints (Stage 4.1 resolution) — THIN
+│   └── evaluation/          # Phase 5.7 + replay harness
+├── squat/
+│   ├── config.py            # SQUAT_CONFIG
+│   ├── features.py          # squat-specific feature assembly
+│   ├── rules.py             # squat ROM/Tempo/Stability
+│   ├── segmentation.py      # squat FSM params + lead-in
+│   └── exercise.py          # SquatExercise(ModuleBExercise) — registered
+└── lunge/                   # Phase 5B ONLY. Do not scaffold now.
+```
+
+> ✅ **Resolved 2026-07-16** (see [Contradictions found — need HY decision](#contradictions-found-need-hy-decision)): follow the architecture doc's §14.6 generic endpoint shape — `POST /api/module-b/analyze`, `GET /api/module-b/results/{session_id}` — not per-exercise-code URL segments. The routing logic still follows **how Module A actually built its generic endpoint**: `core/router.py` stays a thin dispatcher that reads `exercise_code` out of the request body/path param and looks it up in `core/registry.py` (`get_exercise(code)` → 404 on unknown), exactly like `module_a/core/router.py` does for STS today. The one addition beyond §14.6 is `GET /api/module-b/{code}/config`, which is genuinely new work the architecture doc didn't anticipate — justified the same way Module A's `GET /api/wblt/config` was added beyond the original §14.5 plan, for the same reason (X7: frontend threshold sync can't happen without a config endpoint to sync from).
+
+- [ ] `core/exercise.py` — `ModuleBExercise` abstract base with: `code`, `config`, `required_view`, `segment(frames) -> list[Rep]`, `extract_features(rep) -> FeatureVector`, `rule_subscores(rep, features) -> RuleScores`, `model_key` (which artifact to load), `error_tags(features, rules, ml) -> list[str]`.
+- [ ] `core/registry.py` — dict of code → instance. `get_exercise("squat")`. Unknown code → 404, never a silent default.
+- [ ] `core/router.py` — endpoints, all delegating to the registry, **zero exercise-specific branching**:
+  - `GET  /api/module-b/{code}/config` — serves thresholds to the frontend (X7); the one addition beyond §14.6, see resolution note above
+  - `POST /api/module-b/analyze` — generic per §14.6; body carries `exercise_code`, buffer-and-send, dispatches via the registry
+  - `GET  /api/module-b/results/{session_id}` — generic per §14.6; full session summary
+- [ ] `squat/exercise.py` — `SquatExercise` registered under `"squat"`.
+- [ ] Seed the exercise catalog: add `squat` as a **Module B** exercise in the existing catalog seed. **Path note:** `frontend/src/pages/ExerciseSelection.tsx` renders exercises entirely data-driven from `exerciseService.list()` against the backend catalog — it has no hardcoded "Module B placeholder" branch of its own. "Replace the placeholder" therefore means updating the backend catalog seed row (`module_b_placeholder_exercise`, per the architecture doc's exercise catalog table) to a real `squat` row, not editing a component branch. Flagged as a path/assumption clarification, not a blocking contradiction.
+- [ ] **Gate:** `app.main` imports cleanly; `GET /api/module-b/squat/config` returns the config; `GET /api/module-b/bogus/config` returns 404.
+
+### Stage 4.2 — Feature extraction schema _(the X1 contract — most important stage in Phase 4)_
+
+This is the single artifact both the live backend and the offline `ml/` extractor consume. Get it wrong and Phase 5 trains on features the runtime can't reproduce.
+
+- [ ] `core/features.py` — define `FeatureVector` as an **ordered, versioned, named** structure (`schema_version`, `names: tuple[str, ...]`, `values: tuple[float, ...]`). Order is part of the contract; a joblib model trained on order N must refuse a vector of order M.
+- [ ] Implement per-rep features, side-view-computable only:
+
+| Feature                | Definition                                                         | Landmarks (world)   | Tag                                    |
+| ---------------------- | ------------------------------------------------------------------ | ------------------- | -------------------------------------- |
+| `knee_flex_peak_deg`   | max angle hip–knee–ankle in rep                                    | 23/24, 25/26, 27/28 | [clinical norm basis, S1]              |
+| `knee_flex_min_deg`    | min over rep                                                       | same                | —                                      |
+| `knee_rom_deg`         | max − min                                                          | same                | [S1]                                   |
+| `hip_flex_peak_deg`    | angle shoulder–hip–knee                                            | 11/12, 23/24, 25/26 | [S3]                                   |
+| `trunk_lean_peak_deg`  | shoulder-mid→hip-mid vector vs world vertical                      | 11+12, 23+24        | [S4][S8]                               |
+| `trunk_lean_mean_deg`  | mean over rep                                                      | same                | —                                      |
+| `knee_ang_vel_max_dps` | max \|d(knee angle)/dt\|                                           | knee triplet        | —                                      |
+| `rep_duration_s`       | FSM boundaries                                                     | —                   | —                                      |
+| `descent_ascent_ratio` | time DESCENDING / time ASCENDING                                   | —                   | [proposed heuristic]                   |
+| `symmetry_index_pct`   | `\|θ_L − θ_R\| / (0.5·(θ_L+θ_R)) × 100` at matched phase           | bilateral knees     | [proposed heuristic, R5.2]             |
+| `ankle_df_proxy_deg`   | shank-vs-vertical                                                  | 25/26, 27/28        | [partial — monocular caveat]           |
+| `hip_mid_jitter_norm`  | smoothed frame-to-frame in-plane hip-mid displacement / `norm_ref` | 23+24               | [proposed heuristic, R6]               |
+| `stance_width_norm`    | inter-ankle distance / `norm_ref`                                  | 27/28               | [dataset-derived, R10 "feet too wide"] |
+
+- [ ] **Explicitly NOT implemented:** `knee_valgus_proxy`. Add a comment in `features.py` naming the omission and pointing to the limitations write-up (see [Deliberately Not Built](#deliberately-not-built-phases-47)). Do not leave a dead stub.
+- [ ] `norm_ref` — implement **both** candidates from R5.3 (`trunk_length` = hip-mid→shoulder-mid, `thigh_length` = hip→knee) behind a config switch. **Phase 5.4 picks the winner empirically** (lower cross-subject variance). Default `thigh_length` — **[proposed heuristic, R5.3]**.
+- [ ] Every feature is a **pure function** of one rep's frames (X8) — no clip-level hindsight (X1).
+- [ ] **Tests:** hand-computed fixtures for each angle; a synthetic deep-squat rep and a shallow rep produce the expected ordering of `knee_flex_peak_deg`.
+- [ ] **Gate:** `FeatureVector.names` is stable and asserted in a test. Changing it requires bumping `feature_schema_version`.
+
+### Stage 4.3 — Rep segmentation (squat FSM)
+
+Reuse Module A's hysteresis-FSM-with-refractory house style (`sls/fsm.py` is the reference).
+
+- [ ] `core/fsm.py` — generic, parameterised: `enter_threshold`, `exit_threshold`, `refractory_s`, `min_rep_duration_s`, state enum. Exercise-agnostic.
+- [ ] `squat/segmentation.py` — `STANDING → DESCENDING → BOTTOM → ASCENDING → STANDING`, driven by knee-flexion angle. Config:
+  - `enter_descending_deg = 30.0` (from standing baseline) — **[proposed heuristic, R9]**
+  - `exit_standing_deg = 20.0` (hysteresis — deliberately ≠ enter) — **[proposed heuristic, R9]**
+  - `refractory_s = 0.5` — **[proposed heuristic, R9]**
+- [ ] BOTTOM = local max flexion within the rep, not a fixed threshold.
+- [ ] **Tests:** clean 5-rep synthetic stream → exactly 5 reps; jitter at the threshold → still 5 (no phantom reps); a partial descent that never crosses → 0 reps.
+- [ ] **Gate:** determinism — same frames twice → identical rep boundaries.
+
+### Stage 4.4 — Rule sub-scores (squat)
+
+Three sub-scores, each **0–10**. Live in `squat/rules.py`, config in `squat/config.py`.
+
+- [ ] **Completeness (ROM)** — piecewise on `knee_flex_peak_deg`. Band **edges are [clinical norm, S1]**; the 0–10 interpolation _inside_ each band is **[proposed heuristic — pilot-tune]**:
+  - `< 60°` → 0–2 · `60–90°` (shallow) → 2–5 · `90–110°` (parallel) → 5–8 · `≥ 110°` (deep) → 8–10
+  - **Must implement R3's caveat:** limited ankle DF can physically cap achievable depth. When `ankle_df_proxy_deg` indicates a DF limit, the ROM sub-score is **floor-limited, not zeroed**, and a `rom_possibly_df_limited` note is attached. Do **not** punish a mobility limit as if it were a control fault.
+- [ ] **Consistency (Tempo)** — `CV = std(rep_durations)/mean(rep_durations)` across the set. `CV ≤ 0.10` → 9–10 · `0.10–0.25` → 5–8 · `> 0.25` → < 5. **[proposed heuristic, R6]** Deliberately **not** an absolute speed target (no sourced tempo norm exists — see [Open Questions](#open-questions-phases-47) Q5). **Only computable from rep 2 onward** — with 1 rep, tempo is `None`, not `0`. Handle this explicitly in fusion (renormalise over available sub-scores).
+- [ ] **Control (Stability)** — `Stability = f(1 − normalised_jitter)`, **duration-weighted**. **[proposed heuristic, R6]**
+  - **The perverse-incentive check is mandatory here.** Write a test proving a _long, well-controlled_ rep scores **≥** a _brief still moment_. This is the exact trap caught in the SLS work (proportion-only stability rewarded short perfect holds). If the formula fails that test, the formula is wrong — do not ship it and adjust the test.
+  - In-plane only. No depth-axis sway (monocular).
+- [ ] `S_rule` = mean of available sub-scores (equal weights) — **[proposed heuristic]**. Record each sub-score individually; the report shows the breakdown.
+- [ ] **Tests:** each sub-score's band boundaries; the DF-limit floor; the duration-weighting anti-trap test; tempo `None` on a 1-rep set.
+
+### Stage 4.5 — Fusion + placeholder ML interface
+
+- [ ] `core/model_registry.py`:
+  - `ModelBundle` protocol: `predict_proba(FeatureVector) -> dict[str, float]`, `feature_schema_version`, `model_version`, `label_order`.
+  - `StubModel(ModelBundle)` — returns a **deterministic** proba derived from the rule score (e.g. `P(Good) = clamp(S_rule/10)`), so the Phase 4 slice produces sensible-looking output without pretending to be a model.
+  - **`StubModel` must announce itself.** Every response carries `model_version: "stub-0"` and the report renders a visible "placeholder model" notice. A stub that looks like a real result is a lie to your own testing.
+  - **Schema guard:** loading a bundle whose `feature_schema_version` ≠ the runtime's raises loudly. Never silently score a mismatched vector.
+- [ ] `core/fusion.py`:
+  - `S_ml` projection (Option A): `S_ml = 10·P(Good) + 0·P(Poor)`. **Fair is not an ML class** — it comes from the margin (below). **[R7]**
+  - **Fair rule (Option A):** if calibrated `max(P) < confidence_low_threshold` → surface **Fair** and raise `low_confidence` flag, regardless of which side of the boundary S_final lands.
+  - Adaptive weights: confident → `w_r=0.4/w_m=0.6`; low-confidence **or** `Q < q_min` → `w_r=0.7`.
+  - `S_final = w_r·S_rule + w_m·S_ml` → band via `MODULE_B_CORE_CONFIG.band_thresholds`.
+  - **Assert** both inputs are on 0–10 before fusing (R7 explicitly asks for this check).
+- [ ] **Capture-quality gate:** mirror WBLT Stage 3's lesson — a `Q < q_min` set does **not** silently produce a confident band. Surface Fair + `retry_camera_placement`, lean rule-heavy.
+- [ ] **Tests:** the D6 band boundaries exactly (3.999→Poor, 4.0→Fair, 6.999→Fair, 7.0→Good); low-confidence forces Fair; low-Q shifts weights; schema-mismatch raises.
+
+### Stage 4.6 — Persistence + read-back
+
+> ✅ **Resolved 2026-07-16** (see [Contradictions found — need HY decision](#contradictions-found-need-hy-decision)): neither the architecture doc's all-flat schema nor this stage's original all-JSONB schema — a **hybrid**. Flat typed columns for small, fixed-shape, exercise-agnostic fields that Phase 7's dashboard queries directly (mirrors the `sessions.score`/`sessions.band` precedent already in this repo); a separate child table for `error_tags` (needs cross-session `GROUP BY tag_code` aggregation for Phase 7 Stage 7.1's "common error tags" panel — JSONB makes that query awkward); JSONB only for what's genuinely variable-shape across exercises/versions.
+
+- [ ] Alembic migration: `module_b_results` with:
+  - **Flat typed columns:** `session_id`, `exercise_code`, `score`, `band`, `confidence`, `model_version`, `feature_schema_version`, `q`, `created_at` — indexed by user + timestamp, reused directly by Phase 7's trend/dashboard queries.
+  - **Separate `module_b_error_tags` table:** `session_id` FK, `tag`, `severity`, `source` (`"rule"` / `"ml"` / `"system"`) — one row per tag, enabling cross-session tag aggregation.
+  - **JSONB `metrics_json`:** `feature_vector` (needed for the replay harness), rule sub-score breakdown, `w_rule`/`w_ml` actually used, per-rep summaries — the part whose shape genuinely differs between squat, lunge, and future exercises.
+- [ ] Persist: **final score, band, rule sub-score breakdown, confidence value, predicted error tags with severity, and (Phase 6) the rewritten coaching text.**
+- [ ] **Profile/version snapshot** — mirror WBLT Stage 4's lesson: store the `model_version` and weights a grade was **actually computed with**, so re-deriving a historical session later can't silently rewrite it.
+- [ ] `GET /api/module-b/results/{session_id}` returns the full summary (endpoint name per Stage 4.1's resolution).
+- [ ] **Gate:** two successive GETs return byte-identical payloads.
+
+### Stage 4.7 — Frontend (squat)
+
+> **Design note (HY 2026-07-16):** this is not a new UI design. Squat's live-session layout, components, and styling **reuse Module A's existing live-session pages as-is** (`StsLiveSessionPage`/`SlsLiveSessionPage` — rep-based, not WBLT's attempt/bracket-based flow, since squat has no discrete attempts). No new visual design work, no new component patterns. The only changes are **wording/copy** — e.g. Module A's rep-based pages say "reps"/"session" already, so most terminology carries over directly; where a Module B string doesn't fit an existing Module A key as-is (e.g. any leftover "attempt"-style copy inherited from a WBLT-flavoured pattern), reword it to session/rep language rather than introducing a new term. Treat this stage as a copy/wiring pass over an existing layout, not a redesign — don't invoke a UI design skill or propose new layout choices for it.
+
+- [ ] `frontend/src/pages/squat/SquatLiveSessionPage.tsx` — mirrors `SlsLiveSessionPage`'s structure. Route `/squat/live`.
+- [ ] `frontend/src/utils/squat/squatLiveEstimate.ts` — client-side live rep count + band _estimate_ only. **Fetches thresholds from `GET /api/module-b/squat/config`**; local constants are the pre-fetch fallback only (X7 — this is Phase 3E Stage 5's exact lesson, do not repeat it).
+- [ ] `CameraSetup.tsx` — add a **side-view** branch for squat (guidance text + demo video), matching the existing per-exercise view instruction mechanism.
+- [ ] `ExerciseSelection.tsx` — no component change needed (see Stage 4.1's path note); update the backend catalog seed's `module_b_placeholder_exercise` row to the real squat entry.
+- [ ] `Report.tsx` — add an `isModuleB` branch: final score, band, **three sub-scores broken out**, confidence, error tags, capture quality, and the `model_version` placeholder notice. _(Note the Phase 3E Stage 2 lesson: the report's per-exercise renderer has silently rendered the wrong panel before. Add a test.)_
+- [ ] i18n keys (en/zh/ms/hi) for every new string, including error tags via the existing generic `t('moduleB.tag_' + tag)` lookup pattern.
+- [ ] **Gate:** `tsc --noEmit` clean; production build clean.
+
+### Stage 4.8 — Phase 4 verification gate
+
+- [ ] Full backend suite green (existing 83 + new).
+- [ ] `test_frontend_disclaimers.py` extended to the new Module B i18n keys (X6).
+- [ ] **Verified live end-to-end** against real backend + Postgres — the Module A house standard, not just unit tests: real webcam squat session → reps segmented → sub-scores → stub fusion → persisted row → Report page renders correctly (confirm via rendered page text, not just the API response).
+- [ ] Record the result in `task.md` in the Phase 3E style (what was verified, with numbers).
+
+**Deliverable:** Module B works end-to-end for squat with an announced placeholder model. Phase 5 only has to replace `StubModel`.
+
+---
+
+## Phase 5: Dataset and ML Training (Squat)
+
+**Goal:** a trained, calibrated, LOSO-evaluated Extra Trees model for squat, exported with its feature schema and version id, loaded by the backend.
+
+### Stage 5.0 — Data audit **[HARD GATE — no training work until this reports numbers]**
+
+Everything downstream depends on counts nobody has actually looked at yet.
+
+**Downloads — all confirmed present on disk (2026-07-15):**
+
+- [x] `videos` (unzipped, 2.7 GB) — **the labels + rep boundaries**
+- [x] `Segmentation.csv` (53.3 kB)
+- [x] `Segmentation.txt` (1.7 kB) — **the column dictionary**
+- [x] `joints_names.txt` (395 B)
+- [x] `3d_joints` (unzipped, 551.3 MB) — mocap GT, for the Stage 5.4 agreement check _(not training — X3)_
+- [x] EC3D `data_3D.pickle` — present
+- [ ] _Not downloaded, not needed:_ `2d_joints.zip`, `2d_markers.zip`, `3d_markers.zip`
 
 **Tasks:**
 
-- [ ] Search and select suitable public dataset
-- [ ] Convert raw videos/images/skeletons into pose features
-- [ ] Standardize labels into Good/Fair/Poor or correct/needs improvement
-- [ ] Split data by participant if subject ID is available
-- [ ] Train Extra Trees classifier
-- [ ] Evaluate using:
-  - [ ] Accuracy
-  - [ ] Precision
-  - [ ] Recall
-  - [ ] Macro-F1
-  - [ ] Confusion matrix
-- [ ] Save model using joblib
-- [ ] Save feature schema
-- [ ] Integrate trained model into backend
+- [ ] Create `ml/config.yaml` with the dataset root **exactly as below** — paths point at the existing local dataset location; nothing is copied or moved into the repo:
+  ```yaml
+  dataset_paths:
+    rehab246:
+      videos_dir: /Users/sumhonyou/fypDataset/videos
+      segmentation_csv: /Users/sumhonyou/fypDataset/Segmentation.csv
+      segmentation_txt: /Users/sumhonyou/fypDataset/Segmentation.txt
+      joints_names_txt: /Users/sumhonyou/fypDataset/joints_names.txt
+      joints_3d_dir: /Users/sumhonyou/fypDataset/3d_joints
+    ec3d:
+      pickle_path: /Users/sumhonyou/fypDataset/data_3D.pickle
+  ```
+  `ml/config.yaml` itself **is committed** (it's just paths); the directories it points at are **not** — add `/Users/sumhonyou/fypDataset/` patterns to `.gitignore` only if the dataset ever ends up under the repo root (it currently doesn't, so no `.gitignore` change should be needed — confirm the dataset root is genuinely outside the repo tree before skipping this).
+- [ ] `extract_landmarks.py` and `audit_rehab246.py` filter to `exercise_id ∈ {5, 6}` **in code** (Ex5 = Leg lunge, Ex6 = Squats) — never require the video folder itself to be pre-sorted or pruned. All 65 recordings across all 6 exercises stay exactly where they are; Ex1–Ex4 files are simply never opened.
+- [ ] Read `Segmentation.txt` and write `ml/docs/rehab24_6_schema.md` — the **authoritative** column dictionary. Do not trust the column names guessed from a screenshot.
+- [ ] `ml/scripts/audit_rehab246.py` — loads `Segmentation.csv`, filters `exercise_id ∈ {5, 6}` (Ex5 = Leg lunge, Ex6 = Squats), and **reports**:
+  - [ ] exact rep counts **per exercise × correctness × `person_id`**
+  - [ ] the distribution of `cam17_orientation`
+  - [ ] `mocap_erroneous` count (candidates for exclusion)
+  - [ ] `exercise_subtype` values for Ex5 (**this is the lead-leg tag** — R5.2/R9 needs it and it is given, not inferred)
+  - [ ] `lighting` distribution
+  - [ ] **Per-subject class presence** — the LOSO viability check (R8): does any subject have only one class?
+- [ ] **The view question (critical, see below).** Determine, from `Segmentation.txt` + a visual check of one clip per orientation value:
+  - Which camera yields a **true sagittal/profile** view for each `cam17_orientation` value. _Working hypothesis from the Zenodo description — **must be verified, not assumed**: subject facing the horizontal camera (Camera17) → **c17 = front, c18 = profile**; subject facing the wall between cameras → **half-profile in both**._
+  - [ ] Report the **usable side-view rep count** for Ex6 after this filter.
+- [ ] Write `ml/reports/DATA_AUDIT.md` with every number above.
 
-**Deliverable:**
+> **⚠ The gate.** If the side-view-usable Ex6 rep count is materially below the ~90/category aggregate, that is a **finding, not a failure** — but it changes the plan and HY must decide before training. Options to present with trade-offs (do not choose unilaterally):
+> **(a)** accept the smaller N and report it honestly as a limitation;
+> **(b)** additionally admit half-profile reps as a separate, flagged cohort and test whether including them helps or hurts LOSO;
+> **(c)** relax to both views and add `view` as an explicit feature.
+> **Do not proceed to Stage 5.2 until HY chooses.**
 
-- Trained Extra Trees model
-- Evaluation results
-- Backend can load and use model
+### Stage 5.1 — `ml/` scaffold
+
+```
+ml/
+├── config.yaml                # dataset paths (committed — see Stage 5.0), model asset path, seeds
+├── requirements.txt           # mediapipe, scikit-learn, pandas, numpy, joblib, matplotlib, seaborn
+├── docs/
+│   ├── rehab24_6_schema.md
+│   └── ec3d_joint_mapping.md  # Stage 5.9
+├── scripts/
+│   ├── audit_rehab246.py
+│   ├── extract_landmarks.py
+│   ├── build_features.py
+│   ├── check_feature_validity.py
+│   ├── check_mocap_agreement.py
+│   ├── train_squat.py
+│   ├── sweep_fusion_weights.py
+│   ├── evaluate_squat.py
+│   ├── validate_ec3d.py
+│   └── plotting.py            # shared plot helpers — one save_fig() used by every script below
+├── data/                      # gitignored — landmarks cache, feature CSVs
+├── artifacts/                 # COMMITTED — *.joblib, feature_schema.json, label_map.json
+└── reports/
+    ├── figures/                # COMMITTED — all .png outputs listed in Stages 5.4/5.5/5.6/5.7/5.9
+    └── *.md                    # COMMITTED — DATA_AUDIT.md, SQUAT_*_REPORT.md, embed figures via relative path
+```
+
+- [ ] `ml/` importing from `backend/app/module_b` must work (X1). Set it up as a path/editable install — **document the exact command in `ml/README.md`**. A copy-pasted feature function is a Phase-5-breaking bug, not a shortcut.
+- [ ] `scripts/plotting.py` — one shared `save_fig(fig, name: str) -> Path` that writes to `ml/reports/figures/{name}.png` at a fixed DPI (150) and fixed figure size per plot type, and a shared style (`seaborn` theme or matplotlib rcParams set once here). **Every** plotting call below goes through this — no script sets its own DPI/style ad hoc.
+- [ ] **Every report `.md` file embeds its figures**, not just links to the folder — `![caption](figures/whatever.png)` — so `ml/reports/*.md` is self-contained and reads correctly if copied straight into the FYP report/appendix.
+
+### Stage 5.2 — Landmark extraction from RGB video
+
+- [ ] `extract_landmarks.py`:
+  - **Loads the _same_ `pose_landmarker_full.task` asset the frontend self-hosts.** This is the whole point of X3 — a different model variant reintroduces the domain gap. Path in `ml/config.yaml`, pointing at the frontend's asset.
+  - `RunningMode.VIDEO`, `delegate=CPU`. **MediaPipe Python's GPU delegate is Ubuntu-only** — on macOS/Apple Silicon it errors; CPU + XNNPACK is the correct and only path here. Document this in `ml/README.md` so nobody "fixes" it later.
+  - Extracts **world landmarks** (X3), not image landmarks.
+  - Processes only the videos needed: **Ex6 (squat)**, the camera chosen in Stage 5.0, honouring the orientation filter.
+  - **Resumable + cached** — writes one `.npz` per video, skips existing. A 2.7 GB batch should never need to restart from zero.
+  - Records extraction metadata: model asset **hash**, mediapipe version, delegate, fps.
+- [ ] **Parity check (blocking):** extract one short clip via this Python pipeline, and record the same clip through the browser runtime. Compare per-frame world-landmark distributions. Report the divergence in `ml/reports/PARITY_CHECK.md`. Small numeric differences are expected (delegate/backend); a _structural_ difference means the pipeline is wrong.
+- [ ] Apply the **same preprocessing as runtime** (X1): confidence filter 0.6, ≤5-frame linear interpolation, One Euro, normalisation. Import it from the backend — do not re-implement.
+
+### Stage 5.3 — Build the feature table
+
+- [ ] `build_features.py`:
+  - Windows each rep using `Segmentation.csv`'s `first_frame`/`last_frame` (**not** our FSM — the dataset's physio-verified boundaries are ground truth here).
+  - **But also:** run our FSM over the same clips and report rep-boundary agreement vs the dataset's segmentation. This is a free, honest validation of Stage 4.3's FSM and belongs in the report.
+  - Calls the **backend's** `extract_features()` (X1).
+  - Emits `ml/data/squat_features.csv`: one row per rep = `person_id`, `video_id`, `repetition_number`, feature columns (in `FeatureVector.names` order), `correctness` label, `orientation`, `lighting`, `mocap_erroneous`, `feature_schema_version`.
+- [ ] **Schema validation:** assert column order/count matches `FeatureVector.names`; fail loudly on drift.
+- [ ] **Label normalisation** (Option A): `correct → Good`, `incorrect → Poor`. Write `ml/artifacts/label_map.json`. **No Fair in training** — record that explicitly in the file.
+
+### Stage 5.4 — Feature-validity sanity **[GATE — R5.5]**
+
+- [ ] `check_feature_validity.py` — per feature, plot **and** report its distribution split by class. A feature enters the model **only if it visibly separates classes** (e.g. `knee_flex_peak_deg` should be lower for incorrect reps). Output `ml/reports/FEATURE_VALIDITY.md` with an explicit keep/drop verdict + justification per feature.
+  - [ ] **Figure (required):** `figures/feature_validity_boxplots.png` — one boxplot (or violin) per feature, class on the x-axis, arranged as a grid (e.g. 4×4 subplots via `plt.subplots`), so every feature's class separation is visible on one page.
+  - [ ] **Figure (required):** `figures/feature_correlation_heatmap.png` — a correlation matrix across all candidate features (seaborn `heatmap`), to justify any later "these two features are redundant, drop one" calls.
+- [ ] **`norm_ref` bake-off** (R5.3): compute cross-subject variance under `trunk_length` vs `thigh_length`; pick the lower. Record the number. Update the backend config to match — **and re-run any Phase 4 test that depended on the default.**
+  - [ ] **Figure (required):** `figures/norm_ref_variance_comparison.png` — a paired bar chart, per-subject variance under each candidate, so the "lower" claim is visually checkable, not just a single number in prose.
+- [ ] `check_mocap_agreement.py` _(uses `3d_joints.zip`)_ — compute knee-flexion angle from our MediaPipe world landmarks vs from the **OptiTrack 26-joint mocap GT** on the same frames. Report **ICC(2,1) + Bland-Altman**, reusing `backend/app/module_a/core/evaluation/agreement.py` (it's unit-agnostic and already shared — do not fork it).
+  - [ ] **Figure (required):** `figures/mocap_agreement_bland_altman.png` — the standard Bland-Altman plot (mean vs difference, limits of agreement shaded). If `agreement.py` already produces one for Module A, reuse that plotting function too — don't write a second implementation of the same chart.
+  - _This is optional to the ML result but high-value: it's a genuine measurement-agreement validation of the pose extraction itself, in the evaluation vocabulary Module A already established, against optical mocap. It also catches a broken extraction before you train on it._
+- [ ] **Gate:** if `knee_flex_peak_deg` does **not** separate the classes, stop. Either the extraction, the view filter, or the windowing is wrong. Do not train through a red flag.
+
+### Stage 5.5 — Train the Extra Trees classifier
+
+- [ ] `train_squat.py`, **binary** Good/Poor (Option A), fixed `random_state`.
+- [ ] Hyperparameter grid (R8):
+
+| Param               | Start        | Grid                                                  |
+| ------------------- | ------------ | ----------------------------------------------------- |
+| `n_estimators`      | 300          | 100–500                                               |
+| `max_features`      | `'sqrt'`     | —                                                     |
+| `max_depth`         | None         | 8–16                                                  |
+| `min_samples_leaf`  | 2            | 2–5                                                   |
+| `min_samples_split` | 10           | 10–20                                                 |
+| `class_weight`      | `'balanced'` | —                                                     |
+| `bootstrap`         | False        | — (ET default; part of what distinguishes it from RF) |
+
+- [ ] **CV = Leave-One-Subject-Out** (10 subjects), groups = `person_id` (D10, R8). **Fallback:** if Stage 5.0's audit showed a subject with only one class, or a fold loses a class → **stratified group k-fold (5-fold, groups = subjects)**. Record which was used and why.
+- [ ] **Imbalance:** `class_weight='balanced'`. **No SMOTE** — synthetic pose features can be biomechanically impossible, and small-N resampling risks duplicating a subject's reps across folds (leakage). R8 is explicit on this.
+- [ ] **Nested tuning** — tune inside the training folds only. Tuning on the LOSO test fold is leakage and an examiner will spot it.
+  - [ ] **Record every combination tried, not just the winner.** Use `sklearn.model_selection.GridSearchCV` (or an explicit manual loop) and keep its full `cv_results_` — every hyperparameter combination alongside its mean validation score and variance across folds. This is the actual evidence of experimentation: a table showing "these 20 combinations were tried, here's how each scored, this one won" is what makes the search a documented investigation rather than a number that appears from nowhere.
+  - [ ] **Figure (required):** `figures/hyperparameter_search_results.png` — one line or bar chart per swept parameter (e.g. validation score vs `n_estimators`, holding others at their best value; same for `max_depth`, `min_samples_leaf`, `min_samples_split`), with the chosen value marked. If the grid is small enough, a single heatmap of the two most-varied parameters (e.g. `n_estimators` × `max_depth`) is also acceptable instead of separate charts.
+  - [ ] `ml/reports/SQUAT_TRAINING_REPORT.md` includes the **full `cv_results_` table** (every combination + score), not a one-line "best params were X" summary. Losing combinations stay in the table — do not prune them out after the fact.
+- [ ] **Calibration** — `CalibratedClassifierCV` (isotonic if N allows, else sigmoid/Platt) on a held-out fold. ET `predict_proba` is over-confident; the Fair band depends entirely on calibrated probabilities being meaningful.
+  - [ ] **Figure (required):** `figures/calibration_reliability_curve.png` — predicted probability (x-axis, binned) vs observed frequency (y-axis), plotted **before and after** calibration on the same axes (`sklearn.calibration.calibration_curve` + a plotted 45° reference line), so the improvement from calibration is visible, not asserted. An uncalibrated Fair band is a fabricated third class — this figure is the evidence it isn't.
+  - [ ] Output `ml/reports/SQUAT_TRAINING_REPORT.md`: the full hyperparameter search table and figure above, which CV scheme was used and why, and the reliability curve embedded inline.
+
+### Stage 5.6 — Fair threshold + fusion weight sweep
+
+> ✅ **Resolved 2026-07-16** (see [Contradictions found — need HY decision](#contradictions-found-need-hy-decision) item 1): this stage is where the Phase 4 Stage 4.0 `w_rule_default`/architecture-doc-§10.4 conflict actually gets settled — **empirically, not by picking one document over the other.** The selection criteria below are expanded beyond precision alone.
+
+- [ ] **`confidence_low_threshold`** (the Fair band): the R7 default of 0.5 is a **[proposed heuristic]**. Sweep it and pick against the calibration curve + the precision objective. Report the chosen value **and** the sweep — the number must be earned, not asserted.
+  - [ ] **Figure (required):** `figures/confidence_threshold_sweep.png` — precision/recall (or precision + Fair-band size) as a line plot against the swept threshold, with the chosen value marked (vertical line + annotation).
+- [ ] `sweep_fusion_weights.py` — sweep `w_r` from **0.2 → 0.8 in 0.1 steps** on the validation folds; report Good/Fair/Poor confusion + precision + **macro-F1** at each. **Selection criteria (HY 2026-07-16):** the winning weight must be justified against **both** (a) macro-F1 across the 3 bands, **and** (b) the **severe-misclassification rate** — the count/rate of Poor→Good and Good→Poor confusions specifically, tracked as its own number, not folded into an aggregate. A weight with slightly lower precision but a materially lower severe-misclassification rate is the better choice for a rehab-grading system (telling a poor-form user they're fine is the one failure mode that matters most); do not default to "highest precision wins" if it trades away severe-error safety.
+  - [ ] **Figure (required):** `figures/fusion_weight_sweep.png` — precision, macro-F1, **and severe-misclassification rate** (three lines) plotted against `w_r` from 0.2–0.8, chosen weight marked the same way as above.
+- [ ] Write the winner back into `backend/app/module_b/core/config.py`, replacing the 0.4/0.6 placeholder, and **retag it `[dataset-derived]`** (it is no longer a heuristic). Record in the report why this value won over both the Stage 4.0 default and the architecture doc's §10.4 recommendation, citing the actual macro-F1 and severe-misclassification numbers.
+- [ ] Output `ml/reports/SQUAT_FUSION_SWEEP.md` with all three figures/lines embedded.
+
+### Stage 5.7 — Evaluation
+
+- [ ] `evaluate_squat.py` → `ml/reports/SQUAT_EVALUATION_REPORT.md`:
+  - [ ] Accuracy, **Precision (emphasised)**, Recall, **Macro-F1**, per-class + macro
+  - [ ] **Confusion matrix** over the _final fused 3-band output_ (Good/Fair/Poor), not just the binary classifier — this is what the user actually sees
+    - [ ] **Figure (required):** `figures/confusion_matrix_3band.png` — `seaborn.heatmap` with annotated counts, row-normalised percentages as a secondary annotation if it fits.
+  - [ ] Multi-label micro/macro-F1 for `error_tags` — **only for tags with real dataset signal.** REHAB24-6 is binary and does not label individual faults, so rule-only tags have **no ground truth here**. State that plainly rather than inventing an evaluation. _(EC3D's per-fault labels in Stage 5.9 are the only honest source for this — and only for the faults it labels.)_
+    - [ ] **Figure (required, only for the tags that do have EC3D ground truth):** a horizontal bar chart of per-tag precision/recall, `figures/error_tag_performance.png`. Do not fabricate bars for tags with no ground truth — omit them and say why in the caption.
+  - [ ] **Robustness signals:** low-confidence-frame frequency, safety-flag rate
+    - [ ] **Figure (required):** `figures/robustness_signals.png` — a simple bar or histogram of low-confidence-frame frequency across the evaluation set, so an isolated bad session doesn't get buried in a single averaged number.
+  - [ ] **Inference latency** — per-rep feature extraction + predict, measured, for the real-time feasibility claim
+    - [ ] **Figure (recommended, not required):** `figures/inference_latency_distribution.png` — a histogram of per-rep latency, useful if the real-time feasibility claim gets challenged in viva.
+  - [ ] **Baseline comparison, stated carefully:** comparable classical-classifier work reports ~93% (squat) with a Random Forest [S13], **but under a different, non-subject-wise split protocol**. Expect your LOSO number to be lower. **Do not compare a LOSO number to a random-split number as if equal** — say so in the report. Extract REHAB24-6's own authors' protocol from the SISAP 2024 paper before quoting their baseline [S12].
+    - [ ] **Figure (required):** `figures/baseline_comparison_bar.png` — grouped bar chart, your LOSO metric vs the cited baseline metric, with the split-protocol difference called out directly in the figure caption (not just in surrounding prose) so the chart can't be screenshotted out of context and misread as an apples-to-apples comparison.
+- [ ] **Deterministic replay harness** (Module A Stage 7 parity):
+  - [ ] `backend/app/module_b/core/evaluation/replay_squat_session.py` — replays a stored session's frames/feature vector through a fresh analysis; asserts byte-identical.
+  - [ ] `ml/scripts/generate_squat_replay_corpus.py` — fixed-seed synthetic corpus committed to `backend/app/module_b/replay_corpus/squat/`, spanning Good/Fair/Poor + a low-Q reject.
+  - [ ] Backend `SquatDeterminismTests`.
+  - [ ] Document the WBLT-replay caveat if it applies (no per-attempt id in the landmark log).
+
+### Stage 5.8 — Export + backend integration
+
+- [ ] Export to `ml/artifacts/squat/` (**committed**): `model.joblib`, `calibrator.joblib`, `feature_schema.json` (names + order + version), `label_map.json`, `model_card.md` (training data, protocol, metrics, date, limitations). `model_card.md` **links to** the confusion matrix and calibration figures already produced in Stages 5.5/5.7 by relative path — it does not regenerate or duplicate them.
+- [ ] `model_version` = a real, traceable id (e.g. `squat-1.0.0+rehab246-loso-<shorthash>`).
+- [ ] `core/model_registry.py` loads the real bundle; **`StubModel` is deleted, not left behind** (rules.md #20: no unnecessary code). The placeholder notice in `Report.tsx` disappears with it.
+- [ ] Schema guard fires on mismatch (Stage 4.5).
+- [ ] **Verified live end-to-end**: a real webcam squat session produces a real model-backed grade; `model_version` in the DB matches the artifact.
+
+### Stage 5.9 — EC3D external validation _(the firewall pays off here)_
+
+Under Option A, EC3D was **never touched by training** — so it is a legitimate independent generalisation check. Protect that.
+
+- [ ] **Confirm EC3D's 25-joint index order from the repo's data-loader before trusting any mapping.** This is a known open question (see Q3) and the "knee-passes-toe" lunge feature depends on it. Empirical fallback: plot one frame's 25 points and label limbs. Write `ml/docs/ec3d_joint_mapping.md`.
+- [ ] `validate_ec3d.py` — map EC3D 25 → MediaPipe-33 for hip/knee/ankle/shoulder, recompute the **angle-based features only**, score with the trained model, report metrics.
+  - [ ] **Figure (required):** `figures/ec3d_confusion_matrix.png` — same style as `confusion_matrix_3band.png` in Stage 5.7, so the two are visually comparable side by side in the write-up.
+  - [ ] Output `ml/reports/EC3D_VALIDATION_REPORT.md` with the figure embedded and the 4-subject caveat stated directly beneath it, not just in surrounding prose.
+- [ ] **Honest scoping:** EC3D has **4 subjects** — this is an external _check_, never a headline generalisation claim. Say so in the report.
+- [ ] **Do not evaluate frontal-plane features here.** EC3D has true 3D, so a valgus feature would score well — and would be meaningless, because that feature doesn't exist in your monocular runtime. (Moot given the side-only decision, but state it: it's the reason the decision is right, and it belongs in the write-up.)
+
+### Stage 5.10 — Option B: documented, not built _(for Chapter 3)_
+
+- [ ] `docs/module_b_option_b_alternative.md` — the methodology alternative, written to be examiner-facing:
+  - The mapping: Correct → Good; minor fault (Not-low-enough) → Fair; severe fault (Knees-inward / Front-bent) → Poor; then reconcile REHAB24-6 `incorrect` by the physio-noted mistake.
+  - **Why it was not built — three real costs:** (1) two datasets speak different label languages and merging needs a translation _we_ author; (2) ranking a fault "minor" vs "severe" needs a physiotherapy severity source — **without one, it's opinion dressed as ground truth**, which is exactly the invented-cutoff trap this project has already been caught by once; (3) it **breaks the validation firewall** — once EC3D defines the bands it can't also be the independent test set, forcing Mendeley (26 subjects, unverified labels, no rep segmentation) in as the held-out check.
+  - What would reverse the decision: a citable fault-severity source **and** an examiner requiring a genuinely learned third class.
+- [ ] **Do not write Option B code.** Not even a stub.
+
+**Deliverable:** Trained Extra Trees model for squat, calibrated and LOSO-evaluated, backend can load and use it.
+
+---
+
+### Phase 5B: Lunge **[GATE — do not start until Phase 5 Stage 5.8 is verified live]**
+
+Repeat Phase 4 Stages 4.1–4.8 and Phase 5 Stages 5.0–5.9 for lunge, as `backend/app/module_b/lunge/` + a `LungeExercise` registered in the registry. **Only the deltas:**
+
+- [ ] **ROM band edges are dataset-derived, not clinical.** The front-knee ≈90° cue is a **coaching convention, not a normative table** — no McBride-equivalent exists for the bodyweight lunge (open question, see Q6). So **calibrate the band edges from REHAB24-6's correct-rep distribution** and tag them **[dataset-derived]**. Do **not** assert 90° as a sourced cutoff.
+- [ ] **Symmetry is cross-rep, not within-rep** (R5.2): the two legs do different jobs in one rep, so within-rep L-vs-R is meaningless. Compare **front-knee peak flexion + ROM when leading left vs leading right**, across reps.
+- [ ] **Lead-leg tag:** at runtime, infer from which foot is forward in world landmarks. For training, **use `exercise_subtype` from `Segmentation.csv`** — it's given.
+- [ ] **Generalisation must be stated modestly.** REHAB24-6 is the **only public labelled lunge dataset**; there is no second source. Claims lean on subject-wise CV + EC3D (4 subjects) and must be worded accordingly.
+- [ ] **`knee_passes_toe`** needs a toe/foot-tip joint. If EC3D lacks one (Stage 5.9's open question), approximate from ankle **or drop it** — and say which.
+- [ ] **Registry check:** adding lunge must require **zero** changes to `core/router.py`. If it doesn't, the Stage 4.1 abstraction was wrong — fix the abstraction, don't special-case.
+
+**Deliverable:** Module B works end-to-end for lunge with a trained, LOSO-evaluated model, using the same registry with zero router changes.
 
 ---
 
 ## Phase 6: After-Set Report and External LLM API
 
-**Goal:** Generate understandable after-set feedback.
+**Goal:** readable after-set coaching text that **never** changes the grade, and a system that works perfectly when the API is down.
 
-**Tasks:**
+**Build order is deliberate: the fallback is built _first_.** If the template layer is built last it will be an afterthought; if it's built first, the LLM is provably optional polish.
 
-- [ ] Generate structured feedback from rule/ML output
-- [ ] Add safety filter/rules before calling LLM
-- [ ] Call external LLM API after set only
-- [ ] Store structured and rewritten feedback
-- [ ] Show final report to user
-- [ ] Add fallback template feedback if LLM fails
+### Stage 6.1 — Structured feedback + error-tag taxonomy
 
-**Deliverable:**
+- [ ] `backend/app/module_b/squat/tags.py` — the R10 taxonomy, **valgus removed** (side-only):
 
-- User receives readable after-set report
-- System still works even if LLM API fails
+| Tag                  | Observable from                  | User-facing message                                                 | Severity | Signal    |
+| -------------------- | -------------------------------- | ------------------------------------------------------------------- | -------- | --------- |
+| `insufficient_depth` | `knee_flex_peak_deg` < band [S1] | "Try to squat a little deeper — aim for thighs closer to parallel." | Medium   | rule + ML |
+| `forward_trunk_lean` | `trunk_lean_peak_deg` [S4][S8]   | "Keep your chest up as you lower."                                  | Medium   | rule + ML |
+| `feet_too_wide`      | `stance_width_norm`              | "Bring your feet a bit closer, about shoulder-width."               | Low      | rule + ML |
+| `heel_lift`          | `ankle_df_proxy_deg`             | "Keep your heels flat on the floor."                                | Medium   | rule-only |
+| `asymmetry`          | `symmetry_index_pct`             | "Try to lower evenly on both sides."                                | Medium   | rule-only |
+| `inconsistent_tempo` | tempo CV                         | "Aim for a steadier pace across your reps."                         | Low      | rule-only |
+| `low_confidence`     | calibrated `max(P)` / `Q`        | "Result is uncertain — try improving your camera placement."        | —        | system    |
+
+- [ ] **`knee_valgus` is NOT in this table.** Record the omission + reason in `docs/module_b_limitations.md`: it is a frontal-plane fault, ill-posed from a single monocular side view. This mirrors the WBLT precedent of refusing to measure what one camera cannot (see [Deliberately Not Built](#deliberately-not-built-phases-47)).
+- [ ] `core/feedback.py` — `build_structured_feedback(session) -> StructuredFeedback`: band, S_final, three sub-scores, confidence, ranked tags (severity → magnitude), rep count. **Pure and deterministic** (X8).
+
+### Stage 6.2 — Template fallback _(built first, on purpose)_
+
+- [ ] `core/feedback_templates.py` — deterministic composition from the R10 messages: `"Grade: {band}. {top_tag_message}. {second_tag_message}"`. Messages come **straight from the table above**, so the fallback can never invent a medical claim and can never change the grade. i18n-aware (en/zh/ms/hi).
+- [ ] **Gate:** the entire Phase 6 report renders correctly with the LLM **disabled by config**. Prove it before writing a single line of API client code.
+
+### Stage 6.3 — Safety filter
+
+- [ ] `core/feedback_safety.py`, applied to LLM output **before** it is stored or shown:
+  - [ ] Reject/strip any diagnostic or clinical claim. Reuse the forbidden-phrase list from `test_frontend_disclaimers.py` — **one list, shared** (don't fork it).
+  - [ ] **Grade-integrity check:** the band/score in the rewritten text must match the structured input. Mismatch → discard the LLM output, fall back to the template. (X5)
+  - [ ] Reject output that introduces a tag not in the structured input.
+  - [ ] Length cap.
+- [ ] **Tests:** an adversarial LLM response that changes the grade → rejected, template used.
+
+### Stage 6.4 — Groq adapter
+
+- [ ] `core/llm_client.py` — provider-agnostic interface; `GroqClient` (OpenAI-compatible API), model `llama-3.3-70b`. Key from env (`.env.example` updated), **never** committed.
+- [ ] System prompt: _rewrite only; add no medical claims; do not change the grade or the tags_. The prompt carries **metrics + tags only** — never raw video, never health records (the app persists only metrics anyway).
+- [ ] **After-set only.** Never in the live loop. A test asserts the live path makes no LLM call.
+- [ ] Timeout + retry-once + **fall back to template on any error/timeout/429**.
+- [ ] **Re-verify Groq's free-tier limits and model name at build time.** Free tiers drift monthly (a documented May–June 2026 model-list purge is precedent). Record the retrieval date in `docs/`. The template fallback means a silent model deletion can't break the app — but a stale model name in config will still throw, so pin and check. (See Q7.)
+- [ ] **Deployment note for Phase 8:** Cloud Run → Groq is an outbound call. Decide then whether the deployed demo defaults to Groq or template-only. Flag it; don't decide it here. (See Q8.)
+
+### Stage 6.5 — Persist + display
+
+> ✅ **Resolved 2026-07-16** (see [Contradictions found — need HY decision](#contradictions-found-need-hy-decision)): keep `feedback_source: "llm" | "template"` + provider/`model_version`, **and add `llm_attempted: bool`** so the three-state distinction survives — `source="template"` + `attempted=true` means "tried the LLM, output was rejected by the safety filter (Stage 6.3), fell back"; `attempted=false` means "never called (config-disabled, or after-set-only gate not yet reached)." This is strictly more informative than the architecture doc's `llm_used BOOLEAN`, which collapses those two cases. Drop `safety_disclaimer` as stored free text — the disclaimer the user sees always comes from the current i18n render (rules.md #19), so storing a duplicate copy of it per row is redundant. Store **`disclaimer_version`** instead (not the string): a small versioned id bumped whenever the disclaimer copy changes, giving audit-grade traceability ("this session was shown disclaimer v2") without duplicating text that already lives in i18n.
+
+- [ ] Store **both** the structured feedback and the rewritten text, plus `feedback_source: "llm" | "template"`, `llm_attempted: bool`, `provider`, `model_version`, and `disclaimer_version`.
+- [ ] `Report.tsx` renders the coaching text with the sub-score breakdown and tags. Surface `feedback_source` honestly (an examiner will ask which one produced it).
+- [ ] **Test:** grade before rewrite == grade after rewrite, byte-identical (X5). Add a case asserting `feedback_source="template"` + `llm_attempted=true` when a safety-filter rejection occurs (Stage 6.3), distinct from `llm_attempted=false` when the LLM was never called.
+
+**Deliverable:** User receives readable after-set report; system still works even if LLM API fails.
 
 ---
 
 ## Phase 7: Dashboard and Progress Tracking
 
-**Goal:** Make the system useful across multiple sessions.
+**Goal:** kill `dash.placeholderScoring` for **every** exercise and make multi-session progress real.
 
-**Tasks:**
+**Context:** this is pre-existing cross-cutting tech debt, flagged three separate times in this document (SLS Stage 6, WBLT Stage 6, Phase 3 checklist) and deliberately deferred each time because a one-off per-exercise chart would have been inconsistent. Phase 7 is its home. It is **one charting API either way** — doing Module B only would repeat the same mistake.
 
-- [ ] Show recent sessions
-- [ ] Show score trend chart
-- [ ] Show band distribution
-- [ ] Show common error tags
-- [ ] Show capture quality trend
-- [ ] Add reminders
+### Stage 7.0 — Trend API
 
-**Deliverable:**
+> ✅ **Resolved 2026-07-16** (see [Contradictions found — need HY decision](#contradictions-found-need-hy-decision)): follow the architecture doc's §14.8 endpoint names — `GET /api/dashboard/trends` (plural) and `GET /api/dashboard/error-tags` as two separate endpoints, not the single parameterised `trend` endpoint originally drafted here. **Both must return their data keyed by `exercise_type`** (e.g. `{"sts": {...}, "sls": {...}, "wblt": {...}, "squat": {...}, "lunge": {...}}`), not require a separate call per exercise — this is what actually satisfies the Locked Assumption that "Phase 7 fixes the trend/band panels for all exercises" in one dashboard load, and lets the frontend render every panel from one response instead of fan-out fetching.
 
-- User can track progress over time
+- [ ] `backend/app/dashboard/router.py` — `GET /api/dashboard/summary` + `GET /api/dashboard/trends?from=&to=` (data keyed by `exercise_type`) + `GET /api/dashboard/error-tags?from=&to=` (data keyed by `exercise_type`, only present for Module B exercise types — Module A has warning tags, not error tags, per Stage 7.1's distinction).
+- [ ] Built on the **exercise-agnostic** `sessions.score` / `sessions.band` columns wherever possible (`Dashboard.tsx` and `SessionHistory.tsx` already read only these — confirmed in Phase 3E). Exercise-specific detail comes from the per-exercise endpoints.
+- [ ] **Apply the MDC-suppression principle beyond WBLT.** WBLT already suppresses changes below the published MDC (Powden et al. 2015) so measurement noise never reads as improvement. For exercises **without** a published MDC, do **not** invent one — instead present the trend without a "meaningful change" claim, or derive a pilot repeatability estimate from the replay corpus and label it **[dataset-derived]**. **Never assert a clinical MDC that doesn't exist.**
+
+### Stage 7.1 — Dashboard panels
+
+- [ ] **Recent sessions** — already partly present; wire to the real API.
+- [ ] **Score trend chart** — per exercise, over time. Removes `dash.placeholderScoring`.
+- [ ] **Band distribution** — Good/Fair/Poor counts.
+- [ ] **Common error tags** — Module B only (Module A has warning tags, not error tags — don't conflate the two vocabularies in one panel).
+- [ ] **Capture-quality trend** — `Q` over sessions. Directly feeds the evaluation question: _do users improve camera placement after being prompted?_
+- [ ] **Confidence trend** — Module B only; feeds the low-confidence-frame robustness metric.
+- [ ] Delete the `dash.placeholderScoring` i18n key (en/zh/ms/hi) once nothing references it. **Grep for callers before deleting** — the house rule.
+
+### Stage 7.2 — Per-session trend rows for STS and SLS
+
+- [ ] WBLT has a real per-session "vs last session" row on `Report.tsx` (Phase 3E Stage 6). STS and SLS do not. Add the equivalent, reusing `compute_trend`'s shape.
+- [ ] For STS/SLS, the MDC caveat from 7.0 applies: **no invented "meaningful change" threshold.**
+
+### Stage 7.3 — Reminders
+
+- [ ] Reminders exist as a Phase 1A mock page. Wire to a real backend table + CRUD.
+- [ ] Keep it simple — this is the lowest-value item in Phase 7. Do not build scheduling infrastructure.
+
+### Stage 7.4 — Verification
+
+- [ ] Backend suite green; `tsc --noEmit` + build clean.
+- [ ] **Verified live end-to-end** with a multi-session account across ≥2 exercise types.
+- [ ] Update this document's Phase 3 line (`[~] Show dashboard trend`) to `[x]` — this phase is what closes it.
+
+**Deliverable:** User can track progress over time across all exercises, with no placeholder scoring left in the Dashboard.
+
+---
+
+## Open Questions (Phases 4–7)
+
+Track these; do not silently resolve them by assumption.
+
+| #   | Question                                                            | Blocks                                    | Settles via                                                                                   |
+| --- | ------------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Q1  | **Usable side-view Ex6 rep count** after the orientation filter     | Phase 5 Stage 5.0 gate                    | `Segmentation.csv` + `Segmentation.txt` + one visual check per orientation value              |
+| Q2  | Which camera is profile for each `cam17_orientation` value          | Phase 5 Stage 5.2                         | Same as Q1 — **verify, don't assume** the working hypothesis                                  |
+| Q3  | EC3D's exact 25-joint index order                                   | Phase 5 Stage 5.9; `knee_passes_toe`      | EC3D repo data-loader, or an empirical frame plot                                             |
+| Q4  | REHAB24-6 authors' own baseline **+ split protocol**                | Phase 5 Stage 5.7's comparison            | SISAP 2024 paper [S12] — a random-split number is not comparable to LOSO                      |
+| Q5  | No validated sway/jitter threshold exists for the Control sub-score | Phase 4 Stage 4.4 (heuristic, pilot-tune) | A postural-sway study with a quantitative in-plane cutoff (_not found_)                       |
+| Q6  | No normative lunge front-knee angle table exists                    | Phase 5B ROM bands                        | A published bodyweight-lunge kinematics norm (_not found_) — until then, dataset-derived only |
+| Q7  | Groq free-tier limits + model name at build time                    | Phase 6 Stage 6.4                         | Live provider docs; record retrieval date                                                     |
+| Q8  | Cloud Run → Groq egress in the deployed demo                        | Phase 8                                   | HY decision at Phase 8                                                                        |
+
+---
+
+## Deliberately Not Built (Phases 4–7)
+
+State each of these in the limitations chapter; an examiner reads omissions as either rigour or oversight depending entirely on whether you named them.
+
+1. **Knee valgus / frontal-plane faults.** Ill-posed from a single monocular side view. Dropped from features, rules, tags, and evaluation. _(Not "unimplemented" — deliberately excluded.)_
+2. **Option B's genuinely-learned three-class model.** Documented in `docs/module_b_option_b_alternative.md` (Phase 5 Stage 5.10); not built (no fault-severity source; breaks the EC3D firewall).
+3. **Mendeley / Kaggle datasets.** Mendeley (26 subj.) is unverified-label + unsegmented → only a robustness check under Option B, which isn't being built. Kaggle's "incorrect" samples are synthetically perturbed — a model would learn the perturbation, not the biomechanics. Its fault list informed the taxonomy; its data was never used.
+4. **KIMORE.** Dropped — its only advantage over REHAB24-6 was raw RGB, which proved inaccessible.
+5. **Gamification.** Optional, low priority, out of these phases. If revisited, each mechanic must name its perverse incentive (the stability-trap lesson).
+6. **Auto exercise detection.** The user always selects the exercise. Never inferred.
+
+---
+
+## Contradictions found — need HY decision
+
+Found while merging `task_phases_4_to_7.md` into this document. **All 5 resolved by HY on 2026-07-16** — resolution summarized under each, with the full decision written into the linked stage.
+
+1. **Fusion weight defaults (Phase 4 Stage 4.0).** `task_phases_4_to_7.md` specifies `w_rule_default = 0.4` / `w_ml_default = 0.6`. `FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md` §10.4 "Recommended initial weights" specifies `w_rule = 0.6` / `w_ml = 0.4` — the exact opposite split. Both are explicitly labelled starting/heuristic values, not final, but they disagree on which signal should dominate by default.
+   - **✅ Resolved:** use the new plan's 0.4/0.6 as the Phase 4 starting point, but treat neither document's number as final. The real answer comes from Stage 5.6's empirical sweep, selected against **macro-F1 and the severe-misclassification rate** (Poor↔Good confusions) — not precision alone. See Stage 5.6.
+2. **Module B API shape (Phase 4 Stage 4.1).** `task_phases_4_to_7.md` specifies a per-exercise-code registry API: `GET/POST /api/module-b/{code}/config|analyze`, `GET /api/module-b/session/{id}`. The architecture doc's §14.6 specifies a single generic pair: `POST /api/module-b/analyze`, `GET /api/module-b/results/{session_id}`. This mirrors the same shape decision Module A already made differently per exercise (STS stayed on the shared dispatcher; SLS/WBLT got dedicated routers, per §24) — so precedent exists for deviating from the architecture doc, but the doc itself hasn't been updated to reflect it.
+   - **✅ Resolved:** follow the architecture doc's generic endpoint shape (`POST /api/module-b/analyze`, `GET /api/module-b/results/{session_id}`), implemented the way Module A actually built its own generic endpoint — a thin `core/router.py` dispatching via the registry, exercise_code carried in the request rather than the URL. `GET /api/module-b/{code}/config` is kept as one necessary addition beyond §14.6, justified the same way Module A's `GET /api/wblt/config` was. See Stage 4.1.
+3. **`module_b_results` table shape (Phase 4 Stage 4.6).** The new plan wants one JSONB `metrics_json` column (mirroring the Module A pattern used for SLS/WBLT). The architecture doc's §14 SQL schema defines flat typed columns (`rule_score`, `ml_score`, `rom_score`, `tempo_score`, `stability_score`, `fusion_weights_json`, `feature_summary_json`) plus a separate `error_tags` table. These are two different persistence designs, not a superset/subset of each other.
+   - **✅ Resolved:** neither — a **hybrid**. Flat typed columns for the small, fixed-shape, exercise-agnostic fields Phase 7's dashboard queries directly (`session_id`, `exercise_code`, `score`, `band`, `confidence`, `model_version`, `feature_schema_version`, `q`, `created_at`); a separate `module_b_error_tags` child table (needed for cross-session tag aggregation); JSONB only for the genuinely variable-shape part (`feature_vector`, rule sub-score breakdown, per-rep summaries). See Stage 4.6.
+4. **`feedback_texts` table shape (Phase 6 Stage 6.5).** The new plan wants `feedback_source: "llm" | "template"` plus provider/model version fields. The architecture doc's `feedback_texts` table has `llm_used BOOLEAN` and `safety_disclaimer` instead — no `feedback_source` or model-version column exists in the current schema.
+   - **✅ Resolved:** keep `feedback_source`/`provider`/`model_version`, add `llm_attempted: bool` (so "tried and rejected" is distinguishable from "never tried" — strictly more information than `llm_used`). Drop stored `safety_disclaimer` text in favor of the existing i18n-rendered disclaimer; store `disclaimer_version` instead for audit-grade traceability without duplicating text. See Stage 6.5.
+5. **Dashboard endpoint shape (Phase 7 Stage 7.0).** The new plan specifies `GET /api/dashboard/trend?exercise_type=&from=&to=` (singular, parameterised). The architecture doc's §14.8 specifies `GET /api/dashboard/trends` (plural) and a separate `GET /api/dashboard/error-tags` endpoint. Different endpoint count and naming.
+   - **✅ Resolved:** follow the architecture doc — `GET /api/dashboard/trends` + `GET /api/dashboard/error-tags` as two endpoints. Both return their payload **keyed by `exercise_type`** in one response (not one call per exercise), so a single dashboard load covers every exercise type per the Locked Assumption that Phase 7 fixes trend/band panels for all of them. See Stage 7.0.
+
+---
+
+## Path/assumption mismatches found (non-blocking, informational)
+
+1. **`ExerciseSelection.tsx` "Module B placeholder" claim (Phase 4 Stages 4.1, 4.7).** `task_phases_4_to_7.md` says "`ExerciseSelection.tsx` already renders a Module B placeholder — replace it" as if there's a component branch to swap. Checked the actual file: it renders exercises entirely data-driven from `exerciseService.list()` against the backend exercise catalog — there is no hardcoded Module B branch in the component itself. The "placeholder" is a seeded catalog row (`module_b_placeholder_exercise`, per the architecture doc's exercise catalog table). "Replacing" it means updating that backend seed row to a real `squat` entry, not editing `ExerciseSelection.tsx`. Noted inline at both stages; does not require a decision, just a corrected mental model before implementing.
 
 ---
 
