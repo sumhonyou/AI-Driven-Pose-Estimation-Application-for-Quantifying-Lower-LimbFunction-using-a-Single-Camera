@@ -9,6 +9,10 @@ Session_Summary_Log.md
 # Local research / working docs (not for version control)
 docs/
 
+# Local agent instructions (not for version control)
+/AGENTS.md
+/rules.md
+
 # Python
 __pycache__/
 *.py[cod]
