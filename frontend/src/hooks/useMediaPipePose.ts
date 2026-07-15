@@ -32,7 +32,7 @@ async function getLandmarker(): Promise<PoseLandmarker> {
       modelAssetPath: "/models/pose_landmarker_full.task",
       // GPU delegate has a known issue where visibility/presence scores aren't
       // populated (google-ai-edge/mediapipe#4479) — CPU reports them correctly.
-      delegate: "GPU",
+      delegate: "CPU",
     },
     runningMode: "VIDEO",
     numPoses: 1,

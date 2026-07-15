@@ -6,6 +6,9 @@
 development-log.md
 Session_Summary_Log.md
 
+# Local research / working docs (not for version control)
+docs/
+
 # Python
 __pycache__/
 *.py[cod]
