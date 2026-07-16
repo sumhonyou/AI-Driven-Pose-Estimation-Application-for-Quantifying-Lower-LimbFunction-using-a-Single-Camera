@@ -3215,6 +3215,88 @@ html[data-theme="dark"] .ex-card .ex-img {
   place-items: center;
 }
 
+/* Squat live session — depth gauge (zones mirror squat/config.py's rom
+   thresholds exactly, X7/X2: no invented cutoff) + trunk-lean tilt indicator. */
+.depth-gauge-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.depth-gauge-value {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+.depth-gauge-zone-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--good-bg);
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+.depth-gauge-peak-note {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+.depth-gauge-track {
+  position: relative;
+  display: flex;
+  height: 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.depth-gauge-zone {
+  height: 100%;
+}
+.depth-gauge-zone.z-minimal {
+  background: var(--surface-2);
+}
+.depth-gauge-zone.z-shallow {
+  background: color-mix(in srgb, var(--amber) 55%, var(--surface-2));
+}
+.depth-gauge-zone.z-parallel {
+  background: color-mix(in srgb, var(--good) 55%, var(--surface-2));
+}
+.depth-gauge-zone.z-deep {
+  background: linear-gradient(90deg, var(--good), var(--lime));
+}
+.depth-gauge-marker {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--text);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--surface) 70%, transparent);
+  transform: translateX(-50%);
+  transition: left 0.2s var(--ease);
+}
+.depth-gauge-ticks {
+  position: relative;
+  height: 16px;
+  margin-top: 4px;
+}
+.depth-gauge-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
+}
 /* report */
 .report-hero {
   border-radius: var(--r-xl);

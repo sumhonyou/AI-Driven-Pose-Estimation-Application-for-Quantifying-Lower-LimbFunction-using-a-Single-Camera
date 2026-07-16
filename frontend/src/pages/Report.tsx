@@ -6,6 +6,7 @@ import { Lightbulb, ShieldCheck, History, Plus, Alert } from "../components/Icon
 import InfoTooltip from "../components/InfoTooltip";
 import { sessionService } from "../services/sessionService";
 import { moduleAService, type ModuleAResult } from "../services/moduleAService";
+import { moduleBService, type ModuleBResult } from "../services/moduleBService";
 import { wbltApi, type WbltLegTrend } from "../services/wblt/wbltApi";
 import type { SessionDTO } from "../types/api";
 import { useReveal } from "../useReveal";
@@ -53,6 +54,13 @@ function wbltTrendText(
     : t("wblt.trendNoPrevious");
 }
 
+// Maps a Module B error tag's severity to the existing `.sev` dot CSS class.
+function severityClass(severity: string | null): string {
+  if (severity === "high") return "high";
+  if (severity === "low") return "low";
+  return "med";
+}
+
 // Maps a band value to its plain-language meaning key in i18n `common`.
 function bandMeaningKey(band: string | null): string {
   switch (band) {
@@ -74,6 +82,7 @@ export default function Report() {
 
   const [session, setSession] = useState<SessionDTO | null>(null);
   const [result, setResult] = useState<ModuleAResult | null>(null);
+  const [moduleBResult, setModuleBResult] = useState<ModuleBResult | null>(null);
   const [loading, setLoading] = useState(!!sessionId);
   const [error, setError] = useState("");
   // §11 Stage 6: not part of the persisted metrics_json -- computed live from
@@ -83,27 +92,36 @@ export default function Report() {
   >({});
 
   // Re-run reveal animation after async data loads (elements don't exist on initial nav)
-  useReveal([result]);
+  useReveal([result, moduleBResult]);
 
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
     (async () => {
       try {
-        const [sessionData, resultData] = await Promise.all([
-          sessionService.get(sessionId),
-          moduleAService.get(sessionId),
-        ]);
+        // Session first, since it decides whether this is a Module A or Module B
+        // result — the two live on different endpoints with different shapes.
+        const sessionData = await sessionService.get(sessionId);
         if (cancelled) return;
         setSession(sessionData);
-        setResult(resultData);
-        console.log(`[Report] Loaded session ${sessionId} — band=${resultData.band}`);
-        if (sessionData.exercise_type?.includes("lunge")) {
-          try {
-            const summary = await wbltApi.session(sessionId);
-            if (!cancelled) setWbltTrend(summary.trend);
-          } catch {
-            // Non-fatal: report still renders without the trend row.
+
+        if (sessionData.exercise_type === "squat") {
+          const moduleBData = await moduleBService.get(sessionId);
+          if (cancelled) return;
+          setModuleBResult(moduleBData);
+          console.log(`[Report] Loaded Module B session ${sessionId} — band=${moduleBData.band}`);
+        } else {
+          const resultData = await moduleAService.get(sessionId);
+          if (cancelled) return;
+          setResult(resultData);
+          console.log(`[Report] Loaded session ${sessionId} — band=${resultData.band}`);
+          if (sessionData.exercise_type?.includes("lunge")) {
+            try {
+              const summary = await wbltApi.session(sessionId);
+              if (!cancelled) setWbltTrend(summary.trend);
+            } catch {
+              // Non-fatal: report still renders without the trend row.
+            }
           }
         }
       } catch (err) {
@@ -118,8 +136,15 @@ export default function Report() {
     };
   }, [sessionId, t]);
 
-  const band = result?.band ?? null;
-  const score = result?.score ?? 0;
+  // Session's exercise_type decides which of Module A's `result` or Module B's
+  // `moduleBResult` is the live one — the two responses have different shapes
+  // (Phase 3E Stage 2's lesson: a wrong-panel bug was silent before; see the test).
+  const isModuleB = session?.exercise_type === "squat";
+  const band = isModuleB ? (moduleBResult?.band?.toLowerCase() ?? null) : (result?.band ?? null);
+  const score = isModuleB ? (moduleBResult?.score ?? 0) : (result?.score ?? 0);
+  const captureQualityBandTop = isModuleB
+    ? (moduleBResult?.metrics.capture_quality.capture_quality_band ?? null)
+    : (result?.capture_quality_band ?? null);
   const r = 66,
     c = 2 * Math.PI * r,
     pct = Math.max(0, Math.min(1, score / 10));
@@ -133,6 +158,36 @@ export default function Report() {
   const wbltLegs = result?.metrics.legs;
   const hasWbltLegs = !!(wbltLegs && (wbltLegs.right || wbltLegs.left));
   const symmetry = result?.metrics.symmetry;
+
+  // Module B: the three rule sub-scores broken out, plus the ML/confidence/capture
+  // figures the checklist asks for — reuses the same "sub-score" row shape as
+  // Module A's metricRows below, just from moduleBResult instead of result.
+  const moduleBRows = moduleBResult
+    ? [
+        ...moduleBResult.metrics.rule_subscores.map((s) => ({
+          label: t(("moduleB.subscore_" + s.code) as never, { defaultValue: s.code }),
+          value: s.score != null ? `${s.score.toFixed(1)}/10` : "—",
+        })),
+        {
+          label: t("report.mlPred"),
+          value:
+            moduleBResult.metrics.ml_score != null
+              ? `${moduleBResult.metrics.ml_score.toFixed(1)}/10`
+              : "—",
+        },
+        {
+          label: t("report.confidence"),
+          value:
+            moduleBResult.confidence != null
+              ? `${Math.round(moduleBResult.confidence * 100)}%`
+              : "—",
+        },
+        {
+          label: t("report.captureQualityBand"),
+          value: t("common." + moduleBResult.metrics.capture_quality.capture_quality_band),
+        },
+      ]
+    : [];
 
   const metricRows =
     result && session && !isWblt
@@ -227,9 +282,9 @@ export default function Report() {
         </p>
       )}
 
-      {result && (
+      {(result || moduleBResult) && (
         <>
-          {result.session_status !== "complete" && (
+          {!isModuleB && result && result.session_status !== "complete" && (
             <div className="dash-note reveal" style={{ marginBottom: 18 }}>
               <Alert />
               <span>
@@ -251,6 +306,15 @@ export default function Report() {
                           valid: result.metrics.rep_count,
                           target: result.metrics.target_rep_count,
                         })}
+              </span>
+            </div>
+          )}
+
+          {isModuleB && moduleBResult?.metrics.placeholder_model_notice && (
+            <div className="dash-note reveal" style={{ marginBottom: 18 }}>
+              <Alert />
+              <span>
+                {t("report.moduleBPlaceholderNotice", { version: moduleBResult.model_version })}
               </span>
             </div>
           )}
@@ -301,13 +365,13 @@ export default function Report() {
                 >
                   {t("common." + band)}
                 </span>
-                {result.is_partial_score && (
+                {!isModuleB && result?.is_partial_score && (
                   <span className="pill">{t("report.partialScoreLabel")}</span>
                 )}
                 <InfoTooltip text={t(bandMeaningKey(band))} label={t("report.bandInfoLabel")} />
                 <span className="pill">
                   <ShieldCheck width={16} height={16} style={{ color: "var(--emerald)" }} />
-                  {t("report.captureQualityBand")}: {t("common." + result.capture_quality_band)}
+                  {t("report.captureQualityBand")}: {t("common." + captureQualityBandTop)}
                 </span>
                 <InfoTooltip
                   text={t("report.captureQualityMeaning")}
@@ -330,11 +394,30 @@ export default function Report() {
 
           <div style={{ marginBottom: 8 }}>
             <span className="eyebrow">
-              {t(isWblt ? "report.wbltMetrics" : isSls ? "report.slsMetrics" : "report.metrics")}
+              {t(
+                isModuleB
+                  ? "report.squatMetrics"
+                  : isWblt
+                    ? "report.wbltMetrics"
+                    : isSls
+                      ? "report.slsMetrics"
+                      : "report.metrics",
+              )}
             </span>
           </div>
 
-          {hasWbltLegs ? (
+          {isModuleB ? (
+            <div className="sub-scores" style={{ marginBottom: 18 }}>
+              {moduleBRows.map((row) => (
+                <div className="sub-score reveal" key={row.label}>
+                  <div className="ss-top">
+                    <b>{row.label}</b>
+                    <span>{row.value}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : hasWbltLegs ? (
             <>
               <div className="dash-grid-2" style={{ marginBottom: 18 }}>
                 {(["right", "left"] as const).map((leg) => {
@@ -516,58 +599,82 @@ export default function Report() {
             </div>
           )}
 
-          <div className="dash-grid-2" style={{ marginBottom: 18 }}>
-            <div className="panel reveal">
+          {isModuleB ? (
+            <div className="panel reveal" style={{ marginBottom: 18 }}>
               <div className="panel-head" style={{ marginBottom: 16 }}>
-                <div>
-                  <h3>{t("report.coaching")}</h3>
-                </div>
-                <span
-                  className="mi"
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 10,
-                    display: "grid",
-                    placeItems: "center",
-                    background: "var(--good-bg)",
-                    color: "var(--accent-text)",
-                  }}
-                >
-                  <Lightbulb width={19} height={19} />
-                </span>
-              </div>
-              <div className="feedback-box">
-                <div className="fb-label">{t("common.ai")}</div>
-                {t("report.coachingBody")}
-              </div>
-            </div>
-            <div className="panel reveal">
-              <div className="panel-head" style={{ marginBottom: 16 }}>
-                <div>
-                  <h3>{t("report.warnings")}</h3>
-                </div>
+                <h3>{t("report.errorTags")}</h3>
               </div>
               <div className="tags">
-                {result.warning_tags.length === 0 && (
+                {moduleBResult?.error_tags.length === 0 && (
                   <span className="tag">
                     <span className="sev low" />
                     {t("report.noWarnings")}
                   </span>
                 )}
-                {result.warning_tags.map((tag) => (
-                  <span className="tag" key={tag}>
-                    <span className="sev med" />
-                    {t(("report.warn_" + tag) as never, { defaultValue: tag })}
+                {moduleBResult?.error_tags.map((tag) => (
+                  <span className="tag" key={tag.tag}>
+                    <span className={"sev " + severityClass(tag.severity)} />
+                    {t(("moduleB.tag_" + tag.tag) as never, { defaultValue: tag.tag })}
                   </span>
                 ))}
               </div>
             </div>
-          </div>
+          ) : (
+            result && (
+              <div className="dash-grid-2" style={{ marginBottom: 18 }}>
+                <div className="panel reveal">
+                  <div className="panel-head" style={{ marginBottom: 16 }}>
+                    <div>
+                      <h3>{t("report.coaching")}</h3>
+                    </div>
+                    <span
+                      className="mi"
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 10,
+                        display: "grid",
+                        placeItems: "center",
+                        background: "var(--good-bg)",
+                        color: "var(--accent-text)",
+                      }}
+                    >
+                      <Lightbulb width={19} height={19} />
+                    </span>
+                  </div>
+                  <div className="feedback-box">
+                    <div className="fb-label">{t("common.ai")}</div>
+                    {t("report.coachingBody")}
+                  </div>
+                </div>
+                <div className="panel reveal">
+                  <div className="panel-head" style={{ marginBottom: 16 }}>
+                    <div>
+                      <h3>{t("report.warnings")}</h3>
+                    </div>
+                  </div>
+                  <div className="tags">
+                    {result.warning_tags.length === 0 && (
+                      <span className="tag">
+                        <span className="sev low" />
+                        {t("report.noWarnings")}
+                      </span>
+                    )}
+                    {result.warning_tags.map((tag) => (
+                      <span className="tag" key={tag}>
+                        <span className="sev med" />
+                        {t(("report.warn_" + tag) as never, { defaultValue: tag })}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          )}
         </>
       )}
 
-      {!result && (
+      {!result && !moduleBResult && (
         <div className="dash-note reveal">
           <Alert />
           <span>{t("report.disclaimer")}</span>

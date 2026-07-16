@@ -4,8 +4,16 @@ from uuid import UUID as PyUUID
 from uuid import uuid4
 
 from app.db.database import Base
-from sqlalchemy import (Boolean, DateTime, ForeignKey, Integer, Numeric,
-                        String, Text, func)
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -135,6 +143,9 @@ class Session(Base):
     module_b_result: Mapped["ModuleBResult | None"] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
+    module_b_error_tags: Mapped[list["ModuleBErrorTag"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
     feedback_text: Mapped["FeedbackText | None"] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
@@ -228,6 +239,8 @@ class ModuleALandmarkLog(Base):
 
 
 class ModuleBResult(Base):
+    """Hybrid Module B result: queryable summary plus exercise-shaped JSON metrics."""
+
     __tablename__ = "module_b_results"
 
     id: Mapped[PyUUID] = mapped_column(
@@ -237,47 +250,47 @@ class ModuleBResult(Base):
         PgUUID(as_uuid=True),
         ForeignKey("sessions.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
+        index=True,
     )
-    rule_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    ml_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    final_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    final_band: Mapped[str | None] = mapped_column(String(50))
-    ml_label: Mapped[str | None] = mapped_column(String(50))
-    ml_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
-    rom_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    tempo_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    stability_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    fusion_weights_json: Mapped[dict | None] = mapped_column(JSONB)
-    feature_summary_json: Mapped[dict | None] = mapped_column(JSONB)
+    exercise_code: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    band: Mapped[str | None] = mapped_column(String(50))
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    model_version: Mapped[str | None] = mapped_column(String(100))
+    feature_schema_version: Mapped[str | None] = mapped_column(String(20))
+    q: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    metrics_json: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     session: Mapped[Session] = relationship(back_populates="module_b_result")
-    error_tags: Mapped[list["ErrorTag"]] = relationship(
-        back_populates="module_b_result", cascade="all, delete-orphan"
-    )
 
 
-class ErrorTag(Base):
-    __tablename__ = "error_tags"
+class ModuleBErrorTag(Base):
+    """One queryable Module B tag, attached directly to the owning session."""
+
+    __tablename__ = "module_b_error_tags"
 
     id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True), primary_key=True, default=uuid4
     )
-    module_b_result_id: Mapped[PyUUID] = mapped_column(
+    session_id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True),
-        ForeignKey("module_b_results.id", ondelete="CASCADE"),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
-    tag_code: Mapped[str] = mapped_column(String(100), nullable=False)
+    tag: Mapped[str] = mapped_column(String(100), nullable=False)
     severity: Mapped[str | None] = mapped_column(String(50))
+    source: Mapped[str | None] = mapped_column(String(20))
     message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    module_b_result: Mapped[ModuleBResult] = relationship(back_populates="error_tags")
+    session: Mapped[Session] = relationship(back_populates="module_b_error_tags")
 
 
 class FeedbackText(Base):

@@ -1,0 +1,479 @@
+// Squat live session: an unlimited-rep continuous set (no clinical rep target
+// exists for squat, unlike STS's 5 reps). The whole buffered set is posted once
+// to POST /api/module-b/analyze when the user clicks "Finish Set" -- the backend
+// segments reps and grades the set server-side; the live rep counter here is a
+// client-side UX estimate only (squatLiveEstimate.ts), never authoritative.
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import PoseCanvas from "../../components/PoseCanvas";
+import CaptureQualityBadge from "../../components/CaptureQualityBadge";
+import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
+import { Close, Target } from "../../components/Icons";
+import { sessionService } from "../../services/sessionService";
+import { moduleBService } from "../../services/moduleBService";
+import { useSessionFlow } from "../../session";
+import { useWebcam } from "../../hooks/useWebcam";
+import { useMediaPipePose } from "../../hooks/useMediaPipePose";
+import { useSessionRecorder } from "../../hooks/useSessionRecorder";
+import { computeFrameQuality } from "../../utils/captureQuality";
+import {
+  createSquatLiveEstimator,
+  depthGaugePct,
+  depthZoneFor,
+  fetchSquatLiveConfig,
+  FALLBACK_SQUAT_LIVE_CONFIG,
+  type SquatBandEstimate,
+  type SquatLiveConfig,
+} from "../../utils/squat/squatLiveEstimate";
+import goodRepSrc from "../../assets/sound effect/Rep correct sound effect.mp3";
+
+type Stage = "setup" | "recording" | "posting";
+
+/** Motivational-only target choices; never sent to the backend or grading (§ user decision 2026-07-16). */
+const TARGET_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80];
+
+/** How long without a meaningful flexion change counts as "no movement". */
+const INACTIVITY_TIMEOUT_MS = 9000;
+/** Minimum frame-to-frame flexion change (deg) that counts as motion. */
+const MOTION_EPSILON_DEG = 2;
+
+export default function SquatLiveSessionPage() {
+  const { t } = useTranslation();
+  const nav = useNavigate();
+  const { sessionId } = useSessionFlow();
+
+  const [stage, setStage] = useState<Stage>("setup");
+  const [targetReps, setTargetReps] = useState<number | null>(null);
+  const [repCount, setRepCount] = useState(0);
+  const [sec, setSec] = useState(0);
+  const [error, setError] = useState("");
+  const [ending, setEnding] = useState(false);
+  const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
+  const [showTargetHitPrompt, setShowTargetHitPrompt] = useState(false);
+
+  // Live angle readouts — display only, mirroring squatLiveEstimate.ts's estimator
+  // state so the panel can show exactly what the FSM is currently tracking.
+  const [kneeFlexionDeg, setKneeFlexionDeg] = useState(0);
+  const [trunkLeanDeg, setTrunkLeanDeg] = useState(0);
+  const [repPeakFlexionDeg, setRepPeakFlexionDeg] = useState<number | null>(null);
+  const [lastRepPeakDeg, setLastRepPeakDeg] = useState<number | null>(null);
+  const [lastRepPeakTrunkLeanDeg, setLastRepPeakTrunkLeanDeg] = useState<number | null>(null);
+  const [lastRepBand, setLastRepBand] = useState<SquatBandEstimate>(null);
+  // Live thresholds for the depth gauge's zone boundaries — state (not a ref) so
+  // the gauge re-renders once the real backend config arrives (X7).
+  const [liveConfig, setLiveConfig] = useState<SquatLiveConfig>(FALLBACK_SQUAT_LIVE_CONFIG);
+
+  const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
+  const { landmarks, worldLandmarks } = useMediaPipePose(videoRef, webcamReady);
+  const recorder = useSessionRecorder();
+  const captureQuality = computeFrameQuality(landmarks ?? []);
+
+  const estimatorRef = useRef(createSquatLiveEstimator());
+  const finishingRef = useRef(false);
+  const lastMotionMsRef = useRef(0);
+  const previousFlexionRef = useRef(0);
+  const hasPromptedTargetHitRef = useRef(false);
+  const goodRepAudio = useRef(new Audio(goodRepSrc));
+  // Last *rendered* (rounded) angle values — guards the per-frame setState calls
+  // below so a frame whose rounded display value hasn't changed never re-renders.
+  // Without this, ~30-60 setState calls/sec on 3 state variables can cascade into
+  // React's "Maximum update depth exceeded" safety trip.
+  const lastRenderedKneeDegRef = useRef(0);
+  const lastRenderedTrunkLeanDegRef = useRef(0);
+  const lastRenderedRepPeakDegRef = useRef<number | null>(null);
+
+  // Fetch live thresholds once so the on-screen rep/band estimate matches the
+  // backend's official squat config (X7 -- local constants are fallback only).
+  useEffect(() => {
+    fetchSquatLiveConfig().then((config) => {
+      setLiveConfig(config);
+      estimatorRef.current = createSquatLiveEstimator(config);
+    });
+  }, []);
+
+  function startSet() {
+    estimatorRef.current = createSquatLiveEstimator(liveConfig);
+    recorder.start();
+    setRepCount(0);
+    setSec(0);
+    setShowInactivityPrompt(false);
+    setShowTargetHitPrompt(false);
+    hasPromptedTargetHitRef.current = false;
+    lastMotionMsRef.current = performance.now();
+    setKneeFlexionDeg(0);
+    setTrunkLeanDeg(0);
+    setRepPeakFlexionDeg(null);
+    lastRenderedKneeDegRef.current = 0;
+    lastRenderedTrunkLeanDegRef.current = 0;
+    lastRenderedRepPeakDegRef.current = null;
+    setLastRepPeakDeg(null);
+    setLastRepPeakTrunkLeanDeg(null);
+    setLastRepBand(null);
+    setStage("recording");
+  }
+
+  // Buffer frames + run the live rep estimator only while recording.
+  useEffect(() => {
+    if (!landmarks || stage !== "recording") return;
+    const now = performance.now();
+    recorder.record(
+      { timestampMs: now, landmarks, worldLandmarks: worldLandmarks ?? [] },
+      captureQuality,
+    );
+    if (worldLandmarks) {
+      const update = estimatorRef.current.update(worldLandmarks, now);
+      if (Math.abs(update.currentFlexionDeg - previousFlexionRef.current) > MOTION_EPSILON_DEG) {
+        lastMotionMsRef.current = now;
+      }
+      previousFlexionRef.current = update.currentFlexionDeg;
+
+      const roundedKnee = Math.round(update.currentFlexionDeg);
+      if (roundedKnee !== lastRenderedKneeDegRef.current) {
+        lastRenderedKneeDegRef.current = roundedKnee;
+        setKneeFlexionDeg(update.currentFlexionDeg);
+      }
+      const roundedTrunkLean = Math.round(update.currentTrunkLeanDeg);
+      if (roundedTrunkLean !== lastRenderedTrunkLeanDegRef.current) {
+        lastRenderedTrunkLeanDegRef.current = roundedTrunkLean;
+        setTrunkLeanDeg(update.currentTrunkLeanDeg);
+      }
+      const roundedRepPeak =
+        update.currentRepPeakFlexionDeg != null
+          ? Math.round(update.currentRepPeakFlexionDeg)
+          : null;
+      if (roundedRepPeak !== lastRenderedRepPeakDegRef.current) {
+        lastRenderedRepPeakDegRef.current = roundedRepPeak;
+        setRepPeakFlexionDeg(update.currentRepPeakFlexionDeg);
+      }
+
+      if (update.repJustCompleted) {
+        setRepCount(update.repCount);
+        setLastRepPeakDeg(update.lastRepPeakDeg);
+        setLastRepPeakTrunkLeanDeg(update.lastRepPeakTrunkLeanDeg);
+        setLastRepBand(update.lastRepBandEstimate);
+        goodRepAudio.current.currentTime = 0;
+        goodRepAudio.current.play().catch(() => {});
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [landmarks, stage]);
+
+  // Session timer.
+  useEffect(() => {
+    if (stage !== "recording") return;
+    const id = window.setInterval(() => setSec((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [stage]);
+
+  // Inactivity safety net: never auto-submits, only prompts.
+  useEffect(() => {
+    if (stage !== "recording" || repCount < 1 || showInactivityPrompt) return;
+    const id = window.setInterval(() => {
+      if (performance.now() - lastMotionMsRef.current >= INACTIVITY_TIMEOUT_MS) {
+        setShowInactivityPrompt(true);
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [stage, repCount, showInactivityPrompt]);
+
+  // Optional target-hit prompt: fires once, never auto-finishes.
+  useEffect(() => {
+    if (targetReps && repCount >= targetReps && !hasPromptedTargetHitRef.current) {
+      hasPromptedTargetHitRef.current = true;
+      setShowTargetHitPrompt(true);
+    }
+  }, [repCount, targetReps]);
+
+  function dismissInactivityPrompt() {
+    lastMotionMsRef.current = performance.now();
+    setShowInactivityPrompt(false);
+  }
+
+  async function finishSet() {
+    if (finishingRef.current || !sessionId) return;
+    finishingRef.current = true;
+    setShowInactivityPrompt(false);
+    setShowTargetHitPrompt(false);
+    setStage("posting");
+    try {
+      const { frames, score, validFrameRatio } = recorder.summary();
+      await moduleBService.analyze(sessionId, "squat", frames);
+      await sessionService.end(sessionId, {
+        capture_quality: score,
+        valid_frame_ratio: validFrameRatio,
+      });
+      nav(`/report?session=${sessionId}`);
+    } catch (err) {
+      console.error("[SquatLiveSessionPage] Finish set failed", err);
+      setError(err instanceof Error ? err.message : t("live.endError"));
+      finishingRef.current = false;
+      setStage("recording");
+    }
+  }
+
+  async function handleCancel() {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
+    setEnding(true);
+    try {
+      if (sessionId) await sessionService.cancel(sessionId);
+    } catch (err) {
+      console.error("[SquatLiveSessionPage] Cancel failed", err);
+    } finally {
+      nav("/exercise");
+    }
+  }
+
+  if (!sessionId) {
+    return <p className="muted">{t("live.noSession")}</p>;
+  }
+
+  const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
+  const pct = targetReps
+    ? Math.min(100, (repCount / targetReps) * 100)
+    : Math.min(100, repCount * 10);
+
+  // Depth-gauge zone boundaries, as % of the gauge's full range — identical
+  // thresholds to squat/config.py's rules.rom (X7: config-driven, never inline).
+  const shallowPct = (liveConfig.romShallowStartDeg / liveConfig.romDeepFullScoreDeg) * 100;
+  const parallelPct = (liveConfig.romParallelStartDeg / liveConfig.romDeepFullScoreDeg) * 100;
+  const deepPct = (liveConfig.romDeepStartDeg / liveConfig.romDeepFullScoreDeg) * 100;
+  const currentZone = depthZoneFor(kneeFlexionDeg, liveConfig);
+
+  return (
+    <>
+      {stage === "posting" && <GeneratingReportOverlay />}
+      {showInactivityPrompt &&
+        createPortal(
+          <div className="sls-modal-overlay" role="dialog" aria-modal="true">
+            <div className="sls-modal-card">
+              <h3>{t("squat.inactivityTitle")}</h3>
+              <p className="muted">{t("squat.inactivityBody")}</p>
+              <div className="sls-modal-actions">
+                <button className="btn btn-ghost btn-block" onClick={dismissInactivityPrompt}>
+                  {t("squat.continueSet")}
+                </button>
+                <button className="btn btn-primary btn-block" onClick={() => void finishSet()}>
+                  {t("squat.finishSet")}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+      {showTargetHitPrompt &&
+        createPortal(
+          <div className="sls-modal-overlay" role="dialog" aria-modal="true">
+            <div className="sls-modal-card">
+              <h3>{t("squat.targetHitTitle", { target: targetReps })}</h3>
+              <p className="muted">{t("squat.targetHitBody")}</p>
+              <div className="sls-modal-actions">
+                <button
+                  className="btn btn-ghost btn-block"
+                  onClick={() => setShowTargetHitPrompt(false)}
+                >
+                  {t("squat.continueSet")}
+                </button>
+                <button className="btn btn-primary btn-block" onClick={() => void finishSet()}>
+                  {t("squat.finishSet")}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      <div className="topbar">
+        <div>
+          <h1>{t("squat.reportTitle")}</h1>
+          <p>{t("squat.livePrompt")}</p>
+        </div>
+        <div className="topbar-actions">
+          <button className="btn btn-cancel" onClick={handleCancel} disabled={ending}>
+            <Close />
+            {ending ? t("common.loading") : t("live.cancel")}
+          </button>
+        </div>
+      </div>
+      {error && (
+        <p className="muted" style={{ color: "var(--coral)", marginBottom: 18 }}>
+          {error}
+        </p>
+      )}
+
+      <div className="cam-grid">
+        <div className="cam-stage reveal">
+          <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
+          <PoseCanvas
+            videoRef={videoRef}
+            setVideoRef={setVideoRef}
+            landmarks={landmarks}
+            webcamReady={webcamReady}
+            webcamError={webcamError}
+          />
+        </div>
+
+        <div className="stack" style={{ gap: 18 }}>
+          <div className="live-hud">
+            <div className="hud-card reveal">
+              <div className="hl2">{t("live.timer")}</div>
+              <div className="hv">
+                {mm}:{ss}
+              </div>
+            </div>
+            <div className="hud-card reveal">
+              <div className="hl2">{t("live.reps")}</div>
+              <div className="hv">{repCount}</div>
+            </div>
+          </div>
+
+          {stage === "recording" && (
+            <div className="panel">
+              <div className="panel-head" style={{ marginBottom: 14 }}>
+                <h3>{t("squat.liveAnglesTitle")}</h3>
+              </div>
+
+              <div className="depth-gauge-head">
+                <span className="knee-metric-label" style={{ maxWidth: "none" }}>
+                  {t("squat.kneeDepthLabel")}
+                </span>
+                <span className="depth-gauge-value">
+                  {Math.round(kneeFlexionDeg)}°
+                  <span className="depth-gauge-zone-chip">
+                    {t("squat.depthZone_" + currentZone)}
+                  </span>
+                </span>
+              </div>
+              {repPeakFlexionDeg != null && (
+                <span className="depth-gauge-peak-note">
+                  {t("squat.repPeakSoFar", { deg: Math.round(repPeakFlexionDeg) })}
+                </span>
+              )}
+              <div className="depth-gauge-track">
+                <span className="depth-gauge-zone z-minimal" style={{ width: `${shallowPct}%` }} />
+                <span
+                  className="depth-gauge-zone z-shallow"
+                  style={{ width: `${parallelPct - shallowPct}%` }}
+                />
+                <span
+                  className="depth-gauge-zone z-parallel"
+                  style={{ width: `${deepPct - parallelPct}%` }}
+                />
+                <span className="depth-gauge-zone z-deep" style={{ width: `${100 - deepPct}%` }} />
+                <span
+                  className="depth-gauge-marker"
+                  style={{ left: `${depthGaugePct(kneeFlexionDeg, liveConfig)}%` }}
+                />
+              </div>
+              <div className="depth-gauge-ticks">
+                <span style={{ left: `${shallowPct}%` }}>{t("squat.depthZone_shallow")}</span>
+                <span style={{ left: `${parallelPct}%` }}>{t("squat.depthZone_parallel")}</span>
+                <span style={{ left: `${deepPct}%` }}>{t("squat.depthZone_deep")}</span>
+              </div>
+
+              <div className="knee-metrics">
+                <div className="knee-metric-card">
+                  <div>
+                    <span className="knee-metric-label">{t("squat.trunkLeanLabel")}</span>
+                    <strong>{Math.round(trunkLeanDeg)}°</strong>
+                  </div>
+                </div>
+                <div className="knee-metric-card">
+                  <div>
+                    <span className="knee-metric-label">{t("squat.lastRepDepthLabel")}</span>
+                    <strong>
+                      {lastRepPeakDeg != null ? `${Math.round(lastRepPeakDeg)}°` : "—"}
+                    </strong>
+                    {lastRepBand && (
+                      <span
+                        className={"band " + lastRepBand.toLowerCase()}
+                        style={{ marginTop: 8, display: "inline-block" }}
+                      >
+                        {t("common." + lastRepBand.toLowerCase())}
+                      </span>
+                    )}
+                    {lastRepPeakTrunkLeanDeg != null && (
+                      <span
+                        className="knee-metric-label"
+                        style={{ display: "block", marginTop: 8, fontWeight: 500 }}
+                      >
+                        {t("squat.lastRepTrunkLean", { deg: Math.round(lastRepPeakTrunkLeanDeg) })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <p className="muted" style={{ fontSize: "0.74rem", marginTop: 12 }}>
+                {t("squat.liveAngleGuidanceNote")}
+              </p>
+            </div>
+          )}
+
+          <div className="panel reveal">
+            <div className="panel-head" style={{ marginBottom: 14 }}>
+              <h3>{t("live.liveBand")}</h3>
+            </div>
+
+            {stage === "setup" ? (
+              <>
+                <p className="muted" style={{ marginBottom: 14 }}>
+                  {t("squat.setupTargetPrompt")}
+                </p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+                  <Target width={18} height={18} />
+                  <select
+                    className="select"
+                    value={targetReps ?? ""}
+                    onChange={(e) => setTargetReps(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">{t("squat.noTarget")}</option>
+                    {TARGET_OPTIONS.map((n) => (
+                      <option key={n} value={n}>
+                        {t("squat.targetOption", { n })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button className="btn btn-primary btn-block" onClick={startSet}>
+                  {t("squat.startSet")}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="sls-live-status-box">
+                  <span className="sls-live-status-text">
+                    {targetReps
+                      ? t("squat.repOfTarget", { rep: repCount, target: targetReps })
+                      : t("squat.repCounted", { rep: repCount })}
+                  </span>
+                </div>
+                <div className="track" style={{ height: 12 }}>
+                  <div
+                    className="fill good"
+                    style={{ width: pct + "%", transition: "width .5s var(--ease)" }}
+                  />
+                </div>
+                <p className="muted" style={{ fontSize: "0.82rem", marginTop: 10 }}>
+                  {t("squat.finishWhenReady")}
+                </p>
+                <div style={{ marginTop: 20 }}>
+                  <button
+                    className="btn btn-primary btn-block"
+                    onClick={() => void finishSet()}
+                    disabled={stage !== "recording"}
+                  >
+                    {t("squat.finishSet")}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

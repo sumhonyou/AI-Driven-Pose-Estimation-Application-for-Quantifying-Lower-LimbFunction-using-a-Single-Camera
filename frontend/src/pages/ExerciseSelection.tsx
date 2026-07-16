@@ -10,6 +10,8 @@ import type { Exercise } from "../types/api";
 import slsImage from "../assets/exercise type/Single Leg Stance pic.png";
 import stsImage from "../assets/exercise type/sit to stand.png";
 import wbltImage from "../assets/exercise type/WBLT.png";
+import squatImage from "../assets/exercise type/Squat.png";
+import lungeImage from "../assets/exercise type/Leg Lunge.png";
 
 export default function ExerciseSelection() {
   const { t } = useTranslation();
@@ -44,7 +46,11 @@ export default function ExerciseSelection() {
   const imageFor = (code: string): string | null => {
     if (code.includes("single_leg")) return slsImage;
     if (code.includes("sit_to_stand") || code.includes("sit-to-stand")) return stsImage;
-    if (code.includes("lunge") || code.includes("wblt")) return wbltImage;
+    if (code === "squat") return squatImage;
+    // Exact "lunge" is the Module B placeholder card; the WBLT functional check
+    // ("weight_bearing_lunge_test") also contains "lunge", so it must be checked first.
+    if (code.includes("wblt") || code === "weight_bearing_lunge_test") return wbltImage;
+    if (code.includes("lunge")) return lungeImage;
     return null;
   };
 
@@ -57,6 +63,8 @@ export default function ExerciseSelection() {
 
   const repInfoFor = (code: string) => {
     if (code.includes("single_leg")) return t("exercise.hold");
+    if (code === "squat") return t("exercise.repsUnlimited");
+    if (code === "lunge") return t("exercise.comingSoon");
     if (code.includes("lunge")) return t("exercise.trials");
     return t("exercise.reps");
   };
@@ -82,10 +90,15 @@ export default function ExerciseSelection() {
         </p>
       )}
 
-      <div className={"ex-grid" + (mode === "functional" ? " bento" : "")}>
+      <div
+        className={
+          "ex-grid" +
+          (mode === "functional" || exercises.some((e) => imageFor(e.code)) ? " bento" : "")
+        }
+      >
         {exercises.map((exercise) =>
-          mode === "functional" ? (
-            /* Functional mode: image-dominant bento card */
+          imageFor(exercise.code) ? (
+            /* Image-dominant bento card — reused as-is for any exercise with a real thumbnail. */
             <Link
               className="ex-card reveal"
               to="/camera"
@@ -93,13 +106,11 @@ export default function ExerciseSelection() {
               onClick={() => setExerciseCode(exercise.code)}
             >
               <div className="ex-img">
-                {imageFor(exercise.code) && (
-                  <img
-                    src={imageFor(exercise.code)!}
-                    alt={exercise.name}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                )}
+                <img
+                  src={imageFor(exercise.code)!}
+                  alt={exercise.name}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
                 <span className="ex-go">
                   <ArrowRight width={14} height={14} />
                 </span>
@@ -113,7 +124,10 @@ export default function ExerciseSelection() {
                 </span>
                 <h3>{exercise.name}</h3>
                 <div className="ex-meta">
-                  <span className="chip">{t("common.functional")}</span>
+                  <span className="chip">
+                    {t("common." + (mode === "functional" ? "functional" : "rehab"))}
+                  </span>
+                  {mode === "rehab" && <span className="chip">{t("exercise.configurable")}</span>}
                 </div>
               </div>
             </Link>

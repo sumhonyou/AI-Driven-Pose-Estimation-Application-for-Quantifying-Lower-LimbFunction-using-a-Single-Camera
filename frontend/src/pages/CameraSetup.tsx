@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import stsDemoSrc from "../assets/videos/sit to stand.mp4";
 import slsDemoSrc from "../assets/videos/Balance & Flexibility_ Single Leg Stance Test and Side Leg Raises.mp4";
 import wbltDemoSrc from "../assets/videos/(WBLT) Knee to Wall Dorsiflexion Lunge Test for the Ankle.mp4";
+import squatDemoSrc from "../assets/videos/Squat.mp4";
+import lungeDemoSrc from "../assets/videos/Leg Lunge.mp4";
 import { DashTopbar } from "../layouts/DashboardLayout";
 import PoseCanvas from "../components/PoseCanvas";
 import CaptureQualityBadge from "../components/CaptureQualityBadge";
@@ -53,7 +55,14 @@ export default function CameraSetup() {
 
   // Real webcam + pose
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
-  const { landmarks, ready: poseReady, fps } = useMediaPipePose(videoRef, webcamReady);
+  // Stop the (CPU-heavy, per-frame) pose detection loop the instant the session has
+  // started — otherwise it keeps competing with the in-flight session-start request
+  // for the main thread, making navigation to the live page feel stuck/delayed.
+  const {
+    landmarks,
+    ready: poseReady,
+    fps,
+  } = useMediaPipePose(videoRef, webcamReady && !hasAutoStarted);
 
   // Full-body capture quality (head, torso, legs, feet) — stricter than the live-session badge.
   const hasLandmarks = !!landmarks && landmarks.length > 0;
@@ -64,6 +73,10 @@ export default function CameraSetup() {
   const viewGuidance = getViewGuidance(exerciseCode);
   const isSls = !!exerciseCode?.includes("single_leg");
   const isWblt = !!(exerciseCode?.includes("lunge") || exerciseCode?.includes("wblt"));
+  const isSquat = exerciseCode === "squat";
+  // Placeholder-only: Phase 5B's Module B lunge plugin/live page don't exist yet
+  // (task.md Stage 4.7 is squat-only). This exact code is reserved for it.
+  const isLungePlaceholder = exerciseCode === "lunge";
 
   const guidanceSteps = isSls
     ? [
@@ -74,16 +87,26 @@ export default function CameraSetup() {
       ]
     : isWblt
       ? [t("wblt.setupGuidanceSide"), t("wblt.setupGuidanceDistance"), t("wblt.setupGuidanceLunge")]
-      : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
+      : isSquat
+        ? [
+            t("squat.setupGuidanceSide"),
+            t("squat.setupGuidanceSpace"),
+            t("squat.setupGuidancePace"),
+          ]
+        : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
 
   // Pick the tutorial clip per exercise; null hides the demo panel.
   const demoSrc = isSls
     ? slsDemoSrc
     : isWblt
       ? wbltDemoSrc
-      : exerciseCode === "sit_to_stand"
-        ? stsDemoSrc
-        : null;
+      : isSquat
+        ? squatDemoSrc
+        : isLungePlaceholder
+          ? lungeDemoSrc
+          : exerciseCode === "sit_to_stand"
+            ? stsDemoSrc
+            : null;
 
   // Log FPS once pose model is ready
   useEffect(() => {
@@ -115,7 +138,7 @@ export default function CameraSetup() {
         device_info: navigator.userAgent,
       });
       setSessionId(response.session_id);
-      nav(isSls ? "/sls/live" : isWblt ? "/wblt/live" : "/sts/live");
+      nav(isSls ? "/sls/live" : isWblt ? "/wblt/live" : isSquat ? "/squat/live" : "/sts/live");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("camera.startError"));
       startedRef.current = false;
@@ -131,7 +154,9 @@ export default function CameraSetup() {
   // "ready" while silently never firing if exerciseCode was lost (e.g. a page reload). Instead
   // we always let the timer run, and beginSession() itself reports a clear error if the
   // exercise is missing.
-  const autoStartEnabled = webcamReady && poseReady && !hasAutoStarted;
+  // Lunge is a placeholder-only card (no live page/backend plugin yet) -- never
+  // auto-start into a broken session; the Start button is hidden for it too.
+  const autoStartEnabled = webcamReady && poseReady && !hasAutoStarted && !isLungePlaceholder;
   const { progress: autoStartProgress, active: autoStartActive } = useAutoStartGate(
     bodyQuality,
     FULL_BODY_QUALITY_THRESHOLD,
@@ -348,14 +373,20 @@ export default function CameraSetup() {
             </p>
           )}
 
-          <button
-            className="btn btn-primary btn-lg btn-block"
-            onClick={beginSession}
-            disabled={starting || hasAutoStarted}
-          >
-            {starting ? t("common.loading") : t("camera.startSession")}
-            <ArrowRight />
-          </button>
+          {isLungePlaceholder ? (
+            <p className="muted center" style={{ padding: "10px 0" }}>
+              {t("squat.lungeComingSoon")}
+            </p>
+          ) : (
+            <button
+              className="btn btn-primary btn-lg btn-block"
+              onClick={beginSession}
+              disabled={starting || hasAutoStarted}
+            >
+              {starting ? t("common.loading") : t("camera.startSession")}
+              <ArrowRight />
+            </button>
+          )}
         </div>
       </div>
     </>

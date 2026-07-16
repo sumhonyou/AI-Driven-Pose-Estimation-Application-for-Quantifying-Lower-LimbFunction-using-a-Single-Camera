@@ -13,6 +13,7 @@ import CameraSetup from "./pages/CameraSetup";
 import StsLiveSessionPage from "./pages/sts/StsLiveSessionPage";
 import SlsLiveSessionPage from "./pages/sls/SlsLiveSessionPage";
 import WbltLiveSessionPage from "./pages/wblt/WbltLiveSessionPage";
+import SquatLiveSessionPage from "./pages/squat/SquatLiveSessionPage";
 import Report from "./pages/Report";
 import SessionHistory from "./pages/SessionHistory";
 import Reminders from "./pages/Reminders";
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="sts/live" element={<StsLiveSessionPage />} />
             <Route path="sls/live" element={<SlsLiveSessionPage />} />
             <Route path="wblt/live" element={<WbltLiveSessionPage />} />
+            <Route path="squat/live" element={<SquatLiveSessionPage />} />
             <Route path="report" element={<Report />} />
             <Route path="history" element={<SessionHistory />} />
             <Route path="reminders" element={<Reminders />} />

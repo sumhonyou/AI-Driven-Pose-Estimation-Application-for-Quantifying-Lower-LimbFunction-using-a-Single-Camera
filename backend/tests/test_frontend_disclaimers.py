@@ -65,6 +65,25 @@ class FrontendDisclaimerTests(unittest.TestCase):
         self.assertIn("functional self-check", en_text.lower())
         self.assertIn("not a clinical diagnosis", en_text.lower())
 
+    def test_module_b_i18n_blocks_are_covered_by_the_safety_scan(self):
+        """Keep squat and Module B copy inside the non-diagnostic locale guard."""
+        for locale in ("en.ts", "zh.ts", "ms.ts"):
+            text = (FRONTEND_I18N_DIR / locale).read_text(encoding="utf-8")
+            self.assertIn("squat: {", text, f"{locale} is missing squat copy")
+            self.assertIn("moduleB: {", text, f"{locale} is missing Module B copy")
+            self.assertIn(
+                "moduleBPlaceholderNotice",
+                text,
+                f"{locale} is missing the placeholder-model notice",
+            )
+
+            literals = _extract_string_literals(text)
+            for phrase in FORBIDDEN_PHRASES:
+                self.assertFalse(
+                    any(phrase in literal.lower() for literal in literals),
+                    f"{locale} Module B safety scan found '{phrase}'",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

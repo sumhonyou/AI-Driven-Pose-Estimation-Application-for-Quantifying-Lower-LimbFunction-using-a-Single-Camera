@@ -29,18 +29,37 @@ EXERCISES = [
         "view_guidance": "side_view",
     },
     {
-        "code": "module_b_placeholder_exercise",
-        "name": "Module B Placeholder Exercise",
+        "code": "squat",
+        "name": "Squat",
         "mode": "rehab",
-        "description": "Configurable rehab grading exercise for Module B.",
-        "view_guidance": "front_view",
+        "description": "Side-view rehabilitation movement-quality grading for squats.",
+        "view_guidance": "side_view",
+    },
+    # Placeholder-only (task.md Phase 4 Stage 4.7): shows the thumbnail + camera
+    # setup demo video ahead of Phase 5B, which builds its Module B plugin/live
+    # page. Start Session is disabled for it in CameraSetup.tsx until then.
+    {
+        "code": "lunge",
+        "name": "Leg Lunge",
+        "mode": "rehab",
+        "description": "Side-view rehabilitation movement-quality grading for lunges. Coming soon.",
+        "view_guidance": "side_view",
     },
 ]
+
+LEGACY_MODULE_B_CODE = "module_b_placeholder_exercise"
 
 
 def seed_exercises() -> int:
     created = 0
     with SessionLocal() as db:
+        # Preserve old session foreign keys but remove the placeholder from the UI.
+        legacy_module_b = db.scalar(
+            select(ExerciseCatalog).where(ExerciseCatalog.code == LEGACY_MODULE_B_CODE)
+        )
+        if legacy_module_b is not None:
+            legacy_module_b.is_active = False
+
         for item in EXERCISES:
             exists = db.scalar(
                 select(ExerciseCatalog).where(ExerciseCatalog.code == item["code"])
