@@ -130,6 +130,9 @@ class Session(Base):
     valid_frame_ratio: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     score: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
     band: Mapped[str | None] = mapped_column(String(50))
+    # Denormalized like score/band. NULL for exercises with no rep concept
+    # (SLS, WBLT) and for sessions recorded before this column existed.
+    rep_count: Mapped[int | None] = mapped_column(Integer)
     device_info: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

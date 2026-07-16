@@ -49,6 +49,7 @@ def save_result(
     session.band = fusion.band
     session.capture_quality = float(quality["q"])
     session.valid_frame_ratio = float(quality["valid_frame_ratio"])
+    session.rep_count = len(reps)
 
     result.exercise_code = exercise_code
     result.score = fusion.score

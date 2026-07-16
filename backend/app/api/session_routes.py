@@ -7,8 +7,7 @@ from app.db.database import get_db
 from app.db.models import ExerciseCatalog
 from app.db.models import Session as SessionModel
 from app.db.models import User
-from app.db.schemas import (SessionEnd, SessionRead, SessionStart,
-                            SessionStartResponse)
+from app.db.schemas import SessionEnd, SessionRead, SessionStart, SessionStartResponse
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -35,6 +34,7 @@ def _session_response(session: SessionModel) -> SessionRead:
         valid_frame_ratio=_decimal_to_float(session.valid_frame_ratio),
         score=_decimal_to_float(session.score),
         band=session.band,
+        rep_count=session.rep_count,
     )
 
 

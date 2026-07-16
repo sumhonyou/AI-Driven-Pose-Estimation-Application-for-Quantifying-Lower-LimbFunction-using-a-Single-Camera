@@ -45,6 +45,9 @@ export type SessionDTO = {
   valid_frame_ratio: number | null;
   score: number | null;
   band: "good" | "fair" | "poor" | string | null;
+  // null for exercises with no rep concept (SLS, WBLT) and for sessions
+  // recorded before this field existed.
+  rep_count: number | null;
 };
 
 export type DashboardSummary = {

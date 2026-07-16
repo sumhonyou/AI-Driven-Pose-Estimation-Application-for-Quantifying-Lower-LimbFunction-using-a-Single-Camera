@@ -57,7 +57,6 @@ export default function StsLiveSessionPage() {
   const [running, setRunning] = useState(true);
   const [ending, setEnding] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
-  const [error, setError] = useState("");
 
   // Live Sit-to-Stand guidance (knee angle + why a rep wasn't counted) — display only.
   const [kneeAngle, setKneeAngle] = useState(0);
@@ -239,19 +238,21 @@ export default function StsLiveSessionPage() {
   const pct = (validReps / STS_TARGET_REPS) * 100;
 
   // Cancel: bails out of an incomplete session. Never scored, never saved as completed.
-  const handleCancel = async () => {
+  // Navigates away immediately — never makes "Cancel" wait on the network. The
+  // cancel request still fires and keeps running in the background (this is an
+  // SPA route swap, not a page unload), so the session is reliably marked
+  // cancelled server-side without blocking the user from leaving right away.
+  const handleCancel = () => {
     if (finishingRef.current) return;
     finishingRef.current = true;
     setRunning(false);
     setEnding(true);
-    try {
-      if (sessionId) await sessionService.cancel(sessionId);
-    } catch (err) {
-      console.error("[LiveSession] Cancel failed", err);
-      setError(t("live.cancelError"));
-    } finally {
-      nav("/exercise");
+    if (sessionId) {
+      sessionService
+        .cancel(sessionId)
+        .catch((err) => console.error("[LiveSession] Cancel failed", err));
     }
+    nav("/exercise");
   };
 
   const liveTitle = exerciseCode ? humanizeLabel(exerciseCode) : t("landing.s2sName");
@@ -311,12 +312,6 @@ export default function StsLiveSessionPage() {
           </button>
         </div>
       </div>
-      {error && (
-        <p className="muted" style={{ color: "var(--coral)", marginBottom: 18 }}>
-          {error}
-        </p>
-      )}
-
       <div className="cam-grid">
         <div className="cam-stage reveal">
           <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
@@ -367,10 +362,7 @@ export default function StsLiveSessionPage() {
                 <h3>{t("live.liveBand")}</h3>
               </div>
             </div>
-            <div
-              className={"live-band " + liveToneClass}
-              style={{ fontSize: "1.15rem", marginBottom: 18 }}
-            >
+            <div className={"live-band " + liveToneClass} style={{ marginBottom: 18 }}>
               <span
                 className="dot"
                 style={{

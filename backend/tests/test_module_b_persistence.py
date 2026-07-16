@@ -105,6 +105,7 @@ class ModuleBPersistenceTests(unittest.TestCase):
 
         self.assertTrue(db.committed)
         self.assertEqual(session.status, "completed")
+        self.assertEqual(session.rep_count, 1)
         self.assertEqual(result.model_version, "stub-0")
         self.assertEqual(
             result.metrics_json["fusion_weights"], {"w_rule": 0.4, "w_ml": 0.6}

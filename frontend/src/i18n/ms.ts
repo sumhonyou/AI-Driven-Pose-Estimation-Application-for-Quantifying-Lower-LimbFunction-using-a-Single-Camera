@@ -368,6 +368,7 @@ const ms: Dict = {
       "Ujian tidak lengkap: selesaikan kedua-dua kaki untuk melihat keputusan penuh.",
     lowConfidenceStatus:
       "Keyakinan rendah: penjejakan kamera tidak cukup boleh dipercayai untuk menilai sesi ini sepenuhnya",
+    reps: "Ulangan",
     validReps: "Ulangan sah",
     attemptedReps: "Ulangan cubaan",
     partialScoreLabel: "Markah kualiti pergerakan separa",
@@ -407,6 +408,7 @@ const ms: Dict = {
     thDate: "Tarikh",
     thQuality: "Kualiti",
     thBand: "Gred",
+    thReps: "Ulangan",
     thScore: "Markah",
     thView: "",
     view: "Lihat",
@@ -651,6 +653,8 @@ const ms: Dict = {
     lastRepTrunkLean: "Sudut condong badan mencapai puncak {{deg}}°",
     liveAngleGuidanceNote:
       "Panduan sahaja, berdasarkan anggaran pose webcam — bukan pengukuran klinikal.",
+    getReadyEyebrow: "Squat",
+    getReadyCaption: "Bersedia di posisi anda — set akan bermula secara automatik.",
   },
   moduleB: {
     subscore_rom_completeness: "Kesempurnaan julat gerakan",

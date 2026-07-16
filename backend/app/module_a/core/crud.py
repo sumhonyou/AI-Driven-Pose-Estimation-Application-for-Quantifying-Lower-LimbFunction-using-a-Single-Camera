@@ -35,6 +35,7 @@ def save_result(
     session.band = band_result["band"]
     session.capture_quality = quality["average_visibility"]
     session.valid_frame_ratio = quality["valid_frame_ratio"]
+    session.rep_count = metrics.get("rep_count")
 
     metrics_json = {
         **metrics,

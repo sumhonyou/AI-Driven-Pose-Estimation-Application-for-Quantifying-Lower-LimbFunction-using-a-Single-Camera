@@ -362,6 +362,7 @@ const en = {
     incompleteWbltStatus: "Test incomplete: finish both legs to see full results.",
     lowConfidenceStatus:
       "Low confidence: camera tracking wasn't reliable enough to fully assess this session",
+    reps: "Reps",
     validReps: "Valid reps",
     attemptedReps: "Attempted reps",
     partialScoreLabel: "Partial movement-quality score",
@@ -399,6 +400,7 @@ const en = {
     thDate: "Date",
     thQuality: "Quality",
     thBand: "Band",
+    thReps: "Reps",
     thScore: "Score",
     thView: "",
     view: "View",
@@ -636,6 +638,8 @@ const en = {
     lastRepTrunkLean: "Trunk lean peaked at {{deg}}°",
     liveAngleGuidanceNote:
       "Guidance only, based on webcam pose estimation — not a clinical measurement.",
+    getReadyEyebrow: "Squat",
+    getReadyCaption: "Get into position — the set starts automatically.",
   },
   moduleB: {
     subscore_rom_completeness: "ROM completeness",

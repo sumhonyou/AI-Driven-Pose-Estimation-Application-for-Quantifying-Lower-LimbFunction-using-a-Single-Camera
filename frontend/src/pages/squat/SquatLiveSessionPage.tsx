@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
+import StartSetCountdown from "../../components/squat/StartSetCountdown";
 import { Close, Target } from "../../components/Icons";
 import { sessionService } from "../../services/sessionService";
 import { moduleBService } from "../../services/moduleBService";
@@ -29,7 +30,9 @@ import {
 } from "../../utils/squat/squatLiveEstimate";
 import goodRepSrc from "../../assets/sound effect/Rep correct sound effect.mp3";
 
-type Stage = "setup" | "recording" | "posting";
+type Stage = "setup" | "countdown" | "recording" | "posting";
+
+const COUNTDOWN_START_SEC = 5;
 
 /** Motivational-only target choices; never sent to the backend or grading (§ user decision 2026-07-16). */
 const TARGET_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80];
@@ -52,6 +55,8 @@ export default function SquatLiveSessionPage() {
   const [ending, setEnding] = useState(false);
   const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
   const [showTargetHitPrompt, setShowTargetHitPrompt] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState(COUNTDOWN_START_SEC);
+  const countdownTimerRef = useRef<number | null>(null);
 
   // Live angle readouts — display only, mirroring squatLiveEstimate.ts's estimator
   // state so the panel can show exactly what the FSM is currently tracking.
@@ -114,9 +119,55 @@ export default function SquatLiveSessionPage() {
     setStage("recording");
   }
 
-  // Buffer frames + run the live rep estimator only while recording.
+  // "Start Set" begins a 5s full-page countdown (gives the user time to step back and
+  // get their whole body in frame) before recording/rep tracking actually starts —
+  // avoids the estimator misreading the user's approach to position as a squat rep.
+  function beginCountdown() {
+    setCountdownSeconds(COUNTDOWN_START_SEC);
+    setStage("countdown");
+  }
+
+  function cancelCountdown() {
+    if (countdownTimerRef.current != null) {
+      window.clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setStage("setup");
+  }
+
   useEffect(() => {
-    if (!landmarks || stage !== "recording") return;
+    if (stage !== "countdown") return;
+    countdownTimerRef.current = window.setInterval(() => {
+      setCountdownSeconds((prev) => {
+        if (prev <= 1) {
+          if (countdownTimerRef.current != null) {
+            window.clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+          }
+          startSet();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (countdownTimerRef.current != null) {
+        window.clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
+
+  // Buffer frames + run the live rep estimator only while recording. Paused
+  // while a prompt is open: walking up to dismiss it (e.g. approaching the
+  // camera after "Hit your goal!") flexes the knees enough to look like a
+  // squat to the threshold-based estimator, so nothing is recorded or fed to
+  // it until the user is actually back to exercising.
+  useEffect(() => {
+    if (!landmarks || stage !== "recording" || showTargetHitPrompt || showInactivityPrompt) {
+      return;
+    }
     const now = performance.now();
     recorder.record(
       { timestampMs: now, landmarks, worldLandmarks: worldLandmarks ?? [] },
@@ -158,7 +209,7 @@ export default function SquatLiveSessionPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [landmarks, stage]);
+  }, [landmarks, stage, showTargetHitPrompt, showInactivityPrompt]);
 
   // Session timer.
   useEffect(() => {
@@ -213,17 +264,20 @@ export default function SquatLiveSessionPage() {
     }
   }
 
-  async function handleCancel() {
+  function handleCancel() {
     if (finishingRef.current) return;
     finishingRef.current = true;
     setEnding(true);
-    try {
-      if (sessionId) await sessionService.cancel(sessionId);
-    } catch (err) {
-      console.error("[SquatLiveSessionPage] Cancel failed", err);
-    } finally {
-      nav("/exercise");
+    // Navigate away immediately — never make "Cancel" wait on the network. The
+    // cancel request still fires and keeps running in the background (this is an
+    // SPA route swap, not a page unload), so the session is reliably marked
+    // cancelled server-side without blocking the user from leaving right away.
+    if (sessionId) {
+      sessionService
+        .cancel(sessionId)
+        .catch((err) => console.error("[SquatLiveSessionPage] Cancel failed", err));
     }
+    nav("/exercise");
   }
 
   if (!sessionId) {
@@ -246,6 +300,9 @@ export default function SquatLiveSessionPage() {
   return (
     <>
       {stage === "posting" && <GeneratingReportOverlay />}
+      {stage === "countdown" && (
+        <StartSetCountdown secondsLeft={countdownSeconds} onCancel={cancelCountdown} />
+      )}
       {showInactivityPrompt &&
         createPortal(
           <div className="sls-modal-overlay" role="dialog" aria-modal="true">
@@ -273,7 +330,14 @@ export default function SquatLiveSessionPage() {
               <div className="sls-modal-actions">
                 <button
                   className="btn btn-ghost btn-block"
-                  onClick={() => setShowTargetHitPrompt(false)}
+                  onClick={() => {
+                    // Tracking was paused for this prompt (see the recording
+                    // effect above) -- reset the motion clock so time spent
+                    // reading the prompt isn't mistaken for post-dismissal
+                    // inactivity.
+                    lastMotionMsRef.current = performance.now();
+                    setShowTargetHitPrompt(false);
+                  }}
                 >
                   {t("squat.continueSet")}
                 </button>
@@ -438,7 +502,7 @@ export default function SquatLiveSessionPage() {
                     ))}
                   </select>
                 </div>
-                <button className="btn btn-primary btn-block" onClick={startSet}>
+                <button className="btn btn-primary btn-block" onClick={beginCountdown}>
                   {t("squat.startSet")}
                 </button>
               </>

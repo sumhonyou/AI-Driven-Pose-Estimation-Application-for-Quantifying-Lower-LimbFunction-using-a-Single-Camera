@@ -1,8 +1,14 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import (BaseModel, ConfigDict, EmailStr, Field, field_validator,
-                      model_validator)
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 # Base64 data URLs inflate ~33% over the raw file; this caps the encoded text
 # around ~3MB of original image data, generous for a profile photo.
@@ -138,6 +144,9 @@ class SessionRead(BaseModel):
     valid_frame_ratio: float | None = None
     score: float | None = None
     band: str | None = None
+    # Denormalized like score/band. None for exercises with no rep concept
+    # (SLS, WBLT) and for sessions recorded before this field existed.
+    rep_count: int | None = None
 
 
 class DashboardSummary(BaseModel):

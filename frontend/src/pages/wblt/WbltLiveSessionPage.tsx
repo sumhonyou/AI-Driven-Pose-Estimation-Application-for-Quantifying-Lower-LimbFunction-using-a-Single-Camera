@@ -436,17 +436,20 @@ export default function WbltLiveSessionPage() {
     }
   }
 
-  async function handleCancel() {
+  function handleCancel() {
     if (busyRef.current) return;
     busyRef.current = true;
     setEnding(true);
-    try {
-      if (sessionId) await sessionService.cancel(sessionId);
-    } catch (err) {
-      console.error("[WbltLiveSessionPage] Cancel failed", err);
-    } finally {
-      nav("/exercise");
+    // Navigate away immediately — never make "Cancel" wait on the network. The
+    // cancel request still fires and keeps running in the background (this is an
+    // SPA route swap, not a page unload), so the session is reliably marked
+    // cancelled server-side without blocking the user from leaving right away.
+    if (sessionId) {
+      sessionService
+        .cancel(sessionId)
+        .catch((err) => console.error("[WbltLiveSessionPage] Cancel failed", err));
     }
+    nav("/exercise");
   }
 
   if (!sessionId) {

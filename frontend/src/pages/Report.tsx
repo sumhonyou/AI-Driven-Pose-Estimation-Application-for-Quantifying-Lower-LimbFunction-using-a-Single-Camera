@@ -164,6 +164,10 @@ export default function Report() {
   // Module A's metricRows below, just from moduleBResult instead of result.
   const moduleBRows = moduleBResult
     ? [
+        {
+          label: t("report.reps"),
+          value: session?.rep_count != null ? `${session.rep_count}` : "—",
+        },
         ...moduleBResult.metrics.rule_subscores.map((s) => ({
           label: t(("moduleB.subscore_" + s.code) as never, { defaultValue: s.code }),
           value: s.score != null ? `${s.score.toFixed(1)}/10` : "—",

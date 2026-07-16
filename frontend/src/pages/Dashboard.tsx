@@ -288,7 +288,9 @@ export default function Dashboard() {
                   <td>{qualityLabel(r.capture_quality)}</td>
                   <td>
                     {r.band ? (
-                      <span className={"band " + r.band}>{t("common." + r.band)}</span>
+                      <span className={"band " + r.band.toLowerCase()}>
+                        {t("common." + r.band.toLowerCase())}
+                      </span>
                     ) : (
                       "—"
                     )}

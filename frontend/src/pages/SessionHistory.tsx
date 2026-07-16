@@ -88,6 +88,7 @@ export default function SessionHistory() {
                 <th>{t("history.thDate")}</th>
                 <th>{t("history.thQuality")}</th>
                 <th>{t("history.thBand")}</th>
+                <th>{t("history.thReps")}</th>
                 <th>{t("history.thScore")}</th>
                 <th></th>
               </tr>
@@ -110,11 +111,14 @@ export default function SessionHistory() {
                   <td>{qualityLabel(r.capture_quality)}</td>
                   <td>
                     {r.band ? (
-                      <span className={"band " + r.band}>{t("common." + r.band)}</span>
+                      <span className={"band " + r.band.toLowerCase()}>
+                        {t("common." + r.band.toLowerCase())}
+                      </span>
                     ) : (
                       "—"
                     )}
                   </td>
+                  <td>{r.rep_count ?? "—"}</td>
                   <td className="score-cell">{r.score ?? "—"}</td>
                   <td style={{ textAlign: "right" }}>
                     <Link
