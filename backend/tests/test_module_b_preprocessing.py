@@ -47,7 +47,17 @@ class GapFillTests(unittest.TestCase):
             result[1]["worldLandmarks"][0]["x"], result[3]["worldLandmarks"][0]["x"]
         )
 
-    def test_gap_longer_than_max_is_left_for_hold_last(self) -> None:
+    def test_gap_longer_than_max_is_released_not_frozen(self) -> None:
+        """A long occlusion must NOT be hold-last frozen.
+
+        Supersedes the original "left for hold-last" contract. Hold-last is
+        documented for a *brief* occlusion; a single side-view camera breaks that
+        assumption structurally (the far leg sits below MIN_VISIBILITY for most of
+        a squat), so freezing pinned the far knee at its standing angle for whole
+        reps and halved the bilateral mean knee flexion segmentation depends on.
+        Beyond the gap-fill window the landmark's own raw estimate — low
+        confidence, but still tracking — is preferred over a stale value.
+        """
         max_gap = 5
         frames = [_frame(0.0, 0.0)]
         for i in range(1, max_gap + 2):  # a gap of max_gap + 1 frames
@@ -56,10 +66,32 @@ class GapFillTests(unittest.TestCase):
 
         result = preprocess_world_landmarks(frames)
 
-        # Not interpolated -> LandmarkSmoother's own hold-last takes over,
-        # so every gap frame keeps the pre-gap value (0.0), not a ramp.
-        for i in range(1, max_gap + 2):
-            self.assertEqual(result[i]["worldLandmarks"][0]["x"], 0.0)
+        # Too long to interpolate, so no synthetic ramp is injected -- but the raw
+        # trajectory must still come through rather than freezing at the pre-gap
+        # value (0.0), and it must keep advancing across the run.
+        gap_xs = [result[i]["worldLandmarks"][0]["x"] for i in range(1, max_gap + 2)]
+        self.assertTrue(all(x > 0.0 for x in gap_xs))
+        self.assertEqual(gap_xs, sorted(gap_xs))
+        self.assertGreater(gap_xs[-1], gap_xs[0])
+
+    def test_brief_gap_without_anchor_still_holds_last(self) -> None:
+        """The released behavior above is bounded: a short low-confidence run
+        that gap-fill can't anchor still falls to hold-last, so a momentary
+        flicker cannot inject noise. This is the guard that keeps the fix
+        scoped to *persistent* occlusion only."""
+        frames = [
+            _frame(0.0, 1.0),
+            _frame(100.0, 99.0, visibility=0.1),  # 1-frame trailing flicker
+            _frame(200.0, 99.0, visibility=0.1),
+        ]
+
+        result = preprocess_world_landmarks(frames)
+
+        # Run length 2 <= max_gap (5) -> still frozen, never the wild raw 99.0.
+        self.assertEqual(
+            result[1]["worldLandmarks"][0]["x"], result[2]["worldLandmarks"][0]["x"]
+        )
+        self.assertLess(result[1]["worldLandmarks"][0]["x"], 50.0)
 
     def test_leading_gap_has_no_anchor_and_is_left_untouched(self) -> None:
         frames = [
@@ -103,6 +135,26 @@ class GapFillTests(unittest.TestCase):
         self.assertGreaterEqual(
             result[1]["worldLandmarks"][0]["visibility"], MIN_VISIBILITY
         )
+
+
+class PersistentOcclusionTests(unittest.TestCase):
+    """The Stage 5.3 finding: a single side-view camera leaves the far limb below
+    MIN_VISIBILITY for essentially a whole rep, not a brief moment."""
+
+    def test_far_limb_occluded_for_whole_capture_still_tracks(self) -> None:
+        # Landmark 0 swings 0 -> 20 -> 0 while never once being confident,
+        # mirroring the far knee across a squat (measured: below MIN_VISIBILITY
+        # for all 121 frames of a real rep window).
+        positions = [float(x) for x in list(range(0, 21)) + list(range(19, -1, -1))]
+        frames = [_frame(i * 33.0, x, visibility=0.2) for i, x in enumerate(positions)]
+
+        result = preprocess_world_landmarks(frames)
+        xs = [f["worldLandmarks"][0]["x"] for f in result]
+
+        # Frozen-at-first-value would make the whole run identical; the real
+        # trajectory must survive and still reach a substantial excursion.
+        self.assertGreater(max(xs), 10.0)
+        self.assertGreater(max(xs) - min(xs), 10.0)
 
 
 class StatefulFullStreamContractTests(unittest.TestCase):

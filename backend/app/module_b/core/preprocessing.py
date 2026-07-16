@@ -9,8 +9,23 @@ offline use, or the two pipelines silently drift apart.
 it only hold-lasts a landmark below MIN_VISIBILITY, it does not interpolate.
 The gap fill below is genuinely new logic that fills short gaps (up to
 MODULE_B_CORE_CONFIG["interpolation_max_gap_frames"]) before the One Euro
-pass runs, so LandmarkSmoother's hold-last only has to cover gaps longer than
-that, or ones with no valid anchor on one side (leading/trailing gaps).
+pass runs.
+
+Beyond that window, hold-last is deliberately *released* (see
+`_release_persistent_occlusions`) rather than left to freeze a landmark for
+the rest of the capture. LandmarkSmoother's hold-last is documented for a
+"brief occlusion"; a single side-view camera violates that assumption
+structurally — the far leg sits below MIN_VISIBILITY for most of a squat
+(Stage 5.3 measured mean right-knee visibility 0.59-0.78 vs 0.95-0.99 left,
+across all 9 REHAB24-6 subjects), so hold-last would pin the far knee at its
+standing angle for entire reps. That is worse than the raw estimate, which
+still tracks a plausible trajectory (measured peak 99.9 deg on a rep where
+the near knee read 77.9 deg) — it is low-*confidence*, not wrong. Freezing it
+turns "uncertain but usable" into "confidently stale", halving the bilateral
+mean knee flexion that segmentation and features both depend on.
+
+Scoped to Module B on purpose: LandmarkSmoother itself is untouched, so
+Module A's (STS/SLS/WBLT) verified behavior is byte-identical.
 """
 
 from __future__ import annotations
@@ -31,7 +46,9 @@ def preprocess_world_landmarks(frames: list[dict]) -> list[dict]:
     if not frames:
         return []
 
-    filled = _fill_gaps(frames, MODULE_B_CORE_CONFIG["interpolation_max_gap_frames"])
+    max_gap_frames = MODULE_B_CORE_CONFIG["interpolation_max_gap_frames"]
+    filled = _fill_gaps(frames, max_gap_frames)
+    _release_persistent_occlusions(filled, max_gap_frames)
 
     num_landmarks = len(filled[0]["worldLandmarks"])
     smoother = LandmarkSmoother(num_landmarks=num_landmarks)
@@ -44,6 +61,53 @@ def preprocess_world_landmarks(frames: list[dict]) -> list[dict]:
         }
         for frame in filled
     ]
+
+
+def _release_persistent_occlusions(filled: list[dict], max_gap_frames: int) -> None:
+    """Stop hold-last from freezing a landmark that is occluded for a long run.
+
+    Runs of `max_gap_frames` or fewer are left alone: those are the brief
+    occlusions LandmarkSmoother's hold-last is designed for (and short runs with
+    an anchor either side were already interpolated by `_fill_gaps`). A *longer*
+    run is released — its visibility is raised to exactly MIN_VISIBILITY so the
+    One Euro pass smooths the landmark's own raw estimate instead of hold-lasting
+    a stale value for the rest of the run. Same visibility-bump idiom
+    `_interpolate_gap` already uses, and for the same reason: it is the one lever
+    that steers LandmarkSmoother's hold-last branch without forking it.
+
+    Mutates `filled` in place. Only the smoother reads this visibility — the
+    capture-quality metric is computed on the raw frames upstream (router.py),
+    so raising it here cannot flatter a quality score.
+    """
+    num_landmarks = len(filled[0]["worldLandmarks"])
+    for landmark_index in range(num_landmarks):
+        run_start = None
+        for i, frame in enumerate(filled):
+            is_low = (
+                frame["worldLandmarks"][landmark_index]["visibility"] < MIN_VISIBILITY
+            )
+            if is_low and run_start is None:
+                run_start = i
+            elif not is_low and run_start is not None:
+                _release_run(filled, landmark_index, run_start, i, max_gap_frames)
+                run_start = None
+        if run_start is not None:
+            # A run reaching the end of the stream has no trailing anchor, but the
+            # same reasoning applies: a long freeze is worse than the raw estimate.
+            _release_run(filled, landmark_index, run_start, len(filled), max_gap_frames)
+
+
+def _release_run(
+    filled: list[dict],
+    landmark_index: int,
+    start: int,
+    end: int,
+    max_gap_frames: int,
+) -> None:
+    if (end - start) <= max_gap_frames:
+        return
+    for i in range(start, end):
+        filled[i]["worldLandmarks"][landmark_index]["visibility"] = MIN_VISIBILITY
 
 
 def _fill_gaps(frames: list[dict], max_gap_frames: int) -> list[dict]:

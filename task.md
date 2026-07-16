@@ -909,15 +909,71 @@ segment`/`extract_features`, and `useMediaPipePose.ts` upstream of it) and found
       `extract_squat_features` still yields 5 reps with a valid feature vector
       each). Full backend suite: **134/134 passing** (126 previous + 8 new).
       Black/isort clean.
-- [ ] **Not done here, by design:** the `ml/` re-run. The parallel session (owns
-      Stage 5.2/5.3, uncommitted in the main checkout as of this entry) confirmed
-      it will update `extract_landmarks.py`/`build_features.py` to import and
-      apply this same shared function over the full stream before windowing, then
-      regenerate `squat_features.csv` — before Stage 5.4's feature-validity gate,
-      since that gate is meaningless on features the live model won't actually
-      produce. Also flagged: offline frames will need `visibility` carried through
-      (currently `build_features.py` only passes x/y/z), since gap-fill/hold-last
-      depend on it.
+- [x] **Done in the follow-up below (2026-07-16), not in this entry:** the `ml/`
+      re-run. See "Cross-cutting follow-up — far-limb occlusion" immediately below;
+      it also **amends this entry's hold-last design**, which did not survive
+      contact with real side-view data.
+
+### Cross-cutting follow-up — far-limb occlusion breaks hold-last (2026-07-16)
+
+Found by the `ml/` re-run above landing on real REHAB24-6 side-view data. The
+preprocessing entry above assumed "gaps longer than `interpolation_max_gap_frames`
+or without an anchor → leave them to `LandmarkSmoother`'s hold-last." That
+assumption is wrong for a single side-view camera, and the failure was loud.
+
+- [x] **The finding (measured, not inferred):** a side-view camera tracks the near
+      leg well and the far leg poorly, **systematically, in all 9 subjects**. Mean
+      landmark visibility: left knee 0.95–0.99 / left ankle 0.97–0.99 versus right
+      knee **0.59–0.78** / right ankle **0.68–0.87**. The far knee sits below
+      `MIN_VISIBILITY = 0.6` for _whole reps_ — all 121 frames of PM_008's rep-1
+      window, vastly longer than the 5-frame gap-fill cap. `LandmarkSmoother`'s
+      hold-last is documented for a **"brief occlusion"**; this violates that design
+      envelope structurally, so it froze the far knee at its standing angle for
+      entire reps. Since squat segmentation and features both use the **bilateral
+      mean** knee flexion, a frozen far knee ~halved the signal: median
+      `knee_flex_peak_deg` fell 99.8° → 78.5°, and FSM rep agreement collapsed from
+      92/98 to **32/98** front reps. This would have hit **live users identically**
+      — same shared function, same camera guidance.
+- [x] **Why it was released, not worked around:** the far leg is **low-confidence,
+      not wrong** — its raw trajectory still tracks a plausible squat (peak 99.9° on
+      a rep where the near knee read 77.9°). Hold-last was therefore discarding real
+      signal and substituting a stale value: turning "uncertain but usable" into
+      "confidently stale", which is strictly worse than the noisy estimate.
+- [x] **HY decision (option b of three offered):** release hold-last for persistent
+      occlusion, **scoped to Module B's preprocessing**. Rejected alternatives:
+      (a) accept the damage and document it as a limitation — would have shipped a
+      knowingly broken live rep counter; (c) make squat's features prefer the near
+      leg only — would have silently cost `symmetry_index_pct` (it is literally
+      `|θ_L − θ_R|`, unmeasurable from one leg) and thrown away usable far-leg data.
+- [x] `core/preprocessing._release_persistent_occlusions()` — a low-visibility run
+      **longer than `interpolation_max_gap_frames`** has its visibility raised to
+      exactly `MIN_VISIBILITY`, so the One-Euro pass smooths the landmark's own raw
+      estimate instead of hold-lasting a stale one. Runs of ≤5 frames are untouched,
+      so a genuine brief flicker still hold-lasts as designed. Reuses the same
+      visibility-bump idiom `_interpolate_gap` already used — the one lever that
+      steers hold-last **without forking `LandmarkSmoother`**.
+- [x] **`LandmarkSmoother` itself deliberately untouched** — it is shared with
+      Module A (STS/SLS/WBLT all call `smooth_frame(t, world)`), whose behavior and
+      verified results must stay byte-identical. The fix lives entirely in Module B's
+      preprocessing layer. Confirmed: full suite green with zero Module A changes.
+- [x] **Result:** far-leg signal restored. Median `knee_flex_peak_deg` back to 98.3°
+      (vs 99.8° raw — the small residual is legitimate smoothing damping). FSM front-rep
+      agreement **93/98 (94.9%)**, marginally _better_ than the 92/98 raw baseline,
+      i.e. preprocessing now helps rep detection instead of destroying it.
+- [x] **Tests:** rewrote `test_gap_longer_than_max_is_left_for_hold_last` →
+      `test_gap_longer_than_max_is_released_not_frozen` — the old test _encoded the
+      exact bug_ (asserting a long gap stays frozen), so it was changed deliberately
+      as a contract change, not bent to pass. Added
+      `test_brief_gap_without_anchor_still_holds_last` (proves the fix is bounded to
+      persistent occlusion) and `PersistentOcclusionTests` (a far-limb-style landmark
+      that is never confident must still track its real excursion). Full backend suite:
+      **136/136**. Black/isort clean.
+- [ ] **Left open for Stage 5.4, deliberately:** whether the far leg's estimate is
+      _accurate_ rather than merely plausible is exactly what `check_mocap_agreement.py`
+      settles against the OptiTrack ground truth — not asserted here. Also unresolved:
+      `symmetry_index_pct`'s median of ~30% looks inflated by its own formula
+      (dividing by a near-zero mean while standing), a feature-design question for
+      that gate, not this fix.
 
 ### Stage 5.3 — Build the feature table
 
@@ -996,25 +1052,64 @@ matched 20` for PM_038 (matches exceeding detections). Reworked to strict
       Stage 5.5's job. No feature was dropped or kept on the basis of the sanity stats
       above; the keep/drop verdict and the `norm_ref` bake-off are Stage 5.4's gate.
 
+#### Re-run against the real preprocessing (2026-07-16, supersedes the numbers above)
+
+The cross-cutting preprocessing change landed on `main` (merge `ecddd9a`), so the
+unsmoothed feature table built above no longer matched the live runtime and was
+rebuilt — X1 is only real if the offline features come from the _same_ pipeline.
+
+- [x] `build_features.py` now imports the backend's
+      `preprocess_world_landmarks` (X1 — the shared `module_b/core/preprocessing.py`
+      function, not a re-implementation) and applies it **once per video over the full
+      chronological stream, then windows** by the dataset boundaries — mirroring
+      `router.py`'s single call site ahead of `segment()`. Windowing first would reset
+      `OneEuroFilter`'s per-landmark state at every rep boundary and drift from live.
+      One shared preprocessed-stream cache feeds **both** the feature table and the FSM
+      agreement check, so neither path can derive a subtly different stream.
+- [x] `visibility` is now carried into the offline frame dicts (previously x/y/z only) —
+      both the gap-fill's confidence filter and `LandmarkSmoother`'s hold-last branch on
+      it, so omitting it would have silently disabled them offline while they ran live.
+- [x] The FSM agreement check now runs on the **preprocessed** stream, matching what the
+      live FSM actually receives, rather than raw landmarks.
+- [x] **This re-run is what surfaced the far-limb occlusion failure** — see the
+      "Cross-cutting follow-up" entry above. Final numbers after that fix: **98 reps
+      (72 Good / 26 Poor) unchanged**; `knee_flex_peak_deg` median **98.3°** (was 99.8°
+      unsmoothed — the difference is legitimate smoothing damping); FSM front-rep
+      agreement **93/98 (94.9%)**, total **184/195** (94.4% recall / 95.8% precision).
+- [x] Verification: byte-identical CSV across two runs (X8 determinism, `md5`);
+      Black/isort clean; full backend suite **136/136**.
+- [ ] **Flagged for Stage 5.4, not acted on here:** `knee_flex_peak_deg` separates the
+      classes but in the **opposite direction to the plan's stated expectation** — Good
+      median 92.8° vs Poor median **107.7°**, i.e. incorrect reps go _deeper_, whereas
+      Stage 5.4's gate text assumes "`knee_flex_peak_deg` should be lower for incorrect
+      reps". The gate's pass/fail condition is separation, which holds — but its
+      directional assumption does not, and the keep/drop reasoning must not be written
+      as if it did. Not investigated here; it is that gate's job.
+
 ### Stage 5.4 — Feature-validity sanity **[GATE — R5.5]**
 
-> ⏸ **HELD by HY (2026-07-16) — do not start until the Module B preprocessing change
-> lands.** A parallel worktree session (branch `claude/serene-bhaskara-74aaf3`, the
-> "Wire real preprocessing into Module B squat pipeline" follow-up flagged in Stage
-> 5.2) is adding server-side `LandmarkSmoother` preprocessing + a real linear
-> interpolation gap-fill (`interpolation_max_gap_frames=5`) into the **live** squat
-> pipeline. That breaks the X1 parity Stage 5.2/5.3 were built on: `squat_features.csv`
-> was deliberately computed from **unsmoothed** landmarks to match the runtime as it
-> exists today (Stage 5.0 option a). Running this gate on the current features would be
-> wasted — the feature-validity verdict is only meaningful on features the trained model
-> will actually see live. **When that change merges:** re-run the `ml/` offline pipeline
-> first — `build_features.py` (and the extract flow) must import + apply the **shared**
-> preprocessing function (it must live in a shared `module_b/core/` module, imported by
-> both `router.py` and `build_features.py` — X1-by-construction, not inlined in the HTTP
-> layer), preprocess the **full stream then window** (One Euro is causal/stateful), and
-> carry `visibility` into the offline frames (the `MIN_VISIBILITY=0.6` hold-last path
-> depends on it). Regenerate `squat_features.csv`, note the re-run in the Stage 5.2/5.3
-> entries, **then** run this gate.
+> ✅ **Hold cleared (2026-07-16).** This gate was held until the Module B preprocessing
+> change landed, because a feature-validity verdict is meaningless on features the live
+> model won't actually produce. That change is now merged (`ecddd9a`) and the `ml/`
+> offline pipeline has been re-run against it — `build_features.py` imports the shared
+> `preprocess_world_landmarks`, applies it full-stream-then-window, and carries
+> `visibility` through; `squat_features.csv` is regenerated. See the Stage 5.3 "Re-run
+> against the real preprocessing" sub-entry and the "Cross-cutting follow-up — far-limb
+> occlusion" entry above. **This gate is now unblocked and runs on the current table.**
+>
+> **Two findings from the re-run that this gate must handle, not inherit blindly:**
+>
+> 1. **The directional assumption below is wrong.** The checklist says
+>    "`knee_flex_peak_deg` should be lower for incorrect reps." Measured, it is the
+>    opposite: Good median 92.8° vs **Poor median 107.7°** — incorrect reps go _deeper_.
+>    Separation (the actual pass/fail condition) holds, so the gate passes; but the
+>    keep/drop justification must be written from the real direction, and the "e.g."
+>    below should not be treated as the expected sign.
+> 2. **`symmetry_index_pct` is suspect on its own formula, independent of the data.**
+>    It is a per-frame `|θ_L − θ_R| / mean × 100` averaged over the rep, so near
+>    standing (both angles ≈ 0) the denominator collapses and the percentage explodes —
+>    which is most of why its median sits at ~30%. Judge the feature on that basis, not
+>    just its boxplot.
 
 - [ ] `check_feature_validity.py` — per feature, plot **and** report its distribution split by class. A feature enters the model **only if it visibly separates classes** (e.g. `knee_flex_peak_deg` should be lower for incorrect reps). Output `ml/reports/FEATURE_VALIDITY.md` with an explicit keep/drop verdict + justification per feature.
   - [ ] **Figure (required):** `figures/feature_validity_boxplots.png` — one boxplot (or violin) per feature, class on the x-axis, arranged as a grid (e.g. 4×4 subplots via `plt.subplots`), so every feature's class separation is visible on one page.

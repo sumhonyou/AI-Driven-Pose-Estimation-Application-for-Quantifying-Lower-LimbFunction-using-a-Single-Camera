@@ -1,15 +1,24 @@
 """Stage 5.3: build the per-rep squat feature table from extracted world landmarks.
 
 For every side-view (`cam17_orientation == "front"` → Camera18 sees profile, verified
-in Stage 5.0) squat rep, window the extracted landmarks by Segmentation.csv's
-physio-verified `first_frame`/`last_frame` (NOT our FSM — the dataset boundaries are
-ground truth here) and call the **backend's** `extract_squat_features()` (X1 — the same
-function the live pipeline runs, imported, never re-implemented). Emits
-`ml/data/squat_features.csv`, one row per rep.
+in Stage 5.0) squat rep: preprocess the **entire** video's landmark stream through the
+live backend's confidence-filter → gap-fill → One-Euro pipeline (X1/X3 — the
+cross-cutting preprocessing change, `app.module_b.core.preprocessing.
+preprocess_world_landmarks`, wired into `POST /api/module-b/analyze` ahead of
+`segment()`/`extract_features()`), then window the *preprocessed* stream by
+Segmentation.csv's physio-verified `first_frame`/`last_frame` (NOT our FSM — the
+dataset boundaries are ground truth here) and call the **backend's**
+`extract_squat_features()`. Emits `ml/data/squat_features.csv`, one row per rep.
+
+Preprocessing is run **once per video, over the full chronological stream, before
+windowing** — OneEuroFilter is stateful, so preprocessing a rep's window in isolation
+would reset its history at every rep boundary and diverge from what the live capture
+(a whole-session buffer) actually produces. This mirrors `router.py`'s single call
+site exactly.
 
 As a free, honest validation (Stage 5.3), our own squat FSM is also run over the same
-full clips and its rep boundaries are compared against the dataset's — written to
-`ml/reports/FEATURE_TABLE.md`. This is a report, not a gate.
+preprocessed full clips and its rep boundaries are compared against the dataset's —
+written to `ml/reports/FEATURE_TABLE.md`. This is a report, not a gate.
 
 Deterministic (X8): videos/reps iterated in sorted order, no RNG, no wall-clock.
 """
@@ -23,7 +32,9 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-# X1: import the SAME feature extractor and segmenter the live backend uses.
+# X1: import the SAME feature extractor, segmenter, and preprocessing the live
+# backend uses — never re-implemented.
+from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.squat.features import SQUAT_FEATURE_NAMES, extract_squat_features
 from app.module_b.squat.segmentation import segment_squat_frames
 
@@ -61,37 +72,65 @@ def _load_landmarks(video_id: str) -> tuple[np.ndarray, np.ndarray]:
     return data["world_landmarks"], data["timestamps_ms"]
 
 
-def _frames_from_window(
-    world_landmarks: np.ndarray, timestamps_ms: np.ndarray, first: int, last: int
-) -> tuple[list[dict], int]:
-    """Build the runtime frame shape (worldLandmarks + timestampMs) for one rep window.
+def _raw_full_stream(video_id: str) -> tuple[list[dict], int]:
+    """Build one video's entire chronological frame stream, runtime-shaped.
 
-    `first`/`last` are inclusive video frame indices. A no-pose (all-NaN) frame is
-    dropped from the window rather than silently poisoning the features to NaN; the
-    caller records how many were dropped (should be 0 for every side-view rep).
+    A no-pose (all-NaN) frame — no landmarks were returned at all — is dropped from
+    the stream entirely rather than fed into preprocessing; this mirrors a live
+    capture, which only ever sends frames where a pose was actually detected.
+    `visibility` is carried through per landmark (required by both the confidence
+    filter's gap-fill and `LandmarkSmoother`'s hold-last).
+
+    Returns (frames, total_extracted_frame_count) — the count includes any dropped
+    no-pose frames, used to catch a `first_frame`/`last_frame` index that exceeds
+    what was actually extracted for this video.
     """
+    world_landmarks, timestamps_ms = _load_landmarks(video_id)
     frames = []
-    dropped = 0
-    for idx in range(first, last + 1):
+    for idx in range(world_landmarks.shape[0]):
         row = world_landmarks[idx]
         if np.isnan(row).all():
-            dropped += 1
             continue
         frames.append(
             {
                 "frameIndex": int(idx),
                 "timestampMs": int(timestamps_ms[idx]),
                 "worldLandmarks": [
-                    {"x": float(lm[0]), "y": float(lm[1]), "z": float(lm[2])}
+                    {
+                        "x": float(lm[0]),
+                        "y": float(lm[1]),
+                        "z": float(lm[2]),
+                        "visibility": float(lm[3]),
+                    }
                     for lm in row
                 ],
             }
         )
-    return frames, dropped
+    return frames, world_landmarks.shape[0]
+
+
+def _preprocessed_stream(
+    video_id: str,
+    preprocessed_cache: dict[str, list[dict]],
+    frame_count_cache: dict[str, int],
+) -> list[dict]:
+    """Return one video's full stream after the SAME preprocessing the live backend
+    runs (confidence filter -> gap fill -> One Euro), computed exactly once per video
+    and cached — mirrors `POST /api/module-b/analyze`'s single call over the whole
+    received buffer, called by both `build_feature_rows` and `segmentation_agreement`
+    so neither path re-derives a slightly different stream.
+    """
+    if video_id not in preprocessed_cache:
+        raw_frames, total_frames = _raw_full_stream(video_id)
+        frame_count_cache[video_id] = total_frames
+        preprocessed_cache[video_id] = preprocess_world_landmarks(raw_frames)
+    return preprocessed_cache[video_id]
 
 
 def build_feature_rows(
     rows: list[dict[str, str]],
+    preprocessed_cache: dict[str, list[dict]],
+    frame_count_cache: dict[str, int],
 ) -> tuple[list[dict], dict]:
     """Extract one feature row per side-view squat rep. Returns (rows, build_stats)."""
     side_view_rows = sorted(
@@ -104,27 +143,26 @@ def build_feature_rows(
         key=lambda r: (r["video_id"], int(r["repetition_number"])),
     )
 
-    landmark_cache: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     feature_rows = []
     total_dropped = 0
+    videos_seen: set[str] = set()
     for r in side_view_rows:
         video_id = r["video_id"]
-        if video_id not in landmark_cache:
-            landmark_cache[video_id] = _load_landmarks(video_id)
-        world_landmarks, timestamps_ms = landmark_cache[video_id]
+        videos_seen.add(video_id)
+        preprocessed = _preprocessed_stream(
+            video_id, preprocessed_cache, frame_count_cache
+        )
 
         first, last = int(r["first_frame"]), int(r["last_frame"])
-        if last >= world_landmarks.shape[0]:
+        if last >= frame_count_cache[video_id]:
             raise IndexError(
                 f"{video_id} rep {r['repetition_number']}: last_frame {last} exceeds "
-                f"extracted frame count {world_landmarks.shape[0]} — frame/camera "
+                f"extracted frame count {frame_count_cache[video_id]} — frame/camera "
                 f"misalignment, do not proceed."
             )
 
-        frames, dropped = _frames_from_window(
-            world_landmarks, timestamps_ms, first, last
-        )
-        total_dropped += dropped
+        frames = [f for f in preprocessed if first <= f["frameIndex"] <= last]
+        total_dropped += (last - first + 1) - len(frames)
         if not frames:
             raise ValueError(
                 f"{video_id} rep {r['repetition_number']}: no pose frames in window"
@@ -155,7 +193,7 @@ def build_feature_rows(
         "n_good": sum(1 for row in feature_rows if row["label"] == "Good"),
         "n_poor": sum(1 for row in feature_rows if row["label"] == "Poor"),
         "n_subjects": len({row["person_id"] for row in feature_rows}),
-        "n_videos": len(landmark_cache),
+        "n_videos": len(videos_seen),
         "dropped_no_pose_frames": total_dropped,
     }
     return feature_rows, stats
@@ -221,8 +259,17 @@ def _overlap(a_start: int, a_end: int, b_start: int, b_end: int) -> int:
     return max(0, min(a_end, b_end) - max(a_start, b_start) + 1)
 
 
-def segmentation_agreement(rows: list[dict[str, str]]) -> dict:
+def segmentation_agreement(
+    rows: list[dict[str, str]],
+    preprocessed_cache: dict[str, list[dict]],
+    frame_count_cache: dict[str, int],
+) -> dict:
     """Run our FSM over each full clip; match detected reps to dataset boundaries.
+
+    Runs over the **same preprocessed stream** `build_feature_rows` already computed
+    (via the shared cache) — the live pipeline calls `exercise.segment()` on the
+    preprocessed buffer too (`router.py`: preprocess once, then segment), so this
+    validates the FSM against what it actually receives at runtime, not raw landmarks.
 
     Over-/under-segmentation is measured against ALL Ex6 reps present in each Camera18
     clip (front + half-profile — the FSM is orientation-blind), with a front-only
@@ -242,24 +289,12 @@ def segmentation_agreement(rows: list[dict[str, str]]) -> dict:
         {r["video_id"] for r in rows if r["exercise_id"] == TARGET_EXERCISE_ID}
     )
     for video_id in video_ids:
-        world_landmarks, timestamps_ms = _load_landmarks(video_id)
-        # Full-clip stream, dropping only no-pose frames (keeps timestamps monotonic).
-        frames = []
-        for idx in range(world_landmarks.shape[0]):
-            row = world_landmarks[idx]
-            if np.isnan(row).all():
-                continue
-            frames.append(
-                {
-                    "frameIndex": int(idx),
-                    "timestampMs": int(timestamps_ms[idx]),
-                    "worldLandmarks": [
-                        {"x": float(lm[0]), "y": float(lm[1]), "z": float(lm[2])}
-                        for lm in row
-                    ],
-                }
-            )
-        detected = [_rep_frame_bounds(rep) for rep in segment_squat_frames(frames)]
+        preprocessed = _preprocessed_stream(
+            video_id, preprocessed_cache, frame_count_cache
+        )
+        detected = [
+            _rep_frame_bounds(rep) for rep in segment_squat_frames(preprocessed)
+        ]
 
         gt = [
             (
@@ -337,11 +372,18 @@ def write_report(build_stats: dict, agreement: dict, feature_rows: list[dict]) -
     lines = [
         "# Stage 5.3 — squat feature table build",
         "",
-        'Windows every **side-view** (`cam17_orientation == "front"`, Camera18 = '
-        "profile) Ex6 rep by Segmentation.csv's physio-verified "
-        "`first_frame`/`last_frame`, then calls the backend's `extract_squat_features()`"
-        " (X1). Half-profile reps are excluded per the Stage 5.0 gate decision "
-        "(option a — side-view only).",
+        "Preprocesses each video's **entire** landmark stream through the live "
+        "backend's confidence-filter → gap-fill → One-Euro pipeline "
+        "(`app.module_b.core.preprocessing.preprocess_world_landmarks`, the "
+        "cross-cutting change wired into `POST /api/module-b/analyze` ahead of "
+        "`segment()`/`extract_features()`), run once per video over the full "
+        "chronological stream — not per rep — since OneEuroFilter is stateful and "
+        "windowing first would reset its history at every rep boundary. Then windows "
+        'every **side-view** (`cam17_orientation == "front"`, Camera18 = profile) '
+        "Ex6 rep of that *preprocessed* stream by Segmentation.csv's physio-verified "
+        "`first_frame`/`last_frame`, and calls the backend's "
+        "`extract_squat_features()` (X1). Half-profile reps are excluded per the "
+        "Stage 5.0 gate decision (option a — side-view only).",
         "",
         "## Feature table",
         "",
@@ -370,14 +412,46 @@ def write_report(build_stats: dict, agreement: dict, feature_rows: list[dict]) -
         f"- `rep_duration_s`: min {min(durations):.2f}s, median "
         f"{np.median(durations):.2f}s, max {max(durations):.2f}s.",
         "",
+        "### Far-limb occlusion (finding — feeds the monocular limitations write-up)",
+        "",
+        "A single side-view camera tracks the **near** leg well and the **far** leg "
+        "poorly, systematically, in every subject. Mean landmark visibility across "
+        "all 9 videos: left knee 0.95–0.99 and left ankle 0.97–0.99, versus right "
+        "knee **0.59–0.78** and right ankle **0.68–0.87** (the subjects face the same "
+        "way, so the right leg is the far one throughout). The far knee sits below "
+        "the `MIN_VISIBILITY = 0.6` confidence threshold for whole reps at a time — "
+        "measured at all 121 frames of PM_008's rep-1 window, far longer than the "
+        "5-frame gap-fill cap.",
+        "",
+        "This is a property of monocular side-view capture, not of this dataset: the "
+        "live app's own squat guidance asks for exactly this camera placement, so the "
+        "same occlusion occurs at runtime. It is recorded here as evidence for the "
+        "limitations write-up, alongside the dropped frontal-plane valgus measure "
+        "(Locked Assumption #3) — both are the same underlying constraint (one camera "
+        "cannot see what the body occludes).",
+        "",
+        "The far leg's landmarks are *low-confidence but still tracking* — not "
+        "missing. On PM_008 rep 1 the far knee's raw trajectory peaked at 99.9° "
+        "against the near knee's 77.9°, a plausible squat depth. Preprocessing "
+        "therefore releases hold-last beyond the gap-fill window rather than freezing "
+        "the far limb at its standing angle (see "
+        "`module_b/core/preprocessing._release_persistent_occlusions`); freezing it "
+        "halved the bilateral mean knee flexion and collapsed FSM rep agreement to "
+        "32/98 front reps. Whether the far leg's estimate is *accurate* (not merely "
+        "plausible) is exactly what Stage 5.4's `check_mocap_agreement.py` settles "
+        "against the OptiTrack ground truth — it is not asserted here.",
+        "",
         "## FSM vs. dataset segmentation agreement (free validation)",
         "",
         "Our squat FSM (`segment_squat_frames`, Stage 4.3) was run over each full "
-        "Camera18 clip and its rep boundaries compared against the dataset's. This "
-        "validates the live rep detector against physio-verified boundaries; it is a "
-        "report, not a gate. Matching is **strictly one-to-one** (greedy by overlap): "
-        "each detected rep matches at most one GT rep and vice versa, so a merged or "
-        "split detection cannot inflate the count.",
+        "Camera18 clip's **preprocessed** stream (the same one the feature table "
+        "above uses) and its rep boundaries compared against the dataset's — this "
+        "matches what the live pipeline's FSM actually receives (`router.py` "
+        "preprocesses once, then segments), not raw landmarks. It validates the live "
+        "rep detector against physio-verified boundaries; it is a report, not a gate. "
+        "Matching is **strictly one-to-one** (greedy by overlap): each detected rep "
+        "matches at most one GT rep and vice versa, so a merged or split detection "
+        "cannot inflate the count.",
         "",
         f"- **Ground-truth Ex6 reps in these clips:** {agreement['total_gt']} "
         f"(front + half-profile; the FSM is orientation-blind).",
@@ -427,8 +501,15 @@ def main() -> None:
     segmentation_csv = Path(config["dataset_paths"]["rehab246"]["segmentation_csv"])
     rows = _read_segmentation(segmentation_csv)
 
+    # Shared across both stages: each video's full stream is preprocessed exactly
+    # once (X1 — mirrors router.py's single call site) and reused by both.
+    preprocessed_cache: dict[str, list[dict]] = {}
+    frame_count_cache: dict[str, int] = {}
+
     print("Building feature table (side-view Ex6 reps) ...")
-    feature_rows, build_stats = build_feature_rows(rows)
+    feature_rows, build_stats = build_feature_rows(
+        rows, preprocessed_cache, frame_count_cache
+    )
     columns = write_features_csv(feature_rows)
     write_label_map()
     print(
@@ -439,7 +520,7 @@ def main() -> None:
     print(f"  wrote {LABEL_MAP_JSON.name} (Option A, no Fair in training)")
 
     print("Running FSM segmentation-agreement validation ...")
-    agreement = segmentation_agreement(rows)
+    agreement = segmentation_agreement(rows, preprocessed_cache, frame_count_cache)
     write_report(build_stats, agreement, feature_rows)
     print(
         f"  FSM matched {agreement['total_matched']}/{agreement['total_gt']} GT reps; "
