@@ -795,15 +795,75 @@ ml/
 
 ### Stage 5.2 — Landmark extraction from RGB video
 
-- [ ] `extract_landmarks.py`:
+- [x] `extract_landmarks.py`:
   - **Loads the _same_ `pose_landmarker_full.task` asset the frontend self-hosts.** This is the whole point of X3 — a different model variant reintroduces the domain gap. Path in `ml/config.yaml`, pointing at the frontend's asset.
   - `RunningMode.VIDEO`, `delegate=CPU`. **MediaPipe Python's GPU delegate is Ubuntu-only** — on macOS/Apple Silicon it errors; CPU + XNNPACK is the correct and only path here. Document this in `ml/README.md` so nobody "fixes" it later.
   - Extracts **world landmarks** (X3), not image landmarks.
   - Processes only the videos needed: **Ex6 (squat)**, the camera chosen in Stage 5.0, honouring the orientation filter.
   - **Resumable + cached** — writes one `.npz` per video, skips existing. A 2.7 GB batch should never need to restart from zero.
   - Records extraction metadata: model asset **hash**, mediapipe version, delegate, fps.
-- [ ] **Parity check (blocking):** extract one short clip via this Python pipeline, and record the same clip through the browser runtime. Compare per-frame world-landmark distributions. Report the divergence in `ml/reports/PARITY_CHECK.md`. Small numeric differences are expected (delegate/backend); a _structural_ difference means the pipeline is wrong.
-- [ ] Apply the **same preprocessing as runtime** (X1): confidence filter 0.6, ≤5-frame linear interpolation, One Euro, normalisation. Import it from the backend — do not re-implement.
+- [x] **Parity check (blocking):** extract one short clip via this Python pipeline, and record the same clip through the browser runtime. Compare per-frame world-landmark distributions. Report the divergence in `ml/reports/PARITY_CHECK.md`. Small numeric differences are expected (delegate/backend); a _structural_ difference means the pipeline is wrong.
+- [x] Apply the **same preprocessing as runtime** (X1): confidence filter 0.6, ≤5-frame linear interpolation, One Euro, normalisation. Import it from the backend — do not re-implement.
+
+### Phase 5 — Stage 5.2: Landmark extraction (2026-07-16)
+
+- [x] **Reconciliation finding, resolved by HY before writing code:** traced the
+      actual live squat pipeline (`POST /api/module-b/analyze` -> `SquatExercise.
+segment`/`extract_features`, and `useMediaPipePose.ts` upstream of it) and found
+      it applies **zero** confidence-filter/gap-fill/One-Euro preprocessing — raw
+      MediaPipe world landmarks flow straight from the frontend into segmentation and
+      feature extraction. `MODULE_B_CORE_CONFIG["interpolation_max_gap_frames"]` is
+      defined but never consumed anywhere. This differs from Module A (STS/SLS/WBLT),
+      which does run `LandmarkSmoother` server-side. X3's "confidence filter -> gap
+      fill -> One Euro -> normalisation" pipeline is therefore aspirational for
+      Module B squat, not implemented. **HY's decision: option (a)** — match runtime
+      as it actually is (no smoothing in `extract_landmarks.py` either), preserving
+      true X1 parity with the pipeline that exists today, rather than smoothing
+      offline data the live model will never see smoothed (option b) or silently
+      changing Phase 4's already-verified live squat code (option c, out of scope for
+      this stage). Recorded in `extract_landmarks.py`'s module docstring so this
+      isn't re-discovered as a "bug" later.
+  - **[x] Follow-up spawned for later, not fixed here:** flagged as a separate
+    background task (`Wire real preprocessing into Module B squat pipeline`) —
+    unifying Module A's and Module B's preprocessing approach is a genuine
+    Phase-4-touching decision outside Stage 5.2's scope.
+- [x] `ml/scripts/extract_landmarks.py` — `PoseLandmarkerOptions` matches
+      `useMediaPipePose.ts` exactly (CPU delegate, `VIDEO` running mode, `num_poses=1`,
+      all three confidence thresholds 0.5). Filters `Segmentation.csv` to
+      `exercise_id == 6` in code (9 unique `video_id`s), reads only **Camera18**
+      (the side-view camera verified in Stage 5.0). One `.npz` per video
+      (`ml/data/landmarks/`, gitignored — regenerable), skip-if-exists resumability
+      (verified live: re-running mid-batch after a crash correctly skipped the 2
+      already-completed videos and resumed from the 3rd). Metadata
+      (`model_asset_sha256`, `mediapipe_version`, `delegate`, `fps`,
+      `detection_config`) stored inside each `.npz` via a JSON string array.
+  - **Real bug found and fixed during this stage:** the first version reused one
+    `PoseLandmarker` instance across all 9 videos for efficiency; MediaPipe's
+    `VIDEO` running mode tracks an internal "last timestamp" that isn't reset
+    between videos, so video 2's frame-0 timestamp (0ms) was rejected as
+    non-monotonic against video 1's last frame (~171,000ms), crashing the batch
+    on the 3rd video. Fixed: one fresh `PoseLandmarker` per video (closed after
+    use) — correct and still fast enough (~92 fps on this machine).
+  - **Extraction result (all 9 side-view Ex6 videos, verified by reading every
+    `.npz` back):** 30,028 total frames processed, only **1** frame with no
+    detected pose (0.00%) — full run completed in ~6 minutes.
+- [x] `ml/reports/PARITY_CHECK.md` + `figures/parity_check_knee_flexion.png` — a
+      temporary dev-only browser harness (`frontend/parity-check.html` +
+      `frontend/src/devPages/parityCheck.ts`, both **removed** after the check ran,
+      per the report's own "Cleanup" section) ran the frontend's actual installed
+      `@mediapipe/tasks-vision` package against the identical self-hosted WASM +
+      model asset, with `PoseLandmarkerOptions` copied verbatim from
+      `useMediaPipePose.ts`, fed frame-by-frame via `<video>` seeking (not a live
+      webcam) against `PM_008`'s rep-1 clip (frames 100-219, the same range visually
+      verified in Stage 5.0). **Result: 0.9996 Pearson correlation across all
+      landmarks; the squat-relevant landmarks (hips/knees/ankles) differed by
+      0.8-7.3mm on average; the derived knee-flexion angle — the actual squat ROM
+      signal — differed by 0.90° mean / 4.6° max across 120 frames.** Verdict: small
+      numeric differences consistent with native-TFLite-vs-browser-WASM delegate
+      divergence, no structural mismatch — parity confirmed, gate cleared.
+- [x] Verification: `ml/scripts/extract_landmarks.py` and the parity-check
+      harness's deletion left `git status` clean on `frontend/`; Black/isort clean
+      on the new script; full backend suite still 126/126 (untouched by this stage).
 
 ### Cross-cutting — Wire real preprocessing into Module B squat pipeline (2026-07-16)
 
@@ -869,7 +929,92 @@ ml/
 - [ ] **Schema validation:** assert column order/count matches `FeatureVector.names`; fail loudly on drift.
 - [ ] **Label normalisation** (Option A): `correct → Good`, `incorrect → Poor`. Write `ml/artifacts/label_map.json`. **No Fair in training** — record that explicitly in the file.
 
+### Phase 5 — Stage 5.3: Build the feature table (2026-07-16)
+
+- [x] **Reconciliation confirmed before writing code:** spot-checked every claim the
+      previous stages make about the X1 contract. `app.module_b.squat.features.
+extract_squat_features` and `SQUAT_FEATURE_NAMES` (13 features), `app.module_b.
+squat.segmentation.segment_squat_frames`, and the `FeatureVector`/`Rep` dataclasses
+      all exist as Stage 4.2/4.3 describe, and the ml venv's editable install imports
+      them cleanly (X1 — the offline extractor calls the live functions, never
+      re-implements them). Also re-verified the dataset↔extraction frame alignment
+      Stage 5.0/5.2 rely on: Segmentation.csv `first_frame`/`last_frame` index directly
+      into the Camera18 `.npz` (e.g. PM_008 rep 1 = frames 100–220), the same range
+      Stage 5.2's parity check used.
+- [x] `ml/scripts/build_features.py` — windows every **side-view** rep
+      (`exercise_id == 6` AND `cam17_orientation == "front"`, i.e. Camera18 = profile,
+      per Stage 5.0 option a) by the dataset's physio-verified `first_frame`/`last_frame`
+      (inclusive), builds the runtime frame shape (`worldLandmarks` xyz + `timestampMs`)
+      from the `.npz`, and calls the backend's `extract_squat_features()` (X1). Emits
+      `ml/data/squat_features.csv` — **98 rows** (one per rep, matching the audit's 98
+      verified side-view reps), **72 Good / 26 Poor**, across **9 subjects / 9 videos**.
+      Columns: `person_id`, `video_id`, `repetition_number`, the 13 features in
+      `SQUAT_FEATURE_NAMES` order, `correctness` (raw 0/1), `label` (Good/Poor),
+      `orientation`, `lights_on`, `mocap_erroneous`, `feature_schema_version` (`1.0.0`).
+  - **Naming note (not drift):** the checklist says `lighting`; the actual
+    Segmentation.csv column is `lights_on` (0/1) — the CSV uses the real column name,
+    consistent with the Stage 5.0 schema-doc correction. A separate `label` column
+    (the normalised Good/Poor target) is emitted alongside the raw `correctness` for
+    traceability; the checklist's "`correctness` label" wording is satisfied by both.
+- [x] **Schema validation:** `write_features_csv()` asserts the CSV's feature block,
+      in order, equals `SQUAT_FEATURE_NAMES` before writing — the build raises loudly on
+      any drift. `extract_squat_features` also re-checks `FeatureVector.names` per rep.
+- [x] **Label normalisation (Option A):** `ml/artifacts/label_map.json` written (a
+      committed artifact — `ml/artifacts/` is not gitignored, per Locked Assumption #4):
+      `{"1": "Good", "0": "Poor"}`, `no_fair_in_training: true`, plus an explicit note
+      that Fair is derived at inference from the calibrated low-confidence margin
+      (Stage 5.6), never a trained class.
+- [x] **FSM-vs-dataset segmentation agreement (free validation, Stage 4.3 FSM):**
+      `ml/reports/FEATURE_TABLE.md`. Ran `segment_squat_frames` over each full Camera18
+      clip and matched detections to the dataset boundaries **strictly one-to-one**
+      (greedy by overlap, each detected/GT rep used once). Across all 195 Ex6 reps in
+      these clips (front + half-profile; the FSM is orientation-blind): **192 detected,
+      182 matched → 93.3% recall (13 missed), 94.8% precision (10 spurious)**; on the
+      98 **front** (trained) reps, **92/98 = 93.9% recall**. Boundary error on matched
+      reps: start median 17 frames, end median 15 frames (≈0.5 s at 30 fps) — expected
+      from the FSM's 30°-enter / 20°-exit hysteresis starting/ending a rep slightly
+      inside the dataset's onset/offset. Recorded, not corrected: the dataset boundaries
+      remain ground truth for windowing.
+  - **Correctness fix caught during implementation:** the first matcher let one merged
+    detection count against two GT reps, producing the impossible `detected 17 /
+matched 20` for PM_038 (matches exceeding detections). Reworked to strict
+    one-to-one greedy matching so `matched ≤ min(detected, gt)` always holds — the
+    numbers dropped from an inflated 187/195 to an honest 182/195.
+- [x] **Windowed-rep sanity (logged in the report, not a gate — Stage 5.4 does the real
+      validity check):** `knee_flex_peak_deg` spans 69.7°–129.8° (median 99.8°) and
+      `rep_duration_s` 2.13–5.13 s across the 98 reps — non-trivial squat depth in every
+      window, corroborating the frame-alignment reconciliation above.
+- [x] Verification: `build_features.py` runs clean; **byte-identical CSV across two
+      runs** (X8 determinism — `md5` confirmed). Black + isort clean. Backend untouched
+      (`git status backend/` empty; suite stays 126/126). `ml/data/squat_features.csv`
+      and the `.npz` landmarks are gitignored (regenerable from the raw dataset via
+      `extract_landmarks.py` → `build_features.py`); `label_map.json` and
+      `FEATURE_TABLE.md` are committed.
+- [ ] **Deliberately not done (out of Stage 5.3 scope):** per-subject class presence is
+      only surfaced (subjects 2/4/9 are single-class Good, subject 1 is 16 Good/1 Poor),
+      not acted on — the LOSO/stratified-group-k-fold fallback that handles it is
+      Stage 5.5's job. No feature was dropped or kept on the basis of the sanity stats
+      above; the keep/drop verdict and the `norm_ref` bake-off are Stage 5.4's gate.
+
 ### Stage 5.4 — Feature-validity sanity **[GATE — R5.5]**
+
+> ⏸ **HELD by HY (2026-07-16) — do not start until the Module B preprocessing change
+> lands.** A parallel worktree session (branch `claude/serene-bhaskara-74aaf3`, the
+> "Wire real preprocessing into Module B squat pipeline" follow-up flagged in Stage
+> 5.2) is adding server-side `LandmarkSmoother` preprocessing + a real linear
+> interpolation gap-fill (`interpolation_max_gap_frames=5`) into the **live** squat
+> pipeline. That breaks the X1 parity Stage 5.2/5.3 were built on: `squat_features.csv`
+> was deliberately computed from **unsmoothed** landmarks to match the runtime as it
+> exists today (Stage 5.0 option a). Running this gate on the current features would be
+> wasted — the feature-validity verdict is only meaningful on features the trained model
+> will actually see live. **When that change merges:** re-run the `ml/` offline pipeline
+> first — `build_features.py` (and the extract flow) must import + apply the **shared**
+> preprocessing function (it must live in a shared `module_b/core/` module, imported by
+> both `router.py` and `build_features.py` — X1-by-construction, not inlined in the HTTP
+> layer), preprocess the **full stream then window** (One Euro is causal/stateful), and
+> carry `visibility` into the offline frames (the `MIN_VISIBILITY=0.6` hold-last path
+> depends on it). Regenerate `squat_features.csv`, note the re-run in the Stage 5.2/5.3
+> entries, **then** run this gate.
 
 - [ ] `check_feature_validity.py` — per feature, plot **and** report its distribution split by class. A feature enters the model **only if it visibly separates classes** (e.g. `knee_flex_peak_deg` should be lower for incorrect reps). Output `ml/reports/FEATURE_VALIDITY.md` with an explicit keep/drop verdict + justification per feature.
   - [ ] **Figure (required):** `figures/feature_validity_boxplots.png` — one boxplot (or violin) per feature, class on the x-axis, arranged as a grid (e.g. 4×4 subplots via `plt.subplots`), so every feature's class separation is visible on one page.
