@@ -18,6 +18,7 @@ FIGSIZES = {
     "single": (6, 4.5),
     "wide": (10, 4.5),
     "grid_4x4": (14, 12),
+    "grid_2x2": (11, 8),  # one panel per swept hyperparameter (Stage 5.5)
     "bland_altman": (7, 6),
     "heatmap": (9, 8),  # square-ish, for the Stage 5.4 feature correlation matrix
 }

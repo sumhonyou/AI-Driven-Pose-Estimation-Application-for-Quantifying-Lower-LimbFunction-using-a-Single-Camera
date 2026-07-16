@@ -952,6 +952,16 @@ assumption is wrong for a single side-view camera, and the failure was loud.
       so a genuine brief flicker still hold-lasts as designed. Reuses the same
       visibility-bump idiom `_interpolate_gap` already used — the one lever that
       steers hold-last **without forking `LandmarkSmoother`**.
+- [x] **No second config knob, and this was reviewed, not assumed.** The release
+      threshold reuses `interpolation_max_gap_frames` rather than introducing its own
+      tunable. Asked the session that owns `preprocessing.py` to confirm or object;
+      it reviewed the diff and confirmed (2026-07-16): that constant already means
+      "how long a gap can be before we stop trusting continuity assumptions", so this
+      is the same semantic rather than an overload, and a separate constant would be
+      two numbers to keep in sync for no benefit. It also confirmed the layering
+      (`_fill_gaps` gets first crack at short runs; this only fires beyond the max) and
+      that Module A is untouched. Do not split these into two knobs without a reason
+      that defeats the above.
 - [x] **`LandmarkSmoother` itself deliberately untouched** — it is shared with
       Module A (STS/SLS/WBLT all call `smooth_frame(t, world)`), whose behavior and
       verified results must stay byte-identical. The fix lives entirely in Module B's
@@ -1235,8 +1245,8 @@ agreement.py`'s `icc_2_1`/`bland_altman` (confirmed stats-only — it has no plo
 
 ### Stage 5.5 — Train the Extra Trees classifier
 
-- [ ] `train_squat.py`, **binary** Good/Poor (Option A), fixed `random_state`.
-- [ ] Hyperparameter grid (R8):
+- [x] `train_squat.py`, **binary** Good/Poor (Option A), fixed `random_state`.
+- [x] Hyperparameter grid (R8):
 
 | Param               | Start        | Grid                                                  |
 | ------------------- | ------------ | ----------------------------------------------------- |
@@ -1248,15 +1258,114 @@ agreement.py`'s `icc_2_1`/`bland_altman` (confirmed stats-only — it has no plo
 | `class_weight`      | `'balanced'` | —                                                     |
 | `bootstrap`         | False        | — (ET default; part of what distinguishes it from RF) |
 
-- [ ] **CV = Leave-One-Subject-Out** (10 subjects), groups = `person_id` (D10, R8). **Fallback:** if Stage 5.0's audit showed a subject with only one class, or a fold loses a class → **stratified group k-fold (5-fold, groups = subjects)**. Record which was used and why.
-- [ ] **Imbalance:** `class_weight='balanced'`. **No SMOTE** — synthetic pose features can be biomechanically impossible, and small-N resampling risks duplicating a subject's reps across folds (leakage). R8 is explicit on this.
-- [ ] **Nested tuning** — tune inside the training folds only. Tuning on the LOSO test fold is leakage and an examiner will spot it.
-  - [ ] **Record every combination tried, not just the winner.** Use `sklearn.model_selection.GridSearchCV` (or an explicit manual loop) and keep its full `cv_results_` — every hyperparameter combination alongside its mean validation score and variance across folds. This is the actual evidence of experimentation: a table showing "these 20 combinations were tried, here's how each scored, this one won" is what makes the search a documented investigation rather than a number that appears from nowhere.
-  - [ ] **Figure (required):** `figures/hyperparameter_search_results.png` — one line or bar chart per swept parameter (e.g. validation score vs `n_estimators`, holding others at their best value; same for `max_depth`, `min_samples_leaf`, `min_samples_split`), with the chosen value marked. If the grid is small enough, a single heatmap of the two most-varied parameters (e.g. `n_estimators` × `max_depth`) is also acceptable instead of separate charts.
-  - [ ] `ml/reports/SQUAT_TRAINING_REPORT.md` includes the **full `cv_results_` table** (every combination + score), not a one-line "best params were X" summary. Losing combinations stay in the table — do not prune them out after the fact.
-- [ ] **Calibration** — `CalibratedClassifierCV` (isotonic if N allows, else sigmoid/Platt) on a held-out fold. ET `predict_proba` is over-confident; the Fair band depends entirely on calibrated probabilities being meaningful.
-  - [ ] **Figure (required):** `figures/calibration_reliability_curve.png` — predicted probability (x-axis, binned) vs observed frequency (y-axis), plotted **before and after** calibration on the same axes (`sklearn.calibration.calibration_curve` + a plotted 45° reference line), so the improvement from calibration is visible, not asserted. An uncalibrated Fair band is a fabricated third class — this figure is the evidence it isn't.
-  - [ ] Output `ml/reports/SQUAT_TRAINING_REPORT.md`: the full hyperparameter search table and figure above, which CV scheme was used and why, and the reliability curve embedded inline.
+- [x] **CV = Leave-One-Subject-Out** (10 subjects), groups = `person_id` (D10, R8). **Fallback:** if Stage 5.0's audit showed a subject with only one class, or a fold loses a class → **stratified group k-fold (5-fold, groups = subjects)**. Record which was used and why.
+- [x] **Imbalance:** `class_weight='balanced'`. **No SMOTE** — synthetic pose features can be biomechanically impossible, and small-N resampling risks duplicating a subject's reps across folds (leakage). R8 is explicit on this.
+- [x] **Nested tuning** — tune inside the training folds only. Tuning on the LOSO test fold is leakage and an examiner will spot it.
+  - [x] **Record every combination tried, not just the winner.** Use `sklearn.model_selection.GridSearchCV` (or an explicit manual loop) and keep its full `cv_results_` — every hyperparameter combination alongside its mean validation score and variance across folds. This is the actual evidence of experimentation: a table showing "these 20 combinations were tried, here's how each scored, this one won" is what makes the search a documented investigation rather than a number that appears from nowhere.
+  - [x] **Figure (required):** `figures/hyperparameter_search_results.png` — one line or bar chart per swept parameter (e.g. validation score vs `n_estimators`, holding others at their best value; same for `max_depth`, `min_samples_leaf`, `min_samples_split`), with the chosen value marked. If the grid is small enough, a single heatmap of the two most-varied parameters (e.g. `n_estimators` × `max_depth`) is also acceptable instead of separate charts.
+  - [x] `ml/reports/SQUAT_TRAINING_REPORT.md` includes the **full `cv_results_` table** (every combination + score), not a one-line "best params were X" summary. Losing combinations stay in the table — do not prune them out after the fact.
+- [x] **Calibration** — `CalibratedClassifierCV` (isotonic if N allows, else sigmoid/Platt) on a held-out fold. ET `predict_proba` is over-confident; the Fair band depends entirely on calibrated probabilities being meaningful.
+  - [x] **Figure (required):** `figures/calibration_reliability_curve.png` — predicted probability (x-axis, binned) vs observed frequency (y-axis), plotted **before and after** calibration on the same axes (`sklearn.calibration.calibration_curve` + a plotted 45° reference line), so the improvement from calibration is visible, not asserted. An uncalibrated Fair band is a fabricated third class — this figure is the evidence it isn't.
+  - [x] Output `ml/reports/SQUAT_TRAINING_REPORT.md`: the full hyperparameter search table and figure above, which CV scheme was used and why, and the reliability curve embedded inline.
+
+### Phase 5 — Stage 5.5: Train the Extra Trees classifier (2026-07-16)
+
+- [x] **`ml/scripts/train_squat.py`** — binary Good/Poor (Option A), `random_state=42`
+      from `config.yaml`, splitters `shuffle=False`. Structure: `_choose_cv()`,
+      `_inner_splits()`, `_search()`, `_calibrate()`, `build_final_model()`,
+      `nested_cv()`, `_plateau_stats()`, `_wilson_interval()`, `_reliability_bins()`,
+      `plot_hyperparameter_search()`, `plot_calibration()`, `_importances()`,
+      `write_report()`. Added `"grid_2x2": (11, 8)` to `plotting.py`'s `FIGSIZES`
+      (its documented extension point, as Stage 5.4 did with `heatmap`).
+- [x] **CV: `StratifiedGroupKFold(5, groups=person_id)` — the plan's fallback, and it
+      was triggered by the data, not chosen.** `_choose_cv()` detects the condition
+      rather than hardcoding it: **subjects 2, 4, 9 are Good-only**, so LOSO would give
+      three of nine folds a test set with no Poor rep, making ROC AUC and Poor-recall
+      _undefined_ there. No subject appears in both train and test, so there is no
+      identity leakage — but each test fold now holds ~2 subjects. **The write-up must
+      say "subject-wise 5-fold", not "LOSO".** Per-fold AUC: 0.889 / 0.887 / 0.773 /
+      0.893 / 1.000.
+- [x] **Nested tuning, 180 combinations** (`n_estimators` × `max_depth` ×
+      `min_samples_leaf` × `min_samples_split`), `GridSearchCV` inside each outer
+      training fold only, 3 subject-disjoint inner folds. Full unpruned `cv_results_`
+      table (all 180 rows, both metrics) is in the report. **Tuned on ROC AUC, not
+      F1/precision** — Stage 5.6's whole job is to replace the 0.5 threshold, so tuning
+      a threshold-dependent metric would optimise a rule about to be discarded;
+      `f1_macro` recorded per combination anyway. `GridSearchCV.best_score_` is
+      explicitly **not** quoted as a generalisation estimate (it is the max over 180
+      noisy estimates).
+- [x] **Result: out-of-fold ROC AUC 0.832**, macro-F1 0.631 @0.5, Brier 0.154 → 0.149.
+      Chosen params `n_estimators=500, max_depth=None, min_samples_leaf=2,
+  min_samples_split=10`.
+- [x] **Finding — the search is a plateau, and that is the honest result.** The entire
+      grid spans **0.0407** ROC AUC (0.8718–0.9125) while the **median std across inner
+      folds is 0.0455 — larger than the whole span**; **163/180** combinations sit
+      within 1 std of the winner. ET is _insensitive to these hyperparameters at this
+      sample size_. Do not present the winner as a tuned optimum. Verified
+      mechanistically: `max_depth` None/12/16 score **identically to 4 dp** because
+      trees average depth 7.5 (max 13) and only **1 in 500** exceeds depth 12 — the
+      constraint never activates; `min_samples_split≥10` on 98 reps binds first.
+- [x] **Finding — Poor recall collapses 0.808 → 0.385 at the 0.5 threshold while AUC is
+      unchanged.** Not a regression: `class_weight='balanced'` puts the raw forest's 0.5
+      at the _reweighted_ boundary, and calibration correctly pushes P(Good) up toward
+      the true 73% base rate, so fewer reps fall below 0.5. **The model misses ~62% of
+      Poor reps at 0.5** — the worst failure mode for a rehab grader. **Handoff to Stage
+      5.6:** its text sweeps `confidence_low_threshold` "above 0.5" as a _Fair band_,
+      but the **decision boundary itself** also wants to move above 0.5. Those are two
+      distinct knobs its checklist currently blurs into one. Not resolved here.
+- [x] **Bug found by my own assertion, fixed properly.** The report claims calibration is
+      monotone so AUC must be preserved; the assert fired (0.852 → 0.833). Root cause:
+      `CalibratedClassifierCV` defaults to `ensemble=True`, averaging 3 forests each
+      trained on 2/3 of the data — so the before/after figure was measuring _ensembling_,
+      not calibration. Switched to **`ensemble=False`** (one forest + one sigmoid on
+      out-of-fold scores), which also matches Stage 5.8's `model.joblib` +
+      `calibrator.joblib` split. The assert then **still fired** — because it was at the
+      wrong level: each of the 5 folds fits its _own_ sigmoid, so pooled predictions
+      apply 5 different monotone maps and the pooled ranking legitimately shifts. Moved
+      the assert **per fold**, where the property must hold, and it passes exactly on all
+      5 (0.8889→0.8889, …). Both the wrong assertion and the reason are recorded in the
+      report rather than quietly deleted.
+- [x] **Calibration: sigmoid, not isotonic — N does not allow.** 26 Poor reps from 6
+      subjects; isotonic would memorise. **Reported honestly as weak evidence:** Brier
+      gains only 3% relative, neither curve tracks the diagonal (uncalibrated is
+      under-confident at the top, sigmoid over-corrects mid-range), and with ~19 reps
+      per bin **the two curves are not separated by more than their own uncertainty**.
+      Switched the error bars from Wald to **95% Wilson** after noticing Wald collapses
+      to _zero width_ at p=1 — two bins sit there and would have plotted as perfect
+      certainty from 19 samples. Consequence for 5.6: the Fair band's real justification
+      is the ranking (AUC 0.832), not demonstrated probability calibration.
+- [x] **Answered Stage 5.4's two open questions, with model evidence.**
+  - **Trained on all 13 features; DROP verdicts recorded, not executed** — both for
+    scope (editing `SQUAT_FEATURE_NAMES` bumps `feature_schema_version`) and because
+    5.4's verdicts used the held-out subjects' reps, so acting on them would be
+    selection bias. **Two independent methods converged: Spearman rho = 0.775** between
+    Gini importance and 5.4's univariate effect size; all three DROP features rank
+    10/11/13 of 13. **`symmetry_index_pct` — the check that mattered passed:** despite
+    correlating with mocap truth at r ≈ −0.05, the model did _not_ latch onto it as a
+    subject fingerprint (rank 11, 0.0395). Still flagged for 5.8's model card.
+  - **Redundant pair `knee_flex_peak_deg` ~ `knee_rom_deg` (r=0.97): keep both.** They
+    rank 2nd/3rd (0.127, 0.104) — correlated features _split_ importance, so together
+    depth accounts for ~0.23, on par with `ankle_df_proxy_deg`'s 0.24. One signal, two
+    labels; ET is unbothered, and dropping either bumps the schema for no gain.
+- [x] **`check_feature_validity.analyse_feature()` is imported, not transcribed** — the
+      first draft hardcoded 5.4's AUCs into a table and **7 of 13 were wrong** (e.g.
+      `stance_width_norm` written as 0.652, actually 0.374 with verdict
+      _KEEP (caveat)_). Importing eliminated the whole class of error and keeps the two
+      reports from diverging. Same discipline as X1.
+- [x] **Verified:** X8 determinism — SHA-256 of the report and both figures byte-identical
+      across consecutive runs (and again after formatting). Backend suite **136/136**
+      via `python -m unittest discover -s tests` (unchanged; no backend file touched).
+      `black` clean and `isort --profile black` clean — the profile matters, bare `isort`
+      fails on every pre-existing `ml/` script too.
+- [ ] **Deliberately not done (out of Stage 5.5 scope):** no artifact exported —
+      `model.joblib`/`calibrator.joblib`/`feature_schema.json`/`model_card.md` are
+      **Stage 5.8**'s deliverable, and `build_final_model()` is the entry point it should
+      call so the model is defined in one place. No threshold chosen (the 0.5 used for
+      the recall columns is a reporting convenience, **Stage 5.6** decides). No 3-band
+      confusion matrix, latency, or baseline comparison (**Stage 5.7**). Permutation
+      importance not run — Gini's ranking is enough to _corroborate_ 5.4, but if a
+      feature is ever dropped on importance evidence, permutation is the measure that
+      should justify it.
 
 ### Stage 5.6 — Fair threshold + fusion weight sweep
 
