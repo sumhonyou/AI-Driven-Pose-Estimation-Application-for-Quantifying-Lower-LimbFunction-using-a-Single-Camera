@@ -1,12 +1,12 @@
 # Phase 5 — Squat Model Development: Dataset, Feature Pipeline, Classifier Training, Evaluation, and Deployment
 
-_Draft source material for the Results and Discussion chapter. Covers Stages 5.0–5.8
+_Draft source material for the Results and Discussion chapter. Covers Stages 5.0–5.9
 of the project's development plan: dataset audit, landmark extraction, feature
 engineering, feature validity analysis, Extra Trees classifier training, fusion
-threshold/weight selection, system evaluation including replay determinism, and export
-to the production backend. External validation (Stage 5.9) is a later stage and is not
-covered here. Written for direct adaptation into the dissertation; figures are embedded
-and referenced by their existing filenames in `ml/reports/figures/`._
+threshold/weight selection, system evaluation including replay determinism, export
+to the production backend, and external validation against an independent dataset.
+Written for direct adaptation into the dissertation; figures are embedded and referenced
+by their existing filenames in `ml/reports/figures/`._
 
 ---
 
@@ -1028,7 +1028,185 @@ strongest verification available without one.
 
 ---
 
-## 9. Summary of Limitations Established in This Phase
+## 9. External Validation Against an Independent Dataset
+
+Every result reported to this point derives from a single dataset. Because the training
+design deliberately reserved a second public dataset of 3D exercise recordings — never
+using it for feature selection, training, calibration or threshold selection — that
+dataset remained available as a genuinely independent cohort. This section reports the
+attempt to use it, which produced a **negative result**: the external dataset proved
+unable to serve as a generalisation check for this model, for three independent and
+separately measured reasons. The reasons are more informative than the metric, and are
+reported in place of it.
+
+### 9.1 Recovering the external dataset's skeleton format
+
+The external dataset distributes 29,789 frames of 25-joint 3D coordinates covering
+squats, lunges and planks from four subjects at 30 frames per second. Its repository
+documents the array's shape but not its joint ordering, and names no skeleton format, so
+the ordering had to be recovered from the data before any mapping could be trusted.
+
+Four independent checks were used, rather than the visual limb-labelling that had been
+anticipated as a fallback. First, the coefficient of variation of every inter-joint
+distance was computed across 10,283 squat frames: a genuine skeletal segment holds
+constant length, an incorrect pairing does not. Every segment predicted by the OpenPose
+`BODY_25` convention proved rigid (coefficient of variation 0.00007–0.00173) at
+anatomically plausible lengths — thigh 0.1403, shank 0.1357, torso 0.1954 in the
+dataset's normalised units. Second, and decisively, each foot's three-joint group was
+tested against both ankles: the groups separated along exactly the `BODY_25` grouping
+with an approximately 130-fold rigidity margin, with the heel nearest its ankle and the
+big toe furthest — the correct anatomy of a foot. Third, joint 8 was found to be exactly
+the origin in every frame, which only a mid-hip root plausibly explains. Fourth, two
+unrelated anatomical indicators — the big-toe-minus-heel direction and the
+nose-minus-ear-midpoint direction — agreed on which axis was anterior. The dataset's
+joint order is therefore established as OpenPose `BODY_25`.
+
+Only the eight landmarks the squat feature extractor actually reads (shoulders, hips,
+knees and ankles) were mapped onto the runtime's 33-landmark format, and the mapped
+frames were passed through the _same_ preprocessing and feature-extraction code the live
+system runs, rather than a reimplementation.
+
+One ambiguity could not be resolved: whether the convention's "right" joints are
+anatomically right depends on a handedness convention the distributed file does not
+record. Rather than guess, its consequence was measured — swapping the left and right
+halves of the mapping and re-extracting leaves all thirteen features bit-identical across
+all 132 repetitions, because every squat feature is a both-legs mean, an absolute
+difference, a midpoint, or an inter-ankle distance. The ambiguity is therefore immaterial
+to this analysis, though it would not be for any side-specific movement.
+
+### 9.2 The external poses are canonicalised, not raw motion capture
+
+The decisive property of the external data emerged from direct measurement of its
+coordinates. Across every squat frame, the mid-hip joint sits at exactly the origin; the
+neck's vertical coordinate has a standard deviation of 4.7 × 10⁻¹⁷ — floating-point
+zero — about a fixed value, and its anterior coordinate is identically zero. This holds
+under every instruction label, including the label denoting excessive forward trunk
+flexion. Separately, the four subjects' thigh lengths agree to within 0.160%, which four
+different people's anatomy cannot do.
+
+The distributed poses are therefore root-centred, orientation-normalised and retargeted
+onto a single template skeleton. Three-point joint angles survive such processing
+unchanged, being invariant to rigid transformation, and the extracted knee and hip
+flexion values were indeed physiologically plausible. Two classes of feature do not
+survive. Features measured against **gravity** lose their reference, because after
+orientation normalisation no world vertical remains — the canonical vertical axis _is_
+the torso axis. Peak trunk lean collapsed from a mean of roughly 35–44° in the training
+data to roughly 3–4°, and the forward-flexion fault class exhibited **no more** trunk
+lean than the correct class: the single fault that feature exists to detect is erased by
+the normalisation. Features measured from **global translation** are likewise lost; the
+hip-midpoint jitter feature is approximately zero for every repetition, the hip having
+been pinned to the origin.
+
+This finding overturns an assumption made when the validation was planned, namely that
+recomputing "the angle-based features only" would suffice. It does not: the model's
+single most important feature (Gini importance 0.2388) is an angle, but an angle measured
+against gravity, and so does not transfer. The distinction that governs transferability
+is not angle versus non-angle but **intrinsic** (invariant to rigid transformation)
+versus **world-referenced**.
+
+Reconstructing the discarded orientation — by fitting a ground plane to the feet and
+un-rotating each frame — was considered and rejected. It would introduce an invented
+estimator of unquantified accuracy into the model's most influential feature, and could
+not in any case restore the global translation or the per-subject anatomy, both of which
+are absent rather than merely rotated.
+
+### 9.3 The two datasets encode incompatible definitions of "incorrect"
+
+The most consequential finding is one of construct rather than measurement. As
+established in Section 4.2, the training dataset's incorrect repetitions are _deeper_
+than its correct ones. The external dataset's fault taxonomy, by contrast, explicitly
+includes an insufficient-depth fault, so its incorrect repetitions are _shallower_. The
+relationship the classifier learned is therefore not merely uninformative on the external
+cohort — it is reversed.
+
+Quantifying this by comparing each feature's univariate separation direction in both
+datasets, weighted by the deployed forest's own Gini importance, **56.7% of the model's
+importance mass sits on features whose correct/incorrect direction inverts between the
+two datasets.** Knee range of motion separates the classes at an AUC of 0.86 in training
+and 0.42 externally; peak knee flexion 0.84 versus 0.42; peak hip flexion 0.78 versus
+0.24; normalised stance width 0.37 versus 0.66. An inverted feature is more damaging than
+an absent one, because the model does not abstain on it — it reads the evidence
+confidently in the wrong direction.
+
+The clearest expression of this is not in the feature statistics but in the outcome. Of
+the 21 insufficient-depth repetitions — the most unambiguously faulty squats in the
+external cohort — the system rated 17 (81.0%) as correct. Of the 41 genuinely correct
+repetitions it rated only 7 (17.1%) as correct. **The system is 4.7 times more likely to
+approve an insufficient-depth fault than a correctly performed squat.** No threshold
+adjustment repairs this, because the ordering itself is wrong for this population.
+
+This is not a defect in either dataset. It is direct evidence that the classifier learned
+a **population-specific** conception of squat correctness rather than a transferable one,
+and it is the most substantive contribution this validation makes.
+
+### 9.4 Half of the external fault class lies outside this system's design scope
+
+The external dataset's four squat faults comprise excessive stance width, medial knee
+collapse, insufficient depth, and excessive forward trunk flexion. The first two are
+frontal-plane faults. As established in Section 1.1, frontal-plane assessment was
+deliberately excluded from this system as infeasible from a single sagittal viewpoint: no
+corresponding feature, rule or fault tag exists anywhere in it. Those repetitions remain
+labelled incorrect in the external ground truth, and account for 46 of its 91 faulty
+repetitions. The system is thus penalised for failing an assessment it was explicitly
+designed never to perform.
+
+The concern anticipated when this validation was planned was the opposite one — that a
+frontal-plane feature would score well on true 3D data while being unavailable in a
+monocular runtime, and so should not be credited. The real problem proves to be that the
+external dataset's fault _class_, not merely its features, is substantially frontal.
+
+### 9.5 Result
+
+![Confusion matrix over the fused three-band output on the external dataset](figures/ec3d_confusion_matrix.png)
+_Figure 15. Confusion matrix over the fused three-band output for the 132 external
+repetitions. Rows are external ground truth (correct/incorrect); columns are the verdict
+presented to the user. Drawn by the same plotting routine as Figure 11 to permit direct
+side-by-side comparison. **This matrix is derived from only four subjects and is not a
+generalisation estimate**: it depicts the response of the deployed model to input that is
+simultaneously out-of-distribution (Section 9.2) and inversely labelled (Section 9.3).
+Read alongside Figure 11 it characterises what differs between the two cohorts, not how
+well the model transfers._
+
+For completeness, and explicitly not as a generalisation estimate in either direction:
+strict accuracy 0.053, accuracy among confidently-classified repetitions 0.184,
+macro-averaged F1 0.089, abstention rate 0.712, recall on the correct class 0.171, recall
+on the incorrect class 0.000, over 132 repetitions.
+
+Two of these figures carry the result. The first is that **recall on the incorrect class
+is exactly zero**: across all 91 faulty repetitions the model returned not one confident
+incorrect verdict. The calibrated probability of "correct" never fell below 0.618, so
+confidence toward "incorrect" never exceeded 0.382 against the 0.85 threshold the fusion
+logic requires. This independently reproduces the finding of Section 8.2 — which was
+measured in-sample, on the model's own training repetitions — on **four subjects the
+model has never seen, from a different dataset recorded on different equipment**. Two
+unrelated methods reaching the same conclusion is considerably stronger evidence than
+either alone, and it substantially raises confidence that the limitation is a real
+property of the deployed model rather than an artefact of one measurement.
+
+The second is that accuracy among confidently-classified repetitions, at 0.184, is
+**below chance**. A model reading uninformative features would score near 0.5 on the
+repetitions it commits to, or would abstain. This model commits to 38 repetitions and is
+wrong on 81.6% of them. It is not confused; it is confidently reversed — which is the
+signature of Section 9.3's inversion rather than of noise, and is why the metric is
+reported as a diagnostic rather than a performance figure.
+
+### 9.6 What this establishes
+
+The validation firewall held: the external dataset was never involved in any modelling
+decision, and this was the first occasion the deployed artifact encountered it. The
+skeleton mapping is sound, as the physiological plausibility of the extracted angles
+confirms — the failure lies in comparability, not in the pipeline. What the exercise
+establishes is that the deployed model's notion of correct technique is specific to the
+population it was trained on, and that this project possesses no dataset capable of
+testing its generalisation. A genuine external check would require a cohort whose
+incorrect class is defined by the same faults, or unnormalised external motion capture,
+or a model restricted to intrinsic features — the last of which would be a different
+artifact from the one deployed, and would still face the construct mismatch of
+Section 9.3.
+
+---
+
+## 10. Summary of Limitations Established in This Phase
 
 The following limitations were established through direct measurement during this phase,
 rather than assumed, and should inform the discussion of this system's validity:
@@ -1110,8 +1288,38 @@ rather than assumed, and should inform the discussion of this system's validity:
     limitation in this chapter for the system's stated clinical purpose, and should be
     the first candidate for investigation in any continuation of this work — whether
     through recalibration, additional incorrect-technique examples, or a revised
-    confidence threshold specific to this class.
+    confidence threshold specific to this class. **This limitation has since been
+    independently reproduced on an unseen external cohort (Section 9.5)**, which
+    considerably strengthens it: it is a property of the model, not of one measurement.
+16. **⚠⚠ The classifier's conception of correct technique is population-specific, and
+    reverses on a cohort whose faults are defined differently (Section 9.3).** 56.7% of
+    the model's importance mass sits on features whose correct/incorrect direction
+    inverts between the training dataset and the external one, because the former's
+    incorrect repetitions are deeper while the latter's include an insufficient-depth
+    fault. On that cohort the system approves an insufficient-depth fault 4.7 times more
+    readily than a correctly performed squat. No threshold adjustment repairs an
+    inverted ordering. Together with limitation 15 this bounds what the classifier can
+    be claimed to have learned: a discriminator between two groups of repetitions in one
+    dataset, not a transferable model of squat correctness.
+17. **No external generalisation estimate exists for this system, and none could be
+    obtained (Section 9).** The one reserved independent dataset proved unusable as a
+    check for three separate reasons — its poses are canonicalised, destroying every
+    gravity-referenced and translation-derived feature (Section 9.2); its fault taxonomy
+    is incompatible (limitation 16); and half its faulty repetitions are frontal-plane
+    faults this system is designed never to detect (Section 9.4). Every performance
+    figure in this chapter is therefore internal to one dataset of 98 repetitions from 9
+    subjects. This is a limitation of the available evidence, not a measurement of poor
+    generalisation: the model may or may not generalise, and this work cannot say which.
+18. **Frontal-plane faults are undetectable by design, and this is quantifiable.** The
+    exclusion of frontal-plane assessment (Section 1.1) is sound for a single sagittal
+    camera, but the external dataset shows its cost concretely: excessive stance width
+    and medial knee collapse together accounted for 46 of 91 faulty repetitions in an
+    independently constructed squat-fault taxonomy. Roughly half of the faults an
+    external source considered worth labelling lie outside this system's scope.
 
 These limitations do not undermine the validity of the trained classifier for its stated
 purpose, but they define the boundary of what can honestly be claimed from this dataset and
-should be stated explicitly rather than discovered by an examiner.
+should be stated explicitly rather than discovered by an examiner. Limitations 15–17 in
+particular should be read together: the deployed model abstains rather than warns, its
+learned notion of correctness did not transfer to the one cohort available to test it,
+and no evidence exists either way as to whether it would transfer to a comparable one.

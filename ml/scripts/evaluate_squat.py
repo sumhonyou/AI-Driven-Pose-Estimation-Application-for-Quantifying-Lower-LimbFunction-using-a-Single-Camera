@@ -193,13 +193,24 @@ def _macro_precision_recall(metrics: dict) -> tuple[float, float]:
     return precision, recall
 
 
-def plot_confusion_matrix_3band(metrics: dict) -> Path:
+def plot_confusion_matrix_3band(
+    metrics: dict,
+    *,
+    dataset_label: str = "REHAB24-6",
+    subtitle: str | None = None,
+    name: str = "confusion_matrix_3band",
+) -> Path:
     """2x3 heatmap: true Good/Poor (rows) vs predicted Good/Fair/Poor (columns).
 
     Non-square on purpose — Fair is a column with no matching row, which is exactly
     the point. Ground truth has no Fair class, so the Fair column can never be
     "correct" or "incorrect"; it is where the system declines to answer. A forced
     square matrix would have to invent a diagonal cell for it.
+
+    Parameterised over the dataset only so Stage 5.9's EC3D matrix is drawn by *this*
+    function rather than a copy of it: the checklist requires the two figures to be
+    comparable side by side, which a forked plotter cannot guarantee over time. The
+    defaults reproduce the Stage 5.7 figure byte-for-byte.
     """
     counts = metrics["counts"]
     grid = np.array(
@@ -226,10 +237,14 @@ def plot_confusion_matrix_3band(metrics: dict) -> Path:
     ax.set_xticks(range(len(PREDICTED_BANDS)), PREDICTED_BANDS)
     ax.set_yticks(range(len(TRUE_LABELS)), TRUE_LABELS)
     ax.set_xlabel("Predicted band (what the user is shown)")
-    ax.set_ylabel("True label (REHAB24-6)")
+    ax.set_ylabel(f"True label ({dataset_label})")
     ax.set_title(
         "Fused 3-band output vs ground truth\n"
-        f"counts, row-normalised %; n={metrics['n']} side-view reps"
+        + (
+            subtitle
+            if subtitle is not None
+            else f"counts, row-normalised %; n={metrics['n']} side-view reps"
+        )
     )
     # Colour encodes the row percentage, but the counts are what the reader should
     # act on -- saying so on the figure stops the shading being read as a count.
@@ -246,7 +261,7 @@ def plot_confusion_matrix_3band(metrics: dict) -> Path:
         style="italic",
     )
     ax.grid(False)
-    return save_fig(fig, "confusion_matrix_3band", figsize="single")
+    return save_fig(fig, name, figsize="single")
 
 
 def plot_robustness_signals(

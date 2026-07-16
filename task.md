@@ -1,7 +1,7 @@
 # FYP Development Tasks
 
 **Project:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.8 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16). **Stage 5.9 (EC3D external validation) is next and unblocked; not started per rules.md scope discipline.** Phase 5B (lunge) gate is satisfied but lunge itself not started.  
+**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied but lunge itself not started.  
 **Related docs:** [FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md](./FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md) (architecture & design), [rules.md](./rules.md) (coding agent rules)
 
 ---
@@ -1694,12 +1694,151 @@ re-touching calibration or the training data split, outside this stage's checkli
 
 Under Option A, EC3D was **never touched by training** — so it is a legitimate independent generalisation check. Protect that.
 
-- [ ] **Confirm EC3D's 25-joint index order from the repo's data-loader before trusting any mapping.** This is a known open question (see Q3) and the "knee-passes-toe" lunge feature depends on it. Empirical fallback: plot one frame's 25 points and label limbs. Write `ml/docs/ec3d_joint_mapping.md`.
-- [ ] `validate_ec3d.py` — map EC3D 25 → MediaPipe-33 for hip/knee/ankle/shoulder, recompute the **angle-based features only**, score with the trained model, report metrics.
-  - [ ] **Figure (required):** `figures/ec3d_confusion_matrix.png` — same style as `confusion_matrix_3band.png` in Stage 5.7, so the two are visually comparable side by side in the write-up.
-  - [ ] Output `ml/reports/EC3D_VALIDATION_REPORT.md` with the figure embedded and the 4-subject caveat stated directly beneath it, not just in surrounding prose.
-- [ ] **Honest scoping:** EC3D has **4 subjects** — this is an external _check_, never a headline generalisation claim. Say so in the report.
-- [ ] **Do not evaluate frontal-plane features here.** EC3D has true 3D, so a valgus feature would score well — and would be meaningless, because that feature doesn't exist in your monocular runtime. (Moot given the side-only decision, but state it: it's the reason the decision is right, and it belongs in the write-up.)
+- [x] **Confirm EC3D's 25-joint index order from the repo's data-loader before trusting any mapping.** This is a known open question (see Q3) and the "knee-passes-toe" lunge feature depends on it. Empirical fallback: plot one frame's 25 points and label limbs. Write `ml/docs/ec3d_joint_mapping.md`.
+- [x] `validate_ec3d.py` — map EC3D 25 → MediaPipe-33 for hip/knee/ankle/shoulder, recompute the **angle-based features only**, score with the trained model, report metrics.
+  - [x] **Figure (required):** `figures/ec3d_confusion_matrix.png` — same style as `confusion_matrix_3band.png` in Stage 5.7, so the two are visually comparable side by side in the write-up.
+  - [x] Output `ml/reports/EC3D_VALIDATION_REPORT.md` with the figure embedded and the 4-subject caveat stated directly beneath it, not just in surrounding prose.
+- [x] **Honest scoping:** EC3D has **4 subjects** — this is an external _check_, never a headline generalisation claim. Say so in the report.
+- [x] **Do not evaluate frontal-plane features here.** EC3D has true 3D, so a valgus feature would score well — and would be meaningless, because that feature doesn't exist in your monocular runtime. (Moot given the side-only decision, but state it: it's the reason the decision is right, and it belongs in the write-up.)
+
+### Phase 5 — Stage 5.9: EC3D external validation (2026-07-17)
+
+**Completed, and the result is a documented NEGATIVE one.** Every checklist item is
+built and run; the honest conclusion is that **EC3D cannot serve as a generalisation
+check for this model**, for three independently measured reasons. The report says so in
+its first paragraph rather than reporting a number that would not mean what it appears
+to mean. `ml/scripts/validate_ec3d.py` → `ml/reports/EC3D_VALIDATION_REPORT.md` +
+`figures/ec3d_confusion_matrix.png`; `ml/docs/ec3d_joint_mapping.md` closes **Q3**.
+Backend suite unchanged at **150/150**. Deterministic (X8): report + figure verified
+byte-identical across consecutive runs.
+
+- [x] **Q3 RESOLVED — EC3D is OpenPose `BODY_25`, proven empirically, not assumed.**
+      The repo's README documents the pickle's shape but **not** its joint order and
+      names no skeleton format, so the checklist's primary route (the repo's
+      data-loader) does not exist; the order was recovered from the data by four
+      independent checks, each recorded in `ml/docs/ec3d_joint_mapping.md`:
+      (1) **every** published `BODY_25` tree edge is rigid across the 10,283 squat
+      frames at an anatomically sensible length (thigh 0.1403 / shank 0.1357 / torso
+      0.1954, CV 0.00007–0.00173); (2) the **decisive** test — each foot triad's ankle
+      attachment splits exactly along `BODY_25`'s grouping with a ~130× rigidity margin
+      (j19/20/21→j14 at CV ~0.0015 vs ~0.21 against j11; j22/23/24→j11 likewise), heel
+      nearest its ankle and big toe furthest; (3) j08 is **exactly** (0,0,0) in every
+      frame — only `MidHip` is a plausible root; (4) two unrelated anatomical checks
+      agree that axis 1 is anterior (big-toe-minus-heel +0.075/+0.067; nose-minus-ear
+      +0.047). Source confirmed as Zhao et al., ACCV 2022 — the paper's own
+      `(29789, 3, 25)` shape, 4 subjects, 30 fps and **132 squat sequences** all match
+      the file.
+- [x] **Left/right handedness is unresolved — and proven not to matter here.** Whether
+      `BODY_25`'s "R" joints are anatomically right depends on a handedness convention
+      the pickle does not record. Rather than guess, this was tested: swapping the L/R
+      halves of the mapping and re-extracting leaves **all 13 features bit-identical**
+      (max |delta| = `0.0` over all 132 reps) — every squat feature is a both-legs mean,
+      an `abs()` difference, a midpoint, or an inter-ankle distance. **⚠ Does not extend
+      to Phase 5B:** a lunge's lead leg is side-specific, so `knee_passes_toe` needs
+      this resolved first.
+- [x] **Label 10 excluded, with a reason.** Sena alone has 9 extra squat episodes under
+      an undocumented label 10; excluding it leaves exactly the paper's **132**. The
+      script asserts that count at load time, so a changed pickle fails loudly instead
+      of quietly reporting different numbers.
+- [x] **`validate_ec3d.py` maps the 8 `REQUIRED_LANDMARKS` joints and runs the LIVE
+      extractor (X1)** — `preprocess_world_landmarks` + `extract_squat_features`, never
+      re-implemented — then scores the **shipped artifact** through the backend's own
+      `get_model_bundle("squat")` and the real `fuse_scores()` at the shipped config
+      (`w_rule=0.2`, `w_ml=0.8`, `confidence_low_threshold=0.85`). Nothing re-tuned.
+      EC3D's own episode boundaries are used as rep windows (its instructed
+      repetitions), mirroring Stage 5.3's use of REHAB24-6's physio-verified
+      `first_frame`/`last_frame`; re-segmenting would measure the FSM, not the model.
+      `visibility=1.0` and `q=1.0` because mocap joints are fully observed — stated in
+      the report, not left implicit. Timestamps from the paper's 30 fps (the pickle
+      stores only a frame index).
+- [x] **Figure reuses Stage 5.7's plotter rather than forking it.**
+      `plot_confusion_matrix_3band()` gained `dataset_label`/`subtitle`/`name` kwargs
+      whose defaults reproduce the 5.7 figure — verified **byte-identical**
+      (`c2f89f7c…`) after the refactor. The checklist requires the two figures to be
+      comparable side by side; a copied plotter cannot guarantee that over time. (Only
+      `SQUAT_EVALUATION_REPORT.md`'s latency lines differ between runs, which 5.7
+      already documents as its one non-reproducible output — confirmed by diffing two
+      consecutive runs: 12 lines, all latency.)
+
+**⚠ Finding 1 — EC3D's poses are canonicalised, not raw mocap.** Measured, not inferred:
+mid-hip max abs coordinate **`0.0`** (root-centred); neck up-axis std **`4.7e-17`**,
+pinned at 0.19517662, and anterior-axis std **`0.0`**, in all 11,109 squat frames under
+**every** label including "Front bent" (orientation-normalised); per-subject thigh length
+spread **0.160%** across four different people (one **template skeleton** — all
+inter-subject anatomy is gone). Three-point joint angles survive this (invariant to rigid
+transforms) and are physiologically plausible. Gravity-referenced and global-translation
+features do not: `trunk_lean_peak_deg` collapses from a REHAB24-6 mean of ~35–44° to
+**~3–4°**, and the "Front bent" class shows **no more** trunk lean than the Correct class
+— the one fault the feature exists to detect is erased by the normalisation.
+`hip_mid_jitter_norm` ≈ 0 for every rep. **The checklist's own "angle-based features
+only" heuristic does not survive contact with this:** `ankle_df_proxy_deg` _is_
+angle-based and is the model's single most important feature (Gini **0.2388**), but it is
+an angle against **gravity**, so it does not transfer either. The distinction that
+actually matters is **intrinsic (rigid-transform-invariant) vs world-referenced**.
+Recovering the lost orientation (fitting a ground plane from the feet, un-rotating each
+frame) was considered and **rejected**: it would feed an invented estimator's
+unquantified error into the model's most important feature and still could not restore
+`hip_mid_jitter_norm` or per-subject anatomy — the invented-methodology trap this project
+has already been caught by once.
+
+**⚠⚠ Finding 2 — the two datasets disagree about what "incorrect" means. This is the
+decisive one.** REHAB24-6's incorrect squats are **deeper** than its correct ones
+(established at 5.4/5.5/5.6 — the reason the ROM rule had to be down-weighted). EC3D's
+fault taxonomy contains **"Not low enough"**, so its incorrect squats are **shallower**.
+**56.7% of the forest's Gini importance mass sits on features whose Good/Poor direction
+inverts between the two datasets** (`knee_rom_deg` REHAB AUC 0.86 → EC3D 0.42;
+`knee_flex_peak_deg` 0.84 → 0.42; `hip_flex_peak_deg` 0.78 → **0.24**;
+`stance_width_norm` 0.37 → 0.66). An inverted feature is worse than a missing one — the
+model does not abstain on it, it reads the evidence confidently the wrong way round. The
+sharpest evidence is the outcome, not the table: **of the 21 "Not low enough" reps the
+system called 17 (81.0%) Good; of the 41 genuinely Correct reps it called only 7 (17.1%)
+Good — it is 4.7× more likely to approve the shallow fault than a correct squat.** No
+threshold change fixes that; the ordering itself is wrong for this population. This is
+not a bug in either dataset — it is evidence the model learned a **population-specific**
+notion of squat correctness, and it is arguably the most useful thing this stage
+produced.
+
+**⚠ Finding 3 — half of EC3D's fault class is invisible to this system by design.** Of
+EC3D's four squat faults, **"Feet too wide" (23 reps) and "Knees inward" (23 reps) are
+frontal-plane** — **46 of the 91** faulty reps. Locked Assumption #3 drops frontal valgus
+as monocular-infeasible: no valgus feature, tag or rule exists anywhere, deliberately.
+Those reps are still labelled incorrect in EC3D's ground truth, so the system is marked
+wrong for failing a test it was explicitly designed never to sit. The checklist's
+instruction ("do not evaluate frontal-plane **features**") was aimed at not _crediting_
+the model for a valgus feature it lacks; the sharper problem is the reverse — EC3D's
+fault **class**, not just its features, is substantially frontal.
+
+**Result (reported for completeness; NOT a generalisation estimate, in either
+direction):** `accuracy_strict` **0.053**, `accuracy_confident` **0.184**, `macro_f1`
+**0.089**, `fair_rate` **0.712**, `recall_good` 0.171, **`recall_poor` 0.000**, n=132.
+
+- [x] **Stage 5.8's headline finding independently corroborated on unseen subjects.**
+      `recall_poor` is **exactly 0.000**: not one confident Poor across all 91 faulty
+      reps. P(Good) never fell below **0.618** (range 0.618–0.942), so confidence toward
+      Poor never exceeded 0.382 against the 0.85 bar. Stage 5.8 measured this **in-sample**
+      on the model's own 98 training rows (min P(Good) 0.244); EC3D reproduces it on **4
+      subjects it has never seen, from a different dataset on different hardware**. Two
+      unrelated methods, same conclusion — the model effectively cannot reach Poor.
+- [x] **`accuracy_confident` = 0.184 is BELOW chance, and that is the signature of
+      inversion, not noise.** A model reading uninformative features lands near 0.5 on
+      what it commits to, or abstains. This one commits to 38 reps and is wrong on 81.6%
+      of them. It is not confused; it is confidently backwards. Finding 2 is why.
+
+**Deliberately not done (out of Stage 5.9 scope), each with its reason:**
+
+- [ ] **No fix attempted for Findings 1–3.** They are recorded for examiner visibility.
+      Fixing Finding 2 means retraining on a different label construct; fixing Finding 1
+      needs raw EC3D mocap, which is not published.
+- [ ] **No intrinsic-features-only model trained.** A parallel model over just the
+      rigid-transform-invariant features _could_ be scored on EC3D honestly and is the
+      only route to a real external number — but training is Stage 5.5's checklist, not
+      this one's, it would be a **different artifact from the one that ships**, and it
+      would still face Finding 2's label-construct mismatch. **Flagged for HY as the one
+      genuine option this stage leaves on the table.**
+- [ ] The ROM rule / `q` blind spot (5.7 findings) and the Poor-unreachability finding
+      (5.8) are unchanged — this stage validates, it does not revisit them.
+- [ ] EC3D's **Lunges** (127 sequences, incl. label 6 = "Knee passes toe") were not
+      touched. Phase 5B's scope, not this stage's.
 
 ### Stage 5.10 — Option B: documented, not built _(for Chapter 3)_
 
@@ -1836,16 +1975,16 @@ Repeat Phase 4 Stages 4.1–4.8 and Phase 5 Stages 5.0–5.9 for lunge, as `back
 
 Track these; do not silently resolve them by assumption.
 
-| #   | Question                                                                                                                                                                                                                                                                                          | Blocks                                                  | Settles via                                                                                           |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Q1  | **Usable side-view Ex6 rep count** after the orientation filter                                                                                                                                                                                                                                   | Phase 5 Stage 5.0 gate                                  | `Segmentation.csv` + `Segmentation.txt` + one visual check per orientation value                      |
-| Q2  | Which camera is profile for each `cam17_orientation` value                                                                                                                                                                                                                                        | Phase 5 Stage 5.2                                       | Same as Q1 — **verify, don't assume** the working hypothesis                                          |
-| Q3  | EC3D's exact 25-joint index order                                                                                                                                                                                                                                                                 | Phase 5 Stage 5.9; `knee_passes_toe`                    | EC3D repo data-loader, or an empirical frame plot                                                     |
-| Q4  | REHAB24-6 authors' own baseline **+ split protocol** — **STILL OPEN, attempted 2026-07-16:** SISAP 2024 chapter is paywalled (Springer auth redirect), Zenodo record has no baseline results, no open-access version found. **No number invented**; Stage 5.7's §6 quotes only [S13] and says so. | Phase 5 Stage 5.7's comparison (**shipped without it**) | SISAP 2024 paper [S12] — a random-split number is not comparable to LOSO. Needs institutional access. |
-| Q5  | No validated sway/jitter threshold exists for the Control sub-score                                                                                                                                                                                                                               | Phase 4 Stage 4.4 (heuristic, pilot-tune)               | A postural-sway study with a quantitative in-plane cutoff (_not found_)                               |
-| Q6  | No normative lunge front-knee angle table exists                                                                                                                                                                                                                                                  | Phase 5B ROM bands                                      | A published bodyweight-lunge kinematics norm (_not found_) — until then, dataset-derived only         |
-| Q7  | Groq free-tier limits + model name at build time                                                                                                                                                                                                                                                  | Phase 6 Stage 6.4                                       | Live provider docs; record retrieval date                                                             |
-| Q8  | Cloud Run → Groq egress in the deployed demo                                                                                                                                                                                                                                                      | Phase 8                                                 | HY decision at Phase 8                                                                                |
+| #   | Question                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Blocks                                                                 | Settles via                                                                                                             |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Q1  | **Usable side-view Ex6 rep count** after the orientation filter                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Phase 5 Stage 5.0 gate                                                 | `Segmentation.csv` + `Segmentation.txt` + one visual check per orientation value                                        |
+| Q2  | Which camera is profile for each `cam17_orientation` value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Phase 5 Stage 5.2                                                      | Same as Q1 — **verify, don't assume** the working hypothesis                                                            |
+| Q3  | EC3D's exact 25-joint index order — **✅ RESOLVED 2026-07-17 (Stage 5.9): OpenPose `BODY_25`.** The repo's data-loader route does not exist (its README gives the pickle's shape but names no skeleton format), so the order was proven empirically instead: every published `BODY_25` edge is rigid (CV 0.00007–0.00173) at anatomically sensible lengths, each foot triad's ankle attachment splits along `BODY_25`'s grouping with a ~130× margin, j08 is exactly (0,0,0) (the `MidHip` root), and two unrelated anatomical checks agree on the anterior axis. Full proof + the 8-joint MediaPipe-33 mapping in `ml/docs/ec3d_joint_mapping.md`. **⚠ Left/right handedness remains unresolved** (the pickle records no handedness convention) — proven immaterial for squat (all 13 features bit-identical under an L/R swap) but **still open for `knee_passes_toe`**, whose lead leg is side-specific. EC3D _does_ carry big-toe joints (19/22), so no ankle approximation is needed on the dataset side. | Phase 5 Stage 5.9 (**closed**); `knee_passes_toe` (**L/R still open**) | ~~EC3D repo data-loader~~ (absent), or an empirical frame plot — **done, by bone-rigidity analysis rather than a plot** |
+| Q4  | REHAB24-6 authors' own baseline **+ split protocol** — **STILL OPEN, attempted 2026-07-16:** SISAP 2024 chapter is paywalled (Springer auth redirect), Zenodo record has no baseline results, no open-access version found. **No number invented**; Stage 5.7's §6 quotes only [S13] and says so.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Phase 5 Stage 5.7's comparison (**shipped without it**)                | SISAP 2024 paper [S12] — a random-split number is not comparable to LOSO. Needs institutional access.                   |
+| Q5  | No validated sway/jitter threshold exists for the Control sub-score                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Phase 4 Stage 4.4 (heuristic, pilot-tune)                              | A postural-sway study with a quantitative in-plane cutoff (_not found_)                                                 |
+| Q6  | No normative lunge front-knee angle table exists                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Phase 5B ROM bands                                                     | A published bodyweight-lunge kinematics norm (_not found_) — until then, dataset-derived only                           |
+| Q7  | Groq free-tier limits + model name at build time                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Phase 6 Stage 6.4                                                      | Live provider docs; record retrieval date                                                                               |
+| Q8  | Cloud Run → Groq egress in the deployed demo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Phase 8                                                                | HY decision at Phase 8                                                                                                  |
 
 ---
 
