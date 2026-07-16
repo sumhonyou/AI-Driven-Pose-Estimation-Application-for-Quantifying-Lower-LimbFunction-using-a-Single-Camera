@@ -22,6 +22,11 @@ venv/
 *.egg-info/
 .pytest_cache/
 
+# ml/ — landmarks cache + feature CSVs are regenerable from the dataset, not committed
+# (ml/artifacts/ and ml/reports/ ARE committed — see task.md Stage 5.1)
+ml/data/*
+!ml/data/.gitkeep
+
 # Node
 node_modules/
 dist/

@@ -755,9 +755,43 @@ ml/
     └── *.md                    # COMMITTED — DATA_AUDIT.md, SQUAT_*_REPORT.md, embed figures via relative path
 ```
 
-- [ ] `ml/` importing from `backend/app/module_b` must work (X1). Set it up as a path/editable install — **document the exact command in `ml/README.md`**. A copy-pasted feature function is a Phase-5-breaking bug, not a shortcut.
-- [ ] `scripts/plotting.py` — one shared `save_fig(fig, name: str) -> Path` that writes to `ml/reports/figures/{name}.png` at a fixed DPI (150) and fixed figure size per plot type, and a shared style (`seaborn` theme or matplotlib rcParams set once here). **Every** plotting call below goes through this — no script sets its own DPI/style ad hoc.
-- [ ] **Every report `.md` file embeds its figures**, not just links to the folder — `![caption](figures/whatever.png)` — so `ml/reports/*.md` is self-contained and reads correctly if copied straight into the FYP report/appendix.
+- [x] `ml/` importing from `backend/app/module_b` must work (X1). Set it up as a path/editable install — **document the exact command in `ml/README.md`**. A copy-pasted feature function is a Phase-5-breaking bug, not a shortcut.
+- [x] `scripts/plotting.py` — one shared `save_fig(fig, name: str) -> Path` that writes to `ml/reports/figures/{name}.png` at a fixed DPI (150) and fixed figure size per plot type, and a shared style (`seaborn` theme or matplotlib rcParams set once here). **Every** plotting call below goes through this — no script sets its own DPI/style ad hoc.
+- [x] **Every report `.md` file embeds its figures**, not just links to the folder — `![caption](figures/whatever.png)` — so `ml/reports/*.md` is self-contained and reads correctly if copied straight into the FYP report/appendix.
+
+### Phase 5 — Stage 5.1: `ml/` scaffold (2026-07-16)
+
+- [x] Created `ml/data/` (gitignored via a new `ml/data/*` rule in `.gitignore`, with
+      `.gitkeep` excepted so the empty dir is still tracked) and `ml/artifacts/`
+      (committed, `.gitkeep` placeholder — no artifacts exist yet, that's Stage 5.5+).
+      `ml/reports/` and `ml/reports/figures/` already existed from Stage 5.0.
+- [x] `ml/requirements.txt` — mediapipe, scikit-learn, pandas, numpy, joblib,
+      matplotlib, seaborn, pyyaml (the last one because `audit_rehab246.py`, shipped in
+      Stage 5.0, already imports it).
+- [x] **X1 editable install, verified live, not just documented:** added a minimal
+      `backend/pyproject.toml` (setuptools, `include = ["app*"]`) so `app` is
+      pip-installable in editable mode — it does not replace `backend/requirements.txt` as
+      the FastAPI app's own dependency list, it exists solely for this. Documented the
+      exact commands in `ml/README.md`. **Verified in a throwaway venv**: `pip install -e
+./backend` followed by `from app.module_b.core.features import FeatureVector` and
+      `from app.module_b.squat.exercise import SquatExercise` both succeeded — real import,
+      not a hypothetical path. Confirmed the change doesn't affect the backend app itself:
+      full backend suite still 126/126 passing after adding the file.
+- [x] `ml/scripts/plotting.py` — `save_fig(fig, name, figsize=None) -> Path`, fixed
+      DPI 150, a `FIGSIZES` dict of named sizes (`single`/`wide`/`grid_4x4`/
+      `bland_altman` — the sizes Stage 5.4's known figures need; more can be added when a
+      later stage needs a new one, not speculatively now), one `sns.set_theme()` call
+      applied lazily on first save. Smoke-tested: a real matplotlib figure saved through it
+      round-tripped to disk correctly (deleted after the check).
+- [x] `ml/README.md` — the install commands above, the macOS/Apple-Silicon MediaPipe
+      GPU-delegate note pre-recorded for Stage 5.2 (so nobody "fixes" the CPU delegate
+      later), the report figure-embedding convention, and the directory layout.
+- [ ] **Deliberately not created (scope discipline — these are later stages' work, not
+      5.1's):** `ml/docs/ec3d_joint_mapping.md` (Stage 5.9), and every `scripts/*.py` shown
+      in the target tree besides `plotting.py` and the already-existing
+      `audit_rehab246.py` — `extract_landmarks.py` (5.2), `build_features.py` (5.3),
+      `check_feature_validity.py`/`check_mocap_agreement.py` (5.4), `train_squat.py` (5.5),
+      `sweep_fusion_weights.py` (5.6), `evaluate_squat.py` (5.7), `validate_ec3d.py` (5.9).
 
 ### Stage 5.2 — Landmark extraction from RGB video
 
