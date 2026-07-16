@@ -2,13 +2,12 @@ import asyncio
 import json
 import unittest
 
-from fastapi import HTTPException
-
 from app.main import app
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.exercise import ModuleBExercise
 from app.module_b.core.registry import get_exercise, registered_exercise_codes
 from app.seed import EXERCISES, LEGACY_MODULE_B_CODE
+from fastapi import HTTPException
 
 
 class ModuleBConfigTests(unittest.TestCase):
@@ -61,7 +60,25 @@ class ModuleBRegistryTests(unittest.TestCase):
         self.assertEqual(exercise.code, "squat")
         self.assertEqual(exercise.required_view, "side_view")
         self.assertEqual(exercise.model_key, "squat")
-        self.assertEqual(registered_exercise_codes(), ("squat",))
+
+    def test_lunge_plugin_implements_contract(self):
+        """Phase 5B Stage 4.1 (Lunge): registry check — zero core/router.py changes."""
+        exercise = get_exercise("lunge")
+
+        self.assertIsInstance(exercise, ModuleBExercise)
+        self.assertEqual(exercise.code, "lunge")
+        self.assertEqual(exercise.required_view, "side_view")
+        self.assertEqual(exercise.model_key, "lunge")
+
+    def test_registered_exercise_codes_lists_both_plugins(self):
+        self.assertEqual(registered_exercise_codes(), ("lunge", "squat"))
+
+    def test_lunge_analysis_methods_are_not_yet_implemented(self):
+        """Stages 4.2-4.6 (Lunge) fill these in; Stage 4.1 only wires the shell."""
+        exercise = get_exercise("lunge")
+
+        with self.assertRaises(NotImplementedError):
+            exercise.segment([])
 
     def test_registry_never_defaults_an_unknown_code(self):
         with self.assertRaises(HTTPException) as raised:
@@ -73,6 +90,7 @@ class ModuleBRegistryTests(unittest.TestCase):
         codes = {item["code"] for item in EXERCISES}
 
         self.assertIn("squat", codes)
+        self.assertIn("lunge", codes)
         self.assertNotIn(LEGACY_MODULE_B_CODE, codes)
 
 
@@ -137,6 +155,15 @@ class ModuleBRouterTests(unittest.TestCase):
 
         self.assertEqual(status_code, 200)
         self.assertEqual(payload["exercise"]["exercise_code"], "squat")
+        self.assertEqual(payload["exercise"]["required_view"], "side_view")
+        self.assertEqual(payload["core"]["feature_schema_version"], "1.0.0")
+
+    def test_lunge_config_endpoint_returns_registered_config(self):
+        """Phase 5B Stage 4.1 (Lunge): gate — GET /api/module-b/lunge/config works."""
+        status_code, payload = self._asgi_get("/api/module-b/lunge/config")
+
+        self.assertEqual(status_code, 200)
+        self.assertEqual(payload["exercise"]["exercise_code"], "lunge")
         self.assertEqual(payload["exercise"]["required_view"], "side_view")
         self.assertEqual(payload["core"]["feature_schema_version"], "1.0.0")
 
