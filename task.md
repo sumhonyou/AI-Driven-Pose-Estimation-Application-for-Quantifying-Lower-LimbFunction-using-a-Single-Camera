@@ -645,7 +645,7 @@ Everything downstream depends on counts nobody has actually looked at yet.
 
 **Tasks:**
 
-- [ ] Create `ml/config.yaml` with the dataset root **exactly as below** — paths point at the existing local dataset location; nothing is copied or moved into the repo:
+- [x] Create `ml/config.yaml` with the dataset root **exactly as below** — paths point at the existing local dataset location; nothing is copied or moved into the repo:
   ```yaml
   dataset_paths:
     rehab246:
@@ -658,25 +658,75 @@ Everything downstream depends on counts nobody has actually looked at yet.
       pickle_path: /Users/sumhonyou/fypDataset/data_3D.pickle
   ```
   `ml/config.yaml` itself **is committed** (it's just paths); the directories it points at are **not** — add `/Users/sumhonyou/fypDataset/` patterns to `.gitignore` only if the dataset ever ends up under the repo root (it currently doesn't, so no `.gitignore` change should be needed — confirm the dataset root is genuinely outside the repo tree before skipping this).
-- [ ] `extract_landmarks.py` and `audit_rehab246.py` filter to `exercise_id ∈ {5, 6}` **in code** (Ex5 = Leg lunge, Ex6 = Squats) — never require the video folder itself to be pre-sorted or pruned. All 65 recordings across all 6 exercises stay exactly where they are; Ex1–Ex4 files are simply never opened.
-- [ ] Read `Segmentation.txt` and write `ml/docs/rehab24_6_schema.md` — the **authoritative** column dictionary. Do not trust the column names guessed from a screenshot.
-- [ ] `ml/scripts/audit_rehab246.py` — loads `Segmentation.csv`, filters `exercise_id ∈ {5, 6}` (Ex5 = Leg lunge, Ex6 = Squats), and **reports**:
-  - [ ] exact rep counts **per exercise × correctness × `person_id`**
-  - [ ] the distribution of `cam17_orientation`
-  - [ ] `mocap_erroneous` count (candidates for exclusion)
-  - [ ] `exercise_subtype` values for Ex5 (**this is the lead-leg tag** — R5.2/R9 needs it and it is given, not inferred)
-  - [ ] `lighting` distribution
-  - [ ] **Per-subject class presence** — the LOSO viability check (R8): does any subject have only one class?
-- [ ] **The view question (critical, see below).** Determine, from `Segmentation.txt` + a visual check of one clip per orientation value:
+- [x] `extract_landmarks.py` and `audit_rehab246.py` filter to `exercise_id ∈ {5, 6}` **in code** (Ex5 = Leg lunge, Ex6 = Squats) — never require the video folder itself to be pre-sorted or pruned. All 65 recordings across all 6 exercises stay exactly where they are; Ex1–Ex4 files are simply never opened.
+- [x] Read `Segmentation.txt` and write `ml/docs/rehab24_6_schema.md` — the **authoritative** column dictionary. Do not trust the column names guessed from a screenshot.
+- [x] `ml/scripts/audit_rehab246.py` — loads `Segmentation.csv`, filters `exercise_id ∈ {5, 6}` (Ex5 = Leg lunge, Ex6 = Squats), and **reports**:
+  - [x] exact rep counts **per exercise × correctness × `person_id`**
+  - [x] the distribution of `cam17_orientation`
+  - [x] `mocap_erroneous` count (candidates for exclusion)
+  - [x] `exercise_subtype` values for Ex5 (**this is the lead-leg tag** — R5.2/R9 needs it and it is given, not inferred)
+  - [x] `lighting` distribution
+  - [x] **Per-subject class presence** — the LOSO viability check (R8): does any subject have only one class?
+- [x] **The view question (critical, see below).** Determine, from `Segmentation.txt` + a visual check of one clip per orientation value:
   - Which camera yields a **true sagittal/profile** view for each `cam17_orientation` value. _Working hypothesis from the Zenodo description — **must be verified, not assumed**: subject facing the horizontal camera (Camera17) → **c17 = front, c18 = profile**; subject facing the wall between cameras → **half-profile in both**._
-  - [ ] Report the **usable side-view rep count** for Ex6 after this filter.
-- [ ] Write `ml/reports/DATA_AUDIT.md` with every number above.
+  - [x] Report the **usable side-view rep count** for Ex6 after this filter.
+- [x] Write `ml/reports/DATA_AUDIT.md` with every number above.
 
 > **⚠ The gate.** If the side-view-usable Ex6 rep count is materially below the ~90/category aggregate, that is a **finding, not a failure** — but it changes the plan and HY must decide before training. Options to present with trade-offs (do not choose unilaterally):
 > **(a)** accept the smaller N and report it honestly as a limitation;
 > **(b)** additionally admit half-profile reps as a separate, flagged cohort and test whether including them helps or hurts LOSO;
 > **(c)** relax to both views and add `view` as an explicit feature.
 > **Do not proceed to Stage 5.2 until HY chooses.**
+>
+> **✅ Resolved by HY (2026-07-16): option (a) — accept the smaller N.** Stage 5.2
+> onward trains on the 98 verified side-view Ex6 reps (72 Good / 26 Poor) only.
+> Rationale: matches exactly what the live app captures (single side-view camera, per
+> `CameraSetup.tsx`'s existing squat guidance), keeps Stage 5.4's feature-validity check
+> free of a confounding geometry variable, and the known weakness (3 of 9 subjects lose
+> the Poor class when held out) is already covered by Stage 5.5's documented
+> stratified-group-k-fold fallback — not a surprise the plan is unprepared for.
+> (b) and (c) were considered and set aside: (b) needs its own validity check for a
+> confirmed-different camera geometry before it could be trusted, and (c) would reopen
+> Locked Assumption #3 (side-view only, valgus dropped) without the live pipeline
+> supplying a `view` feature at inference time.
+
+### Phase 5 — Stage 5.0: Data audit (2026-07-16)
+
+- [x] Built `ml/config.yaml` (dataset paths, pose model asset path, seeds — committed;
+      confirmed `/Users/sumhonyou/fypDataset/` is outside the repo tree, no `.gitignore`
+      change needed), `ml/docs/rehab24_6_schema.md` (authoritative column dictionary,
+      transcribed from `Segmentation.txt` and cross-checked against a live read of all 1072
+      CSV rows — flags a real inconsistency in the dataset's own docs: the orientation
+      mapping table says `side` where the actual column enumerates `profile`), and
+      `ml/scripts/audit_rehab246.py` (loads `Segmentation.csv`, filters
+      `exercise_id ∈ {5, 6}` in code, reports every number below; Black/isort clean).
+- [x] **Numbers (full detail in `ml/reports/DATA_AUDIT.md`):** Ex6 (Squats) raw = 195
+      reps, Good 134 / Poor 61, across 9 subjects (1–9), all with both classes present
+      unfiltered. `cam17_orientation`: front 98 / half-profile 97 / **profile 0** (the
+      `profile` value never occurs for Ex6 — it's exclusive to Ex3 in this dataset). Ex5
+      (Leg lunge, Phase 5B reference only): 174 reps, Good 78 / Poor 96, subject 3 is
+      single-class (0 Good) even before any view filter.
+- [x] **View question verified visually, not assumed:** extracted real frames (via
+      OpenCV, `cv2.VideoCapture`) from both cameras for one `front`-orientation rep and one
+      `half-profile`-orientation rep of `PM_008` (Ex6). Confirmed: `cam17_orientation ==
+"front"` → Camera17 shows the subject facing the camera dead-on, Camera18 shows a
+      clean true sagittal/profile view. `cam17_orientation == "half-profile"` → **both**
+      cameras show a diagonal angle, neither is a true side view. Composite comparison
+      image saved to `ml/reports/figures/view_verification.png` and embedded in
+      `DATA_AUDIT.md`.
+- [x] **Usable side-view Ex6 rep count: 98** (all `front`-orientation reps, sourced from
+      Camera18) — Good 72 / Poor 26, all 9 subjects still represented, but subjects 2, 4,
+      and 9 become single-class (0 Poor) once filtered to side-view only — a real LOSO
+      problem for those 3 folds. Half-profile-only Ex6 reps (excluded from this count): 97
+      total, Good 62 / Poor 35.
+- [x] **Gate triggered:** Poor-class count after the view filter (26) is materially
+      below the ~90/category reference the gate text names, even though Good (72) is close.
+      `DATA_AUDIT.md` §"The gate" lays out options (a)/(b)/(c) with trade-offs specific to
+      the numbers above (LOSO fold viability for (a), the half-profile correctness split
+      for (b), the live-capture `view`-feature availability problem for (c)) — no option is
+      chosen; per the hard-gate instruction this is HY's call.
+- [ ] **Not done, correctly:** Stage 5.2 onward (landmark extraction, feature table,
+      training) — blocked on the gate above, per scope discipline.
 
 ### Stage 5.1 — `ml/` scaffold
 

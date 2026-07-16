@@ -1,0 +1,21 @@
+# ml/ configuration — dataset paths, model asset, seeds.
+# Committed: this file only holds paths, nothing here is the dataset itself (Stage 5.0).
+# The directories referenced below live outside the repo tree and are NOT copied in.
+
+dataset_paths:
+  rehab246:
+    videos_dir: /Users/sumhonyou/fypDataset/videos
+    segmentation_csv: /Users/sumhonyou/fypDataset/Segmentation.csv
+    segmentation_txt: /Users/sumhonyou/fypDataset/Segmentation.txt
+    joints_names_txt: /Users/sumhonyou/fypDataset/joints_names.txt
+    joints_3d_dir: /Users/sumhonyou/fypDataset/3d_joints
+  ec3d:
+    pickle_path: /Users/sumhonyou/fypDataset/data_3D.pickle
+
+# Same pose model asset the frontend self-hosts (X3) — set in Stage 5.2, path recorded
+# here now so every downstream script reads it from one place.
+pose_model_asset: ../frontend/public/models/pose_landmarker_full.task
+
+seeds:
+  numpy: 42
+  sklearn: 42
