@@ -2,22 +2,31 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
 class SubScore:
-    """One explainable 0–10 rule component; ``None`` means unavailable."""
+    """One explainable 0–10 rule component; ``None`` means unavailable.
+
+    ``metrics`` carries report-only numeric measurements that must NEVER
+    contribute to ``RuleScores.score`` (e.g. lunge's cross-rep symmetry index,
+    Stage 4.4 Lunge) -- keep ``score=None`` on any sub-score that only reports.
+    """
 
     code: str
     score: float | None
     notes: tuple[str, ...] = ()
+    metrics: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.code:
             raise ValueError("SubScore.code must not be empty")
         if self.score is not None and not 0.0 <= self.score <= 10.0:
             raise ValueError("SubScore.score must be between 0 and 10")
+        if any(not math.isfinite(value) for value in self.metrics.values()):
+            raise ValueError("SubScore.metrics values must be finite")
 
 
 @dataclass(frozen=True)

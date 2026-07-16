@@ -2,12 +2,13 @@ import asyncio
 import json
 import unittest
 
+from fastapi import HTTPException
+
 from app.main import app
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.exercise import ModuleBExercise
 from app.module_b.core.registry import get_exercise, registered_exercise_codes
 from app.seed import EXERCISES, LEGACY_MODULE_B_CODE
-from fastapi import HTTPException
 
 
 class ModuleBConfigTests(unittest.TestCase):
@@ -73,12 +74,13 @@ class ModuleBRegistryTests(unittest.TestCase):
     def test_registered_exercise_codes_lists_both_plugins(self):
         self.assertEqual(registered_exercise_codes(), ("lunge", "squat"))
 
-    def test_lunge_analysis_methods_are_not_yet_implemented(self):
-        """Stages 4.2-4.6 (Lunge) fill these in; Stage 4.1 only wires the shell."""
+    def test_lunge_error_tags_are_not_yet_implemented(self):
+        """Stage 6.1 fills this in; segmentation (4.3), features (4.2), and rule
+        scoring (4.4) are already wired, so only error_tags remains unimplemented."""
         exercise = get_exercise("lunge")
 
         with self.assertRaises(NotImplementedError):
-            exercise.segment([])
+            exercise.error_tags(None, None, None)
 
     def test_registry_never_defaults_an_unknown_code(self):
         with self.assertRaises(HTTPException) as raised:

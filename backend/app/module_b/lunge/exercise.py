@@ -9,6 +9,8 @@ from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.exercise import ModuleBExercise
 from app.module_b.lunge.config import LUNGE_CONFIG
 from app.module_b.lunge.features import extract_lunge_features
+from app.module_b.lunge.rules import score_lunge_rep, score_lunge_set
+from app.module_b.lunge.segmentation import segment_lunge_frames
 
 if TYPE_CHECKING:
     from app.module_b.core.features import FeatureVector
@@ -39,9 +41,7 @@ class LungeExercise(ModuleBExercise):
         return LUNGE_CONFIG["model_key"]
 
     def segment(self, frames: list[dict[str, Any]]) -> list[Rep]:
-        raise NotImplementedError(
-            "Lunge segmentation is implemented in Stage 4.3 (Lunge)"
-        )
+        return segment_lunge_frames(frames)
 
     def extract_features(self, rep: Rep) -> FeatureVector:
         # Live path: lead leg is inferred from frame geometry. Offline training
@@ -49,16 +49,12 @@ class LungeExercise(ModuleBExercise):
         return extract_lunge_features(rep)
 
     def rule_subscores(self, rep: Rep, features: FeatureVector) -> RuleScores:
-        raise NotImplementedError(
-            "Lunge rule sub-scores are implemented in Stage 4.4 (Lunge)"
-        )
+        return score_lunge_rep(features)
 
     def set_rule_scores(
         self, reps: list[Rep], feature_vectors: list[FeatureVector]
     ) -> RuleScores:
-        raise NotImplementedError(
-            "Lunge rule sub-scores are implemented in Stage 4.4 (Lunge)"
-        )
+        return score_lunge_set(feature_vectors)
 
     def error_tags(
         self, features: FeatureVector, rules: RuleScores, ml: Any

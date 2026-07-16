@@ -6,14 +6,15 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import delete, select
+from sqlalchemy.orm import Session as DbSession
+
 from app.db.models import ModuleBErrorTag, ModuleBResult
 from app.db.models import Session as SessionModel
 from app.module_b.core.features import FeatureVector
 from app.module_b.core.fsm import Rep
 from app.module_b.core.fusion import FusionResult
 from app.module_b.core.rules import RuleScores
-from sqlalchemy import delete, select
-from sqlalchemy.orm import Session as DbSession
 
 
 @dataclass(frozen=True)
@@ -148,6 +149,7 @@ def _metrics_json(
                 "code": sub_score.code,
                 "score": sub_score.score,
                 "notes": list(sub_score.notes),
+                "metrics": dict(sub_score.metrics),
             }
             for sub_score in rule_scores.sub_scores
         ],

@@ -3,6 +3,20 @@
 The Phase 4 `StubModel` placeholder was deleted in Stage 5.8 (rules.md #20 — no
 unnecessary code once its replacement exists) once `get_model_bundle()` below could
 load the real trained artifact for every exercise that has one exported.
+
+Phase 5B (Stage 4.5, Lunge) reintroduced a placeholder path -- `PlaceholderModelBundle`
+below -- because `get_model_bundle()` is now the ONLY place `router.py` resolves a
+model (no per-exercise branching is allowed there, per Stage 4.1's registry
+invariant), so an exercise without an exported artifact needs a graceful fallback
+here rather than a crash. It is deliberately NOT the old `StubModel`: that one took
+`rule_score` as a constructor argument, baked in per-request by the pre-Stage-5.8
+router calling it directly -- incompatible with today's cached, `model_key`-only
+`get_model_bundle()` accessor, which has no access to any request's `RuleScores`.
+`PlaceholderModelBundle` instead returns a constant, feature-independent 50/50 --
+honest given it has no real signal, and it existing at all is transitional: once
+Stage 5.8 (Lunge) exports a real artifact, `get_model_bundle("lunge")` picks it up
+automatically and this path stops being reached for lunge, the same way it already
+stopped being reached for squat.
 """
 
 from __future__ import annotations
@@ -35,6 +49,32 @@ class ModelBundle(Protocol):
     is_placeholder: bool
 
     def predict_proba(self, features: FeatureVector) -> dict[str, float]: ...
+
+
+@dataclass(frozen=True)
+class PlaceholderModelBundle:
+    """Deliberately neutral stand-in for an exercise with no trained artifact yet.
+
+    Returns a constant P(Good)=P(Poor)=0.5 regardless of `features` -- it has no
+    real signal to offer, so it does not pretend to. `fuse_scores()` (unchanged)
+    reads that as confidence=0.5, below `confidence_low_threshold`, and honestly
+    forces band="Fair" via the existing low_confidence override rather than this
+    class inventing its own banding rule.
+    """
+
+    feature_schema_version: str = MODULE_B_CORE_CONFIG["feature_schema_version"]
+    model_version: str = "stub-0"
+    label_order: tuple[str, ...] = ("Poor", "Good")
+    feature_names: tuple[str, ...] = ()
+    is_placeholder: bool = True
+
+    def __post_init__(self) -> None:
+        validate_model_bundle(self)
+
+    def predict_proba(self, features: FeatureVector) -> dict[str, float]:
+        """Return a constant neutral probability; ignores `features` on purpose."""
+        assert_feature_vector_compatible(self, features)
+        return {"Poor": 0.5, "Good": 0.5}
 
 
 @dataclass(frozen=True)
@@ -180,8 +220,14 @@ def get_model_bundle(model_key: str) -> ModelBundle:
     standard FastAPI idiom for a stateless model artifact, not a new abstraction for its
     own sake. Reloading `model.joblib` (a ~1 MB forest) per request would also add real,
     measurable latency on top of Stage 5.7's ~8 ms feature+predict budget.
+
+    Falls back to `PlaceholderModelBundle` when `model_key` has no exported artifact
+    yet (Stage 4.5, Lunge) -- caching that constant, feature-independent bundle is
+    safe (no per-request state to go stale), unlike the old per-request `StubModel`.
     """
     artifacts_dir = _ARTIFACTS_ROOT / model_key
+    if not (artifacts_dir / "model.joblib").exists():
+        return PlaceholderModelBundle()
     return load_joblib_model_bundle(
         model_path=artifacts_dir / "model.joblib",
         calibrator_path=artifacts_dir / "calibrator.joblib",
