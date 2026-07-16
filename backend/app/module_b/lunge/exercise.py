@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.exercise import ModuleBExercise
 from app.module_b.lunge.config import LUNGE_CONFIG
+from app.module_b.lunge.features import extract_lunge_features
 
 if TYPE_CHECKING:
     from app.module_b.core.features import FeatureVector
@@ -43,9 +44,9 @@ class LungeExercise(ModuleBExercise):
         )
 
     def extract_features(self, rep: Rep) -> FeatureVector:
-        raise NotImplementedError(
-            "Lunge feature extraction is implemented in Stage 4.2 (Lunge)"
-        )
+        # Live path: lead leg is inferred from frame geometry. Offline training
+        # (Stage 5.3) calls extract_lunge_features with the known exercise_subtype.
+        return extract_lunge_features(rep)
 
     def rule_subscores(self, rep: Rep, features: FeatureVector) -> RuleScores:
         raise NotImplementedError(

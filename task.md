@@ -1,8 +1,97 @@
 # FYP Development Tasks
 
 **Project:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied and lunge is underway — Stage 4.1 (Lunge, backend package + exercise registry) complete (2026-07-17); Stage 4.2 (Lunge) is next.  
+**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied and lunge is underway — Stages 4.1-4.2 (Lunge: backend package + exercise registry; feature extraction schema) complete (2026-07-17); Stage 4.3 (Lunge, rep segmentation) is next.  
 **Related docs:** [FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md](./FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md) (architecture & design), [rules.md](./rules.md) (coding agent rules)
+
+---
+
+## Table of Contents
+
+- [Recommended Start Order](#recommended-start-order)
+- [Milestones](#milestones)
+  - [Phase 1A Milestone (UI Prototype)](#phase-1a-milestone-ui-prototype)
+  - [First Milestone (Phase 1B)](#first-milestone-phase-1b)
+  - [Second Milestone](#second-milestone)
+  - [Third Milestone](#third-milestone)
+  - [Fourth Milestone (Module B Squat, Placeholder Model)](#fourth-milestone-module-b-squat-placeholder-model)
+  - [Data Audit Gate (Phase 5, Stage 5.0)](#data-audit-gate-phase-5-stage-50)
+  - [Fifth Milestone (Trained Squat Model)](#fifth-milestone-trained-squat-model)
+- [Phase 0: Project Setup](#phase-0-project-setup)
+- [Phase 1: Basic Full-Stack Skeleton](#phase-1-basic-full-stack-skeleton)
+  - [Phase 1A: UI Clickable Prototype _(current focus)_](#phase-1a-ui-clickable-prototype-current-focus)
+  - [Phase 1B: Full-Stack Integration _(after Phase 1A)_](#phase-1b-full-stack-integration-after-phase-1a)
+- [Phase 2: Camera and MediaPipe Integration](#phase-2-camera-and-mediapipe-integration)
+- [Phase 3: Module A Functional Checking](#phase-3-module-a-functional-checking)
+  - [Phase 3B rebuild: Single-Leg Stance (both legs, lift-line, ball-in-circle)](#phase-3b-rebuild-single-leg-stance-both-legs-lift-line-ball-in-circle)
+  - [Phase 3D: Module A code reorganization (per-exercise folders)](#phase-3d-module-a-code-reorganization-per-exercise-folders)
+  - [Phase 3E: WBLT rebuild — dual output (distance + angle), guided bracket](#phase-3e-wblt-rebuild-dual-output-distance-angle-guided-bracket)
+  - [Phase 3E — Stage 5: frontend live-feedback config sync (2026-07-12)](#phase-3e-stage-5-frontend-live-feedback-config-sync-2026-07-12)
+  - [Phase 3E — Stage 6: trend summary with MDC suppression (2026-07-12)](#phase-3e-stage-6-trend-summary-with-mdc-suppression-2026-07-12)
+  - [Phase 3E — Stage 7: evaluation hooks (2026-07-13)](#phase-3e-stage-7-evaluation-hooks-2026-07-13)
+- [Locked Assumptions (Phases 4–7)](#locked-assumptions-phases-47)
+- [Cross-Cutting Rules (Phases 4–7)](#cross-cutting-rules-phases-47)
+- [Phase 4: Module B Skeleton — Squat, Placeholder Model](#phase-4-module-b-skeleton-squat-placeholder-model)
+  - [Stage 4.0 — Decision & config freeze _(no code yet)_](#stage-40-decision-config-freeze-no-code-yet)
+  - [Phase 4 — Stage 4.0: Decision & config freeze (2026-07-16)](#phase-4-stage-40-decision-config-freeze-2026-07-16)
+  - [Stage 4.1 — Backend package + exercise registry](#stage-41-backend-package-exercise-registry)
+  - [Phase 4 — Stage 4.1: Backend package + exercise registry (2026-07-16)](#phase-4-stage-41-backend-package-exercise-registry-2026-07-16)
+  - [Stage 4.2 — Feature extraction schema _(the X1 contract — most important stage in Phase 4)_](#stage-42-feature-extraction-schema-the-x1-contract-most-important-stage-in-phase-4)
+  - [Phase 4 — Stage 4.2: Feature extraction schema (2026-07-16)](#phase-4-stage-42-feature-extraction-schema-2026-07-16)
+  - [Stage 4.3 — Rep segmentation (squat FSM)](#stage-43-rep-segmentation-squat-fsm)
+  - [Phase 4 — Stage 4.3: Rep segmentation (squat FSM) (2026-07-16)](#phase-4-stage-43-rep-segmentation-squat-fsm-2026-07-16)
+  - [Stage 4.4 — Rule sub-scores (squat)](#stage-44-rule-sub-scores-squat)
+  - [Phase 4 — Stage 4.4: Rule sub-scores (squat) (2026-07-16)](#phase-4-stage-44-rule-sub-scores-squat-2026-07-16)
+  - [Stage 4.5 — Fusion + placeholder ML interface](#stage-45-fusion-placeholder-ml-interface)
+  - [Phase 4 — Stage 4.5: Fusion + placeholder ML interface (2026-07-16)](#phase-4-stage-45-fusion-placeholder-ml-interface-2026-07-16)
+  - [Stage 4.6 — Persistence + read-back](#stage-46-persistence-read-back)
+  - [Phase 4 — Stage 4.6: Persistence + read-back (2026-07-16)](#phase-4-stage-46-persistence-read-back-2026-07-16)
+  - [Stage 4.7 — Frontend (squat)](#stage-47-frontend-squat)
+  - [Phase 4 — Stage 4.7: Frontend (squat) (2026-07-16)](#phase-4-stage-47-frontend-squat-2026-07-16)
+  - [Stage 4.8 — Phase 4 verification gate](#stage-48-phase-4-verification-gate)
+  - [Phase 4 — Stage 4.8: Verification gate (complete, 2026-07-16)](#phase-4-stage-48-verification-gate-complete-2026-07-16)
+- [Phase 5: Dataset and ML Training (Squat)](#phase-5-dataset-and-ml-training-squat)
+  - [Stage 5.0 — Data audit **[HARD GATE — no training work until this reports numbers]**](#stage-50-data-audit-hard-gate-no-training-work-until-this-reports-numbers)
+  - [Phase 5 — Stage 5.0: Data audit (2026-07-16)](#phase-5-stage-50-data-audit-2026-07-16)
+  - [Stage 5.1 — `ml/` scaffold](#stage-51-ml-scaffold)
+  - [Phase 5 — Stage 5.1: `ml/` scaffold (2026-07-16)](#phase-5-stage-51-ml-scaffold-2026-07-16)
+  - [Stage 5.2 — Landmark extraction from RGB video](#stage-52-landmark-extraction-from-rgb-video)
+  - [Phase 5 — Stage 5.2: Landmark extraction (2026-07-16)](#phase-5-stage-52-landmark-extraction-2026-07-16)
+  - [Cross-cutting — Wire real preprocessing into Module B squat pipeline (2026-07-16)](#cross-cutting-wire-real-preprocessing-into-module-b-squat-pipeline-2026-07-16)
+  - [Cross-cutting follow-up — far-limb occlusion breaks hold-last (2026-07-16)](#cross-cutting-follow-up-far-limb-occlusion-breaks-hold-last-2026-07-16)
+  - [Stage 5.3 — Build the feature table](#stage-53-build-the-feature-table)
+  - [Phase 5 — Stage 5.3: Build the feature table (2026-07-16)](#phase-5-stage-53-build-the-feature-table-2026-07-16)
+  - [Stage 5.4 — Feature-validity sanity **[GATE — R5.5]**](#stage-54-feature-validity-sanity-gate-r55)
+  - [Phase 5 — Stage 5.4: Feature-validity sanity [GATE] (2026-07-16)](#phase-5-stage-54-feature-validity-sanity-gate-2026-07-16)
+  - [Stage 5.5 — Train the Extra Trees classifier](#stage-55-train-the-extra-trees-classifier)
+  - [Phase 5 — Stage 5.5: Train the Extra Trees classifier (2026-07-16)](#phase-5-stage-55-train-the-extra-trees-classifier-2026-07-16)
+  - [Stage 5.6 — Fair threshold + fusion weight sweep](#stage-56-fair-threshold-fusion-weight-sweep)
+  - [Phase 5 — Stage 5.6: Fair threshold + fusion weight sweep (2026-07-16)](#phase-5-stage-56-fair-threshold-fusion-weight-sweep-2026-07-16)
+  - [Stage 5.7 — Evaluation](#stage-57-evaluation)
+  - [Stage 5.8 — Export + backend integration](#stage-58-export-backend-integration)
+  - [Stage 5.9 — EC3D external validation _(the firewall pays off here)_](#stage-59-ec3d-external-validation-the-firewall-pays-off-here)
+  - [Phase 5 — Stage 5.9: EC3D external validation (2026-07-17)](#phase-5-stage-59-ec3d-external-validation-2026-07-17)
+  - [Stage 5.10 — Option B: documented, not built _(for Chapter 3)_](#stage-510-option-b-documented-not-built-for-chapter-3)
+  - [Phase 5B: Lunge **[GATE — do not start until Phase 5 Stage 5.8 is verified live]**](#phase-5b-lunge-gate-do-not-start-until-phase-5-stage-58-is-verified-live)
+  - [Phase 5B — Stage 4.1 (Lunge): Backend package + exercise registry (2026-07-17)](#phase-5b-stage-41-lunge-backend-package-exercise-registry-2026-07-17)
+- [Phase 6: After-Set Report and External LLM API](#phase-6-after-set-report-and-external-llm-api)
+  - [Stage 6.1 — Structured feedback + error-tag taxonomy](#stage-61-structured-feedback-error-tag-taxonomy)
+  - [Stage 6.2 — Template fallback _(built first, on purpose)_](#stage-62-template-fallback-built-first-on-purpose)
+  - [Stage 6.3 — Safety filter](#stage-63-safety-filter)
+  - [Stage 6.4 — Groq adapter](#stage-64-groq-adapter)
+  - [Stage 6.5 — Persist + display](#stage-65-persist-display)
+- [Phase 7: Dashboard and Progress Tracking](#phase-7-dashboard-and-progress-tracking)
+  - [Stage 7.0 — Trend API](#stage-70-trend-api)
+  - [Stage 7.1 — Dashboard panels](#stage-71-dashboard-panels)
+  - [Stage 7.2 — Per-session trend rows for STS and SLS](#stage-72-per-session-trend-rows-for-sts-and-sls)
+  - [Stage 7.3 — Reminders](#stage-73-reminders)
+  - [Stage 7.4 — Verification](#stage-74-verification)
+- [Open Questions (Phases 4–7)](#open-questions-phases-47)
+- [Deliberately Not Built (Phases 4–7)](#deliberately-not-built-phases-47)
+- [Contradictions found — need HY decision](#contradictions-found-need-hy-decision)
+- [Path/assumption mismatches found (non-blocking, informational)](#pathassumption-mismatches-found-non-blocking-informational)
+- [Phase 8: Deployment](#phase-8-deployment)
+- [Phase 9: Evaluation and Final Report Evidence](#phase-9-evaluation-and-final-report-evidence)
 
 ---
 
@@ -2072,9 +2161,25 @@ Mirrors squat's Stage 4.1 — `task.md:405-453`.
 
 Mirrors squat's Stage 4.2 — `task.md:454-490`.
 
-- [ ] **Lead-leg tag:** add a schema field so the feature vector records which leg is leading.
-- [ ] `**knee_passes_toe**` needs a toe/foot-tip joint in the schema. If EC3D lacks one (Stage 5.9's open question), approximate from ankle **or drop it** — and say which.
-- [ ] Apply squat's Stage 4.2 steps to `backend/app/module_b/lunge/features.py`, swapping in the deltas above.
+- [x] **Lead-leg tag:** add a schema field so the feature vector records which leg is leading.
+- [x] `**knee_passes_toe**` needs a toe/foot-tip joint in the schema. If EC3D lacks one (Stage 5.9's open question), approximate from ankle **or drop it** — and say which.
+- [x] Apply squat's Stage 4.2 steps to `backend/app/module_b/lunge/features.py`, swapping in the deltas above.
+
+### Phase 5B — Stage 4.2 (Lunge): Feature extraction schema (2026-07-17)
+
+**Three design decisions taken with HY (the stage's "ask HY" note), all confirmed as recommended:**
+
+1. **Feature structure = front/back split (lead-leg-invariant).** A lunge is asymmetric — the front (lead) and back leg do different jobs — so squat's both-legs-mean structure would blur them. Features are defined in `front_*`/`back_*` terms where "front" = the lead leg, so a left-lead and an identical right-lead rep produce a **bit-identical** vector (proven by `test_features_are_lead_leg_invariant`). The model never sees left vs right.
+2. **Lead-leg tag = metadata, not a numeric feature.** Added an optional `lead_leg: str | None` field to the shared `FeatureVector` (`core/features.py`), validated to `{"left","right",None}`, kept **out of** `names`/`values`. Squat leaves it `None` (unchanged); lunge sets it. This keeps the numeric vector lead-leg-invariant while still recording the anatomical side for Stage 4.4's cross-rep symmetry, the report, and the `knee_passes_toe` front-leg pick.
+3. **`knee_passes_toe` = included (front leg).** Live uses MediaPipe `foot_index` (31/32) — confirmed streamed unsliced through `useMediaPipePose.ts` → `preprocessing.py`; EC3D carries `BigToe` (19/22) per `ml/docs/ec3d_joint_mapping.md`. So **no ankle approximation is needed** — the joint exists on both sides. (Left/right EC3D handedness is still open per Q3, but the lead leg is resolved from `exercise_subtype`/geometry, not from EC3D's L/R joint labels, so it doesn't block this feature.)
+
+- [x] `backend/app/module_b/lunge/features.py` — `LUNGE_FEATURE_NAMES` (17 ordered features) + `extract_lunge_features(rep, lead_leg=None)`, a pure per-rep function (X8) that imports the shared `core/geometry` helpers (X1: same helpers the live path uses). Features: `front_/back_knee_flex_peak/min/rom_deg` (6), `front_/back_hip_flex_peak_deg` (2), `trunk_lean_peak/mean_deg` (2, central), `front_knee_ang_vel_max_dps`, `rep_duration_s`, `descent_ascent_ratio` (front-knee-driven), `front_ankle_df_proxy_deg`, `hip_mid_jitter_norm` (central), `stance_length_norm` (sagittal inter-ankle step length, replacing squat's lateral `stance_width_norm`), `knee_passes_toe_norm`.
+- [x] **Lead-leg inference (live):** `_anterior_sign()` reads which way the toes point (foot_index − ankle in world-x) to fix the forward direction; `_resolve_front_leg()` then picks the more-forward ankle as front. `lead_leg=` overrides it for offline training (Stage 5.3 passes `exercise_subtype`; Stage 5.2 infers live) — same function, identical output given the same lead-leg assignment (X1 parity).
+- [x] **Deliberately excluded, each with a code comment:** `knee_valgus_proxy` (frontal-plane, monocular-ill-posed — same as squat) and **within-rep left-vs-right `symmetry_index_pct`** (meaningless for a lunge; Stage 4.4's cross-rep symmetry replaces it, per that stage's delta).
+- [x] `norm_ref_strategy` added to `LUNGE_CONFIG`, default `thigh_length` [proposed heuristic, R5.3] with the `trunk_length` alternative behind the switch — mirrors squat's Stage 4.2 starting state; lunge's own Stage 5.4 bake-off picks the winner empirically. `LungeExercise.extract_features()` wired to the extractor.
+- [x] **Tests** (`tests/test_module_b_lunge_features.py`, 11): schema/names/metadata stable, `FrameIn` acceptance, requires-33-landmarks (foot-tip) guard, lead-leg **invariance** (left vs right bit-identical), inferred-front-leg, `lead_leg` override, deeper-front-knee ordering, `knee_passes_toe` sign flip, norm_ref thigh/trunk switch, determinism. Full backend suite: **166 passing** (was 155).
+- [x] **`FeatureVector` change is backward-compatible:** the new `lead_leg` defaults to `None`; nothing iterates dataclass fields; `as_dict()`/`names`/`values` unchanged, so `model_registry`, `fusion`, `crud`, and the offline squat ML extractor (`ml/scripts/build_features.py`) are unaffected — squat's own feature tests still pass.
+- [ ] **Deferred, not skipped — `ml/reports/PHASE5_CHAPTER_DRAFT.md` not updated this stage.** The result-recording rule triggers on a measured metric/comparison/validation finding; a feature-schema definition has no run behind it yet. The lunge feature set's dissertation write-up lands with the first numbers that exercise it (Stage 5.4 bake-off CV, Stage 5.5 training), same as squat's feature list was discussed alongside its `NORM_REF_BAKEOFF.md`/training results rather than at schema-definition time.
 
 #### Stage 4.3 (Lunge) — Rep segmentation (lunge FSM)
 
