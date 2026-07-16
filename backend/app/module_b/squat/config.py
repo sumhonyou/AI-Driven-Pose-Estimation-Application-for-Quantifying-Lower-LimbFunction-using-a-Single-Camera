@@ -7,8 +7,11 @@ SQUAT_CONFIG = {
     "required_view": "side_view",
     # [proposed heuristic] Phase 4 stub key; replaced by a versioned artifact in Phase 5.
     "model_key": "squat",
-    # [proposed heuristic, R5.3] Phase 5.4 compares this against trunk_length.
-    "norm_ref_strategy": "thigh_length",
+    # [dataset-derived, R5.3] Stage 5.4 bake-off winner, replacing the thigh_length
+    # placeholder: trunk_length left less cross-subject spread in both normalised
+    # features (mean CV 0.180 vs 0.201 over 98 side-view reps / 9 subjects), winning
+    # on scale-invariant CV and raw variance alike. See ml/reports/NORM_REF_BAKEOFF.md.
+    "norm_ref_strategy": "trunk_length",
     "segmentation": {
         # [proposed heuristic, R9] Flexion from standing that starts a descent.
         "enter_descending_deg": 30.0,

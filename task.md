@@ -1111,14 +1111,127 @@ rebuilt — X1 is only real if the offline features come from the _same_ pipelin
 >    which is most of why its median sits at ~30%. Judge the feature on that basis, not
 >    just its boxplot.
 
-- [ ] `check_feature_validity.py` — per feature, plot **and** report its distribution split by class. A feature enters the model **only if it visibly separates classes** (e.g. `knee_flex_peak_deg` should be lower for incorrect reps). Output `ml/reports/FEATURE_VALIDITY.md` with an explicit keep/drop verdict + justification per feature.
-  - [ ] **Figure (required):** `figures/feature_validity_boxplots.png` — one boxplot (or violin) per feature, class on the x-axis, arranged as a grid (e.g. 4×4 subplots via `plt.subplots`), so every feature's class separation is visible on one page.
-  - [ ] **Figure (required):** `figures/feature_correlation_heatmap.png` — a correlation matrix across all candidate features (seaborn `heatmap`), to justify any later "these two features are redundant, drop one" calls.
-- [ ] `**norm_ref` bake-off** (R5.3): compute cross-subject variance under `trunk_length` vs `thigh_length`; pick the lower. Record the number. Update the backend config to match — **and re-run any Phase 4 test that depended on the default.**
-  - [ ] **Figure (required):** `figures/norm_ref_variance_comparison.png` — a paired bar chart, per-subject variance under each candidate, so the "lower" claim is visually checkable, not just a single number in prose.
-- [ ] `check_mocap_agreement.py` _(uses `3d_joints.zip`)_ — compute knee-flexion angle from our MediaPipe world landmarks vs from the **OptiTrack 26-joint mocap GT** on the same frames. Report **ICC(2,1) + Bland-Altman**, reusing `backend/app/module_a/core/evaluation/agreement.py` (it's unit-agnostic and already shared — do not fork it).
-  - [ ] **Figure (required):** `figures/mocap_agreement_bland_altman.png` — the standard Bland-Altman plot (mean vs difference, limits of agreement shaded). If `agreement.py` already produces one for Module A, reuse that plotting function too — don't write a second implementation of the same chart.
-- [ ] **Gate:** if `knee_flex_peak_deg` does **not** separate the classes, stop. Either the extraction, the view filter, or the windowing is wrong. Do not train through a red flag.
+- [x] `check_feature_validity.py` — per feature, plot **and** report its distribution split by class. A feature enters the model **only if it visibly separates classes** (e.g. `knee_flex_peak_deg` should be lower for incorrect reps). Output `ml/reports/FEATURE_VALIDITY.md` with an explicit keep/drop verdict + justification per feature.
+  - [x] **Figure (required):** `figures/feature_validity_boxplots.png` — one boxplot (or violin) per feature, class on the x-axis, arranged as a grid (e.g. 4×4 subplots via `plt.subplots`), so every feature's class separation is visible on one page.
+  - [x] **Figure (required):** `figures/feature_correlation_heatmap.png` — a correlation matrix across all candidate features (seaborn `heatmap`), to justify any later "these two features are redundant, drop one" calls.
+- [x] `**norm_ref` bake-off** (R5.3): compute cross-subject variance under `trunk_length` vs `thigh_length`; pick the lower. Record the number. Update the backend config to match — **and re-run any Phase 4 test that depended on the default.**
+  - [x] **Figure (required):** `figures/norm_ref_variance_comparison.png` — a paired bar chart, per-subject variance under each candidate, so the "lower" claim is visually checkable, not just a single number in prose.
+- [x] `check_mocap_agreement.py` _(uses `3d_joints.zip`)_ — compute knee-flexion angle from our MediaPipe world landmarks vs from the **OptiTrack 26-joint mocap GT** on the same frames. Report **ICC(2,1) + Bland-Altman**, reusing `backend/app/module_a/core/evaluation/agreement.py` (it's unit-agnostic and already shared — do not fork it).
+  - [x] **Figure (required):** `figures/mocap_agreement_bland_altman.png` — the standard Bland-Altman plot (mean vs difference, limits of agreement shaded). If `agreement.py` already produces one for Module A, reuse that plotting function too — don't write a second implementation of the same chart.
+- [x] **Gate:** if `knee_flex_peak_deg` does **not** separate the classes, stop. Either the extraction, the view filter, or the windowing is wrong. Do not train through a red flag.
+
+### Phase 5 — Stage 5.4: Feature-validity sanity [GATE] (2026-07-16)
+
+- [x] **GATE: PASS.** `knee_flex_peak_deg` separates the classes decisively — **AUC
+      0.837** (Good median 92.8° vs Poor median 107.7°), and the direction holds in
+      **5/5** of the subjects able to vote on it, so it is not one subject's artefact.
+      Extraction, view filter and windowing are not broken, which is what this gate
+      exists to catch. Training may proceed.
+  - **The separation runs OPPOSITE to the plan's stated expectation.** The checklist
+    says "`knee_flex_peak_deg` should be lower for incorrect reps"; measured, incorrect
+    reps go **deeper** (Poor 107.7° > Good 92.8°). The gate's condition is _separation_,
+    which holds either way, so this is not a failure — but REHAB24-6's Ex6 "incorrect"
+    reps are a mix of deliberate faults, not specifically shallow ones, so **no
+    downstream rule may assume "deeper = better"** for this cohort. Flagged for
+    Stage 5.5/5.6.
+- [x] `ml/scripts/check_feature_validity.py` → `ml/reports/FEATURE_VALIDITY.md` +
+      `figures/feature_validity_boxplots.png` (4×4 grid, all 13 features) +
+      `figures/feature_correlation_heatmap.png`. **Verdicts: 10 KEEP / 3 DROP**
+      (`rep_duration_s` AUC 0.492, `descent_ascent_ratio` 0.467, `symmetry_index_pct`
+      0.442 — all effectively at the 0.5 no-separation point). Strongest features:
+      `ankle_df_proxy_deg` (0.882), `knee_rom_deg` (0.859), `knee_flex_peak_deg`
+      (0.837). Redundant pairs recorded, not acted on: `knee_flex_peak_deg` ~
+      `knee_rom_deg` (r=0.97) and `trunk_lean_peak_deg` ~ `trunk_lean_mean_deg` (0.93).
+  - **Method, deliberately not p-values:** 98 reps come from only 9 subjects, so reps
+    are **not independent** and a p-value that treats them as such is
+    anti-conservative (pseudo-replication). Verdicts rest on **AUC** (effect size) plus
+    **cross-subject direction consistency** (does each subject with ≥2 reps of both
+    classes agree on the sign?), which catches a feature that "separates" only via one
+    subject. p-values are listed for completeness only. The keep/drop rule
+    (|AUC−0.5| ≥ 0.10 **and** ≥60% subject agreement) was **pre-declared before
+    results were seen** so the thresholds are not fitted to the outcome.
+  - **Selection-bias caveat recorded** (`FEATURE_VALIDITY.md`, final section): verdicts
+    were computed on all 98 reps, including subjects Stage 5.5 will hold out for LOSO,
+    so a data-driven DROP is mildly circular. Tolerable because this is a _sanity gate_
+    and the only DROPs have ~zero signal — but Stage 5.5 must choose deliberately
+    between training on all 13 and nesting selection inside each fold.
+- [x] `ml/scripts/check_norm_ref.py` → `ml/reports/NORM_REF_BAKEOFF.md` +
+      `figures/norm_ref_variance_comparison.png`. **Winner: `trunk_length`** (mean
+      cross-subject CV **0.180 vs 0.201**), beating `thigh_length` on **both**
+      normalised features and on **both** metrics. `SQUAT_CONFIG["norm_ref_strategy"]`
+      updated `thigh_length` → `trunk_length` and **retagged
+      `[proposed heuristic, R5.3]` → `[dataset-derived, R5.3]`** — it is earned now, not
+      guessed. Feature table + validity report regenerated under the new reference
+      (verdicts unchanged; the gate feature is unaffected by `norm_ref`).
+  - **Method deviation, deliberate:** the checklist says "compute cross-subject
+    _variance_ … pick the lower". Taken literally that is **scale-confounded** — the
+    two references have different magnitudes, so dividing by the larger one shrinks the
+    feature and its raw variance regardless of how well it normalises. The verdict is
+    therefore taken on the scale-invariant **coefficient of variation**; raw variance is
+    still reported so the confound is visible. It did not change the answer here
+    (`trunk_length` wins either way), it just makes the claim defensible. The figure
+    scales each candidate by its own mean for the same reason — plotting raw bars would
+    have let a reader "see" the right answer for the wrong reason.
+  - **Two Phase 4 tests failed on the config change — both were real fixture bugs the
+    old default was masking, fixed rather than bent:** (1)
+    `test_module_b_segmentation._frame()` never set the shoulder landmarks, so
+    `shoulder_mid == hip_mid` and **trunk_length was 0** — an anatomically impossible
+    pose that only survived because `thigh_length` was the default (and it was silently
+    producing meaningless `trunk_lean` too); shoulders now sit 1 unit above the hips.
+    (2) `test_norm_ref_strategy_switches_between_thigh_and_trunk_length` relied on the
+    default being `thigh_length`; it now patches **both** strategies explicitly so it
+    can never silently re-point when a default moves again.
+- [x] `ml/scripts/check_mocap_agreement.py` → `ml/reports/MOCAP_AGREEMENT.md` +
+      `figures/mocap_agreement_bland_altman.png`. Reuses `module_a/core/evaluation/
+agreement.py`'s `icc_2_1`/`bland_altman` (confirmed stats-only — it has no plotting to
+      reuse, so the Bland-Altman chart is drawn in `ml/` via the shared `plotting.py`).
+      Compares the **peak of the bilateral mean knee flexion per rep** — i.e. exactly
+      `knee_flex_peak_deg` — over all 98 reps (all `mocap_erroneous=0`, so no
+      exclusions). **ICC(2,1) = 0.726, bias −11.96°, 95% LoA [−21.0°, −2.9°],
+      r = 0.956.**
+  - **The r/ICC gap is the finding: our pipeline tracks the movement's shape faithfully
+    (r 0.956) and mis-states its magnitude.** Adding the per-rep minimum and ROM shows
+    it is **range compression, not a constant offset**: peak under-read by 12.0°,
+    minimum over-read by 1.6°, so ROM is compressed by ~14° (ROM bias −13.56°).
+  - **⚠ Consequence flagged for Stage 5.6, not fixed here:** the ROM rule's band edges
+    (`<60/60-90/90-110/≥110°`) are tagged **[clinical norm, S1]** — derived from
+    literature on _true_ joint angles — but they are being applied to a measurement
+    that reads ~12° low. A genuine 110° deep squat arrives as ~98° and is banded
+    "parallel", systematically under-crediting depth. Fixing it means calibrating the
+    measurement or re-deriving the edges on this pipeline's scale; both change Phase 4
+    banding. **The classifier is unaffected** (a monotone offset applied consistently).
+  - **One Euro lag measured:** raw landmarks align with mocap at offset **0**, the
+    preprocessed stream at **−3 frames**, i.e. the causal filter adds **~100 ms** — live
+    on-screen feedback inherits it.
+  - **Leg identity could not be established, and that is itself a finding.** The Stage
+    5.3 far-leg-accuracy question needed a per-leg comparison, which needs the
+    MediaPipe↔mocap leg mapping. Absolute per-leg angles cannot discriminate it (both
+    knees bend together — every pairing correlates ~0.97). The leg-**difference** signal
+    can, and it correlates with mocap's own leg difference at mean **r = −0.053**
+    (signs mixed) — no relationship. Geometry proves the mapping must be _consistent_
+    (all 9 subjects stand identically — hip-axis cosine similarity 0.99–1.00 — and
+    MediaPipe calls the far knee "right" in all 9), so those mixed signs are **noise,
+    not a flipping mapping**. Per-leg numbers are therefore reported **without a
+    verdict**; the far-leg question stays formally open. Partial honest answer: the
+    bilateral mean includes the far leg and still tracks mocap at r = 0.956, so the far
+    limb is not grossly wrong — supporting, but not proving, the hold-last release.
+  - **This independently condemns `symmetry_index_pct`, mechanistically.** The feature
+    is _entirely_ a function of the leg-difference signal, and that signal correlates
+    with marker-based truth at r ≈ −0.05. It is not a weak feature — it is **not
+    measuring the thing it claims**. That is a far stronger basis for its DROP than the
+    AUC of 0.442, and it is the same monocular limitation that already removed
+    frontal-plane valgus (Locked Assumption #3). Its formula is separately broken too
+    (per-frame `|θ_L−θ_R|/mean` explodes near standing where the denominator ≈ 0).
+- [x] Verification: full backend suite **136/136** after the config change and fixture
+      fixes; Black/isort clean on every touched file; all four required figures render
+      and are embedded in their reports; feature table regenerated deterministically.
+- [ ] **Deliberately not done:** no feature was actually removed from
+      `SQUAT_FEATURE_NAMES` — the DROP verdicts are recorded, not executed. Editing the
+      vector means bumping `feature_schema_version` and re-running Phase 4's contract
+      tests, and Stage 5.5 may prefer to train on all 13 and let Extra Trees' own
+      importances speak (which also sidesteps the selection-bias caveat above). Left as
+      Stage 5.5's deliberate choice. `symmetry_index_pct`'s formula is likewise not
+      rewritten, for the same schema-version reason.
 
 ### Stage 5.5 — Train the Extra Trees classifier
 

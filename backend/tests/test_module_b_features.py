@@ -101,9 +101,14 @@ class SquatFeatureTests(unittest.TestCase):
         frame["worldLandmarks"][11]["y"] = -2.0
         frame["worldLandmarks"][12]["y"] = -2.0
 
-        thigh_normalized = extract_squat_features([frame]).as_dict()[
-            "stance_width_norm"
-        ]
+        # Both strategies are patched explicitly rather than letting either one ride
+        # on whatever SQUAT_CONFIG's default happens to be: this test is about the
+        # switch working, so it must not silently re-point when the default changes
+        # (as it did in Stage 5.4, thigh_length -> trunk_length).
+        with patch.dict(SQUAT_CONFIG, {"norm_ref_strategy": "thigh_length"}):
+            thigh_normalized = extract_squat_features([frame]).as_dict()[
+                "stance_width_norm"
+            ]
         with patch.dict(SQUAT_CONFIG, {"norm_ref_strategy": "trunk_length"}):
             trunk_normalized = extract_squat_features([frame]).as_dict()[
                 "stance_width_norm"

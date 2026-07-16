@@ -17,13 +17,21 @@ def _landmark(x: float, y: float, z: float = 0.0) -> dict[str, float]:
 
 
 def _frame(timestamp_ms: float, flexion_deg: float) -> dict:
-    """Build a symmetric world-landmark pose with one requested knee flexion."""
+    """Build a symmetric world-landmark pose with one requested knee flexion.
+
+    Shoulders sit one unit above the hips (-y is up in this convention) so the pose
+    has a real trunk. Segmentation itself only reads hip/knee/ankle, but this fixture
+    is shared with feature-extraction tests, and a pose whose shoulders coincide with
+    the hip midpoint has a zero-length trunk — anatomically impossible, and it makes
+    `norm_ref_strategy="trunk_length"` divide by zero.
+    """
     landmarks = [_landmark(0.0, 0.0) for _ in range(33)]
     flexion_rad = math.radians(flexion_deg)
-    for hip_index, knee_index, ankle_index, x in (
-        (23, 25, 27, -0.15),
-        (24, 26, 28, 0.15),
+    for shoulder_index, hip_index, knee_index, ankle_index, x in (
+        (11, 23, 25, 27, -0.15),
+        (12, 24, 26, 28, 0.15),
     ):
+        landmarks[shoulder_index] = _landmark(x, -1.0)
         landmarks[hip_index] = _landmark(x, 0.0)
         landmarks[knee_index] = _landmark(x, 1.0)
         landmarks[ankle_index] = _landmark(
