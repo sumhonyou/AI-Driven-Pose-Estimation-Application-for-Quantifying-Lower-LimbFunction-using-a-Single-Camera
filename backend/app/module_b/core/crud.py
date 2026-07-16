@@ -163,6 +163,7 @@ def _metrics_json(
                 "schema_version": features.schema_version,
                 "names": list(features.names),
                 "values": list(features.values),
+                "lead_leg": features.lead_leg,
             }
             for features in feature_vectors
         ],

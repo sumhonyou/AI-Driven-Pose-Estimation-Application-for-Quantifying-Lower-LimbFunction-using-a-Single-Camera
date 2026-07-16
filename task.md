@@ -1,7 +1,7 @@
 # FYP Development Tasks
 
 **Project:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied and lunge is underway — Stages 4.1-4.5 (Lunge: backend package + exercise registry; feature extraction schema; rep segmentation; rule sub-scores; fusion + placeholder ML interface) complete (2026-07-17); Stage 4.6 (Lunge, persistence + read-back) is next.  
+**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied and lunge is underway — Stages 4.1-4.6 (Lunge: backend package + exercise registry; feature extraction schema; rep segmentation; rule sub-scores; fusion + placeholder ML interface; persistence + read-back) complete (2026-07-17); Stage 4.7 (Lunge, frontend) is next.  
 **Related docs:** [FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md](./FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md) (architecture & design), [rules.md](./rules.md) (coding agent rules)
 
 ---
@@ -2253,7 +2253,18 @@ Mirrors squat's Stage 4.5 — `task.md:532-554`.
 
 Mirrors squat's Stage 4.6 — `task.md:555-575`.
 
-- [ ] Apply squat's Stage 4.6 steps to `backend/app/module_b/lunge/` — no lunge-specific delta.
+- [x] Apply squat's Stage 4.6 steps to `backend/app/module_b/lunge/` — no lunge-specific delta.
+
+### Phase 5B — Stage 4.6 (Lunge): Persistence + read-back (2026-07-17)
+
+**Schema/migration: genuinely no delta.** `module_b_results`/`module_b_error_tags` (Alembic `20260716_0008`) are already exercise-agnostic — `exercise_code` is a plain `String(100)` with no enum/check constraint anywhere in the migration or ORM model. No new migration needed; confirmed by grepping every `module_b_*`-touching migration for a `CheckConstraint` (none found).
+
+**Reconciliation-check finding (rules.md), not silently patched over:** `core/crud.py::_metrics_json()` persisted each rep's `FeatureVector` as `{schema_version, names, values}` only — dropping the `lead_leg` metadata Stage 4.2 added. Harmless for squat (`lead_leg` is always `None` there), but a real bug for lunge: a future replay harness (Stage 5.7 (Lunge), mirroring `replay_squat_session.py`'s `--session-id` mode, which reconstructs `FeatureVector`s from exactly this persisted dict since Module B stores no raw frames by design, X4) would rebuild every vector with `lead_leg=None`, and `score_lunge_set()`'s Symmetry sub-score groups reps by `.lead_leg` — so the reconstructed replay would silently report Symmetry as "unavailable" even when the original live analysis found both legs and computed a real index. **Proved concretely, not just reasoned about:** ran the exact persist -> reconstruct round-trip before fixing it — original `{'left_lead_reps': 1.0, 'right_lead_reps': 1.0, 'front_knee_peak_symmetry_index_pct': 11.76, ...}` degraded to `{'left_lead_reps': 0.0, 'right_lead_reps': 0.0}` after a round-trip through the pre-fix serialization.
+
+- [x] **Fix:** added `"lead_leg": features.lead_leg` to `_metrics_json()`'s `feature_vectors` entries — one field, backward-compatible (squat's vectors now persist `"lead_leg": null`, harmless).
+- [x] **Tests** (`tests/test_module_b_lunge_persistence.py`, 4, mirroring squat's `test_module_b_persistence.py` structure with an in-memory `_FakeDb`): snapshot recorded without raw frames; `lead_leg` survives the persist round-trip; a full reconstruct-and-rescore proof that replayed Symmetry metrics exactly match the original (not just that the key exists); and a squat-shaped regression guard confirming a `lead_leg=None` vector persists `null` without breaking anything. Full backend suite: **192 passing** (was 188).
+- [x] Everything else already generic and unchanged: `GET /api/module-b/results/{session_id}`, profile/version snapshot (`model_version`, `fusion_weights` actually used), byte-stable read-back, error-tag persistence via `_system_error_tags(fusion.flags)` (not the still-`NotImplementedError` `LungeExercise.error_tags()`, which the router never calls — confirmed unaffected, matches Stage 4.1's finding that this ABC hook is unwired until Stage 6.1).
+- [x] **Gate:** `python -c "import app.main"` clean; `core/router.py` and `squat/` untouched (`git status --porcelain` empty for both).
 
 #### Stage 4.7 (Lunge) — Frontend (lunge)
 
