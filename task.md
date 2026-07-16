@@ -865,6 +865,60 @@ segment`/`extract_features`, and `useMediaPipePose.ts` upstream of it) and found
       harness's deletion left `git status` clean on `frontend/`; Black/isort clean
       on the new script; full backend suite still 126/126 (untouched by this stage).
 
+### Cross-cutting — Wire real preprocessing into Module B squat pipeline (2026-07-16)
+
+- [x] **Reconciliation:** re-traced the live squat pipeline (worked in worktree
+      `claude/serene-bhaskara-74aaf3`, coordinated live with the parallel session
+      doing Stage 5.1-5.3 in the main checkout) and confirmed the gap: raw
+      MediaPipe world landmarks flowed straight from the frontend into
+      `SquatExercise.segment`/`extract_features`, with zero confidence-filter/
+      gap-fill/One-Euro preprocessing, unlike Module A (STS/SLS/WBLT), which runs
+      `LandmarkSmoother` server-side. `MODULE_B_CORE_CONFIG["interpolation_max_gap_frames"]`
+      (=5) was defined but never consumed anywhere.
+- [x] **HY decision:** add real preprocessing now, before Stage 5.3's feature
+      table gets used further — re-extraction cost was still low (nothing built
+      on the unsmoothed `ml/data/landmarks/*.npz` yet). Build genuine linear
+      interpolation for the gap-fill (Module A's smoother only hold-lasts on low
+      visibility, it never interpolated).
+- [x] **New shared module:** `backend/app/module_b/core/preprocessing.py` —
+      `preprocess_world_landmarks(frames)` runs confidence filter (`MIN_VISIBILITY`,
+      reused from `app.module_a.core.config`) → gap fill (new: linear
+      interpolation, time-weighted, up to `interpolation_max_gap_frames`, leaving
+      longer/leading/trailing gaps for the next step) → One Euro (`LandmarkSmoother`,
+      imported from `app.module_a.core.smoothing`, not forked). Deliberately built
+      as a plain importable function (not inlined in the router) so `ml/`'s
+      offline extractor can import the identical implementation later — X1.
+- [x] **Stateful-filter ordering, confirmed with the parallel session:**
+      `preprocess_world_landmarks` takes the _entire_ session's frame stream and
+      must be called once over the whole thing before segmentation — `OneEuroFilter`
+      is stateful (per-landmark-per-axis history), so windowing into reps first
+      and smoothing per-window would reset filter state at every rep boundary and
+      diverge from what live capture actually produces. Added a regression test
+      asserting this: preprocessing a stream in one call vs. two independently
+      preprocessed halves gives different results.
+- [x] **Wired into `backend/app/module_b/core/router.py`:** `assess_capture_quality`
+      still runs on the raw capture (it's a diagnostic on what was actually
+      recorded); `exercise.segment`/`extract_features` now run on the
+      preprocessed stream. No frontend change needed — Module A's precedent
+      already showed this preprocessing belongs server-side.
+- [x] **Tests:** `backend/tests/test_module_b_preprocessing.py` (8 new tests —
+      short-gap interpolation, gap-longer-than-max left for hold-last, leading/
+      trailing gaps untouched, interpolated-point visibility bump, the stateful
+      full-stream contract, and a Phase 4 regression check: `_five_clean_reps()`
+      through `preprocess_world_landmarks` → `segment_squat_frames` →
+      `extract_squat_features` still yields 5 reps with a valid feature vector
+      each). Full backend suite: **134/134 passing** (126 previous + 8 new).
+      Black/isort clean.
+- [ ] **Not done here, by design:** the `ml/` re-run. The parallel session (owns
+      Stage 5.2/5.3, uncommitted in the main checkout as of this entry) confirmed
+      it will update `extract_landmarks.py`/`build_features.py` to import and
+      apply this same shared function over the full stream before windowing, then
+      regenerate `squat_features.csv` — before Stage 5.4's feature-validity gate,
+      since that gate is meaningless on features the live model won't actually
+      produce. Also flagged: offline frames will need `visibility` carried through
+      (currently `build_features.py` only passes x/y/z), since gap-fill/hold-last
+      depend on it.
+
 ### Stage 5.3 — Build the feature table
 
 - [ ] `build_features.py`:
