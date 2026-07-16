@@ -10,9 +10,11 @@ from app.db.models import User
 from app.module_b.core import crud
 from app.module_b.core.fusion import fuse_model
 from app.module_b.core.model_registry import StubModel
+from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.core.quality import assess_capture_quality
 from app.module_b.core.registry import get_exercise
-from app.module_b.core.schemas import ModuleBAnalyzeRequest, ModuleBResultResponse
+from app.module_b.core.schemas import (ModuleBAnalyzeRequest,
+                                       ModuleBResultResponse)
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -65,8 +67,12 @@ def analyze_module_b_session(
         exercise.code,
         len(frames),
     )
+    # Quality is assessed on the raw capture (reflects what was actually
+    # recorded); segmentation/features run on the preprocessed stream so
+    # OneEuroFilter sees the whole session, not a per-rep window (X3/X1).
     quality = assess_capture_quality(frames)
-    reps = exercise.segment(frames)
+    preprocessed_frames = preprocess_world_landmarks(frames)
+    reps = exercise.segment(preprocessed_frames)
     if not reps:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
