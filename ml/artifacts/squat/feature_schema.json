@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "names": [
+    "knee_flex_peak_deg",
+    "knee_flex_min_deg",
+    "knee_rom_deg",
+    "hip_flex_peak_deg",
+    "trunk_lean_peak_deg",
+    "trunk_lean_mean_deg",
+    "knee_ang_vel_max_dps",
+    "rep_duration_s",
+    "descent_ascent_ratio",
+    "symmetry_index_pct",
+    "ankle_df_proxy_deg",
+    "hip_mid_jitter_norm",
+    "stance_width_norm"
+  ],
+  "model_version": "squat-1.0.0+rehab246-loso-3c441ac.dirty"
+}

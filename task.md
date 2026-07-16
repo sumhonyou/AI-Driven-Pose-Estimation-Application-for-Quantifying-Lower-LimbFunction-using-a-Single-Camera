@@ -1,7 +1,7 @@
 # FYP Development Tasks
 
 **Project:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Status:** Phase 0 complete · Phase 1A (UI clickable prototype) complete · Phase 1B (backend integration) implemented pending end-to-end local verification  
+**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.8 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16). **Stage 5.9 (EC3D external validation) is next and unblocked; not started per rules.md scope discipline.** Phase 5B (lunge) gate is satisfied but lunge itself not started.  
 **Related docs:** [FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md](./FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md) (architecture & design), [rules.md](./rules.md) (coding agent rules)
 
 ---
@@ -1296,7 +1296,7 @@ agreement.py`'s `icc_2_1`/`bland_altman` (confirmed stats-only — it has no plo
       noisy estimates).
 - [x] **Result: out-of-fold ROC AUC 0.832**, macro-F1 0.631 @0.5, Brier 0.154 → 0.149.
       Chosen params `n_estimators=500, max_depth=None, min_samples_leaf=2,
-  min_samples_split=10`.
+min_samples_split=10`.
 - [x] **Finding — the search is a plateau, and that is the honest result.** The entire
       grid spans **0.0407** ROC AUC (0.8718–0.9125) while the **median std across inner
       folds is 0.0455 — larger than the whole span**; **163/180** combinations sit
@@ -1371,40 +1371,324 @@ agreement.py`'s `icc_2_1`/`bland_altman` (confirmed stats-only — it has no plo
 
 > ✅ **Resolved 2026-07-16** (see [Contradictions found — need HY decision](#contradictions-found-need-hy-decision) item 1): this stage is where the Phase 4 Stage 4.0 `w_rule_default`/architecture-doc-§10.4 conflict actually gets settled — **empirically, not by picking one document over the other.** The selection criteria below are expanded beyond precision alone.
 
-- [ ] `**confidence_low_threshold**` (the Fair band): the R7 default of 0.65 is a **[proposed heuristic]**. Because Option A has only binary Good/Poor probabilities, sweep **only thresholds strictly above 0.5**, and include candidates above 0.65; pick against the calibration curve + the precision objective. Report the chosen value **and** the sweep — the number must be earned, not asserted.
-  - [ ] **Figure (required):** `figures/confidence_threshold_sweep.png` — precision/recall (or precision + Fair-band size) as a line plot against the swept threshold, with the chosen value marked (vertical line + annotation).
-- [ ] `sweep_fusion_weights.py` — sweep `w_r` from **0.2 → 0.8 in 0.1 steps** on the validation folds; report Good/Fair/Poor confusion + precision + **macro-F1** at each. **Selection criteria (HY 2026-07-16):** the winning weight must be justified against **both** (a) macro-F1 across the 3 bands, **and** (b) the **severe-misclassification rate** — the count/rate of Poor→Good and Good→Poor confusions specifically, tracked as its own number, not folded into an aggregate. A weight with slightly lower precision but a materially lower severe-misclassification rate is the better choice for a rehab-grading system (telling a poor-form user they're fine is the one failure mode that matters most); do not default to "highest precision wins" if it trades away severe-error safety.
-  - [ ] **Figure (required):** `figures/fusion_weight_sweep.png` — precision, macro-F1, **and severe-misclassification rate** (three lines) plotted against `w_r` from 0.2–0.8, chosen weight marked the same way as above.
-- [ ] Write the winner back into `backend/app/module_b/core/config.py`, replacing the 0.4/0.6 placeholder, and **retag it `[dataset-derived]`** (it is no longer a heuristic). Record in the report why this value won over both the Stage 4.0 default and the architecture doc's §10.4 recommendation, citing the actual macro-F1 and severe-misclassification numbers.
-- [ ] Output `ml/reports/SQUAT_FUSION_SWEEP.md` with all three figures/lines embedded.
+- [x] `**confidence_low_threshold**` (the Fair band): the R7 default of 0.65 is a **[proposed heuristic]**. Because Option A has only binary Good/Poor probabilities, sweep **only thresholds strictly above 0.5**, and include candidates above 0.65; pick against the calibration curve + the precision objective. Report the chosen value **and** the sweep — the number must be earned, not asserted.
+  - [x] **Figure (required):** `figures/confidence_threshold_sweep.png` — precision/recall (or precision + Fair-band size) as a line plot against the swept threshold, with the chosen value marked (vertical line + annotation).
+- [x] `sweep_fusion_weights.py` — sweep `w_r` from **0.2 → 0.8 in 0.1 steps** on the validation folds; report Good/Fair/Poor confusion + precision + **macro-F1** at each. **Selection criteria (HY 2026-07-16):** the winning weight must be justified against **both** (a) macro-F1 across the 3 bands, **and** (b) the **severe-misclassification rate** — the count/rate of Poor→Good and Good→Poor confusions specifically, tracked as its own number, not folded into an aggregate. A weight with slightly lower precision but a materially lower severe-misclassification rate is the better choice for a rehab-grading system (telling a poor-form user they're fine is the one failure mode that matters most); do not default to "highest precision wins" if it trades away severe-error safety.
+  - [x] **Figure (required):** `figures/fusion_weight_sweep.png` — precision, macro-F1, **and severe-misclassification rate** (three lines) plotted against `w_r` from 0.2–0.8, chosen weight marked the same way as above.
+- [x] Write the winner back into `backend/app/module_b/core/config.py`, replacing the 0.4/0.6 placeholder, and **retag it `[dataset-derived]`** (it is no longer a heuristic). Record in the report why this value won over both the Stage 4.0 default and the architecture doc's §10.4 recommendation, citing the actual macro-F1 and severe-misclassification numbers.
+- [x] Output `ml/reports/SQUAT_FUSION_SWEEP.md` with all three figures/lines embedded.
+
+### Phase 5 — Stage 5.6: Fair threshold + fusion weight sweep (2026-07-16)
+
+- [x] **`ml/scripts/sweep_fusion_weights.py`** — reuses Stage 5.5's seeded `nested_cv()`
+      verbatim for out-of-fold calibrated P(Good) (never re-tuned, never transcribed);
+      calls the real, unmodified `app.module_b.core.fusion.fuse_scores()` for every
+      candidate, patching `MODULE_B_CORE_CONFIG` in place and restoring in `finally`
+      (same pattern as `check_norm_ref.py`). Evaluated **per repetition, not per
+      session** (ground truth is per-rep; production fuses per-session via
+      `score_squat_set()` + rep-0-only ML score — an existing Phase 4 decision, not
+      redesigned here) — stated explicitly so the confusion counts aren't misquoted at
+      the wrong granularity. Real per-rep `q` computed from raw (pre-preprocessing)
+      frames via the live `assess_capture_quality()`, not assumed: q ranged
+      [0.828, 0.930], **0/98 below q_min=0.6** — capture-quality forcing is confirmed
+      not to confound the sweep.
+- [x] **Major finding: the naive single-pass ordering is Poor-blind, and it's
+      mechanistic, not a fluke.** Running the checklist's literal ordering once
+      (threshold swept at the Stage 4.0 default weight 0.4/0.6, then weight swept at
+      that threshold) found **precision(Poor) undefined at every one of the 9
+      threshold candidates** — no repetition could ever be banded Poor at `w_rule=0.4`,
+      at any threshold. Root cause, verified not assumed: `rule_score`'s ROM component
+      rewards greater knee flexion, but Stage 5.4/5.5 already found **incorrect reps
+      are deeper** in this population, so `rule_score` runs backwards relative to
+      correctness — median **8.83 for Poor vs 7.71 for Good**, floor 6.43 for anyone.
+      Even the single most confidently-Poor rep in the dataset (P(Good)=0.134,
+      rule_score=9.71) fused to ~4.7 at `w_rule=0.4` — Fair, never Poor.
+- [x] **Fix: iterated joint search, not a single pass.** Alternates the threshold sweep
+      and weight sweep, feeding each round's winner into the next, until neither moves
+      (`find_stable_operating_point()`, bounded at `MAX_ROUNDS=6`). **Converged after 3
+      rounds:** round 1 (input 0.4) → threshold 0.55 → weight 0.2; round 2 (input 0.2)
+      → threshold 0.85 → weight 0.2; round 3 confirms the same pair. This is standard
+      coordinate ascent over the two sweeps the checklist already specifies — no new
+      sweep dimension, only recognising they must be resolved jointly. The naive
+      round-1 answer is kept in the report (not discarded) alongside why it was revised.
+- [x] **Fusion-weight selection rule corrected to match HY's literal wording.** Initial
+      draft summed Poor→Good + Good→Poor into one "severe count" for the primary key;
+      re-read HY's criterion ("Poor→Good ... is the one failure mode that matters
+      most") and fixed `_pick_fusion_weight()` to use **Poor→Good alone** as the
+      primary key (summing would let a rise in the worse failure mode hide behind a
+      fall in the milder one), with Good→Poor then macro-F1 breaking ties (within-1
+      margin at n=98, since a single event either way is sampling noise).
+- [x] **Result (converged): `confidence_low_threshold = 0.85`, `w_rule = 0.2`,
+      `w_ml = 0.8`.** At this point: precision(Good)=1.000, precision(Poor)=1.000,
+      **0 severe misclassifications** (0 Poor→Good, 0 Good→Poor), macro-F1=0.481,
+      Fair-band coverage=0.469 (46/98 reps abstain) — a deliberate, large safety
+      trade-off, not hidden.
+- [x] **Both the Stage 4.0 placeholder (0.4) and the architecture doc's §10.4
+      recommendation (0.6) also reach 0 severe misclassifications at the converged
+      threshold — but not for the same reason, and this distinction is the actual
+      reason macro-F1 mattered in selection.** At `w_rule=0.4`/`0.6`, `recall(Poor)=0`:
+      every Poor rep is safely routed to Fair, **none is ever correctly identified as
+      Poor**. At the chosen `w_rule=0.2`, some Poor reps are correctly caught
+      (`recall(Poor)=0.077`) with the same 0 severe count. Severe-count alone would
+      have missed this; macro-F1 (0.481 vs 0.410) is what distinguishes "safe but
+      blind" from "safe and somewhat informative."
+- [x] **Config updated and retagged:** `backend/app/module_b/core/config.py` —
+      `w_rule_default: 0.4→0.2`, `w_ml_default: 0.6→0.8`,
+      `confidence_low_threshold: 0.65→0.85`, all retagged `[dataset-derived, Stage
+5.6]` with the reasoning inline. `w_rule_low_confidence` (0.7) and `q_min` (0.6)
+      untouched (out of scope).
+- [x] **Two backend tests updated, both real fixes not bent to pass:**
+      `test_module_b_registry.py`'s single `test_core_config_freezes_stage_4_0_values`
+      split into `test_core_config_freezes_still_unresolved_stage_4_0_values`
+      (everything Stage 5.6 didn't touch) + a new
+      `test_core_config_stage_5_6_dataset_derived_fusion_values` (the three changed
+      values); `test_module_b_fusion.py`'s
+      `test_model_fusion_carries_model_version_and_default_weights` bumped its
+      `StubModel(rule_score=8.0)` to `9.0` so its resulting confidence (0.9) still
+      clears the new 0.85 bar and actually exercises the default-weight path, rather
+      than silently falling into the already-covered low-confidence branch.
+- [x] **Verified:** X8 determinism — SHA-256 of the report and both figures
+      byte-identical across consecutive runs, including after formatting. Backend
+      suite **137/137** (136 + 1 net new, from the registry-test split) via
+      `python -m unittest discover -s tests`. `black` clean, `isort --profile black`
+      clean.
+- [ ] **Deliberately not done (out of Stage 5.6 scope):** `band_thresholds` (D6,
+      Poor/Fair/Good score cut points) unchanged — a separate, already-fixed
+      heuristic this stage doesn't touch. No 3-band confusion-matrix figure, baseline
+      comparison, or latency measurement (Stage 5.7). No artifact export (Stage 5.8).
+      The grid's own lower boundary (`w_rule=0.2`) won outright — the trend suggests
+      going lower might help further, but extending below the checklist's specified
+      0.2–0.8 range would be scope creep; flagged for reconsideration, not acted on.
 
 ### Stage 5.7 — Evaluation
 
-- [ ] `evaluate_squat.py` → `ml/reports/SQUAT_EVALUATION_REPORT.md`:
-  - [ ] Accuracy, **Precision (emphasised)**, Recall, **Macro-F1**, per-class + macro
-  - [ ] **Confusion matrix** over the _final fused 3-band output_ (Good/Fair/Poor), not just the binary classifier — this is what the user actually sees
-    - [ ] **Figure (required):** `figures/confusion_matrix_3band.png` — `seaborn.heatmap` with annotated counts, row-normalised percentages as a secondary annotation if it fits.
-  - [ ] Multi-label micro/macro-F1 for `error_tags` — **only for tags with real dataset signal.** REHAB24-6 is binary and does not label individual faults, so rule-only tags have **no ground truth here**. State that plainly rather than inventing an evaluation. _(EC3D's per-fault labels in Stage 5.9 are the only honest source for this — and only for the faults it labels.)_
-    - [ ] **Figure (required, only for the tags that do have EC3D ground truth):** a horizontal bar chart of per-tag precision/recall, `figures/error_tag_performance.png`. Do not fabricate bars for tags with no ground truth — omit them and say why in the caption.
-  - [ ] **Robustness signals:** low-confidence-frame frequency, safety-flag rate
-    - [ ] **Figure (required):** `figures/robustness_signals.png` — a simple bar or histogram of low-confidence-frame frequency across the evaluation set, so an isolated bad session doesn't get buried in a single averaged number.
-  - [ ] **Inference latency** — per-rep feature extraction + predict, measured, for the real-time feasibility claim
-    - [ ] **Figure (recommended, not required):** `figures/inference_latency_distribution.png` — a histogram of per-rep latency, useful if the real-time feasibility claim gets challenged in viva.
-  - [ ] **Baseline comparison, stated carefully:** comparable classical-classifier work reports ~93% (squat) with a Random Forest [S13], **but under a different, non-subject-wise split protocol**. Expect your LOSO number to be lower. **Do not compare a LOSO number to a random-split number as if equal** — say so in the report. Extract REHAB24-6's own authors' protocol from the SISAP 2024 paper before quoting their baseline [S12].
-    - [ ] **Figure (required):** `figures/baseline_comparison_bar.png` — grouped bar chart, your LOSO metric vs the cited baseline metric, with the split-protocol difference called out directly in the figure caption (not just in surrounding prose) so the chart can't be screenshotted out of context and misread as an apples-to-apples comparison.
-- [ ] **Deterministic replay harness** (Module A Stage 7 parity):
-  - [ ] `backend/app/module_b/core/evaluation/replay_squat_session.py` — replays a stored session's frames/feature vector through a fresh analysis; asserts byte-identical.
-  - [ ] `ml/scripts/generate_squat_replay_corpus.py` — fixed-seed synthetic corpus committed to `backend/app/module_b/replay_corpus/squat/`, spanning Good/Fair/Poor + a low-Q reject.
-  - [ ] Backend `SquatDeterminismTests`.
-  - [ ] Document the WBLT-replay caveat if it applies (no per-attempt id in the landmark log).
+**Completed 2026-07-16.** `ml/scripts/evaluate_squat.py` → `ml/reports/SQUAT_EVALUATION_REPORT.md`
+(4 figures); `backend/app/module_b/core/evaluation/replay_squat_session.py` +
+`ml/scripts/generate_squat_replay_corpus.py` → 7-sample corpus committed to
+`backend/app/module_b/replay_corpus/squat/`; `backend/tests/test_module_b_replay.py`
+(9 tests, incl. `SquatDeterminismTests`).
+
+- [x] `evaluate_squat.py` → `ml/reports/SQUAT_EVALUATION_REPORT.md`:
+  - [x] Accuracy, **Precision (emphasised)**, Recall, **Macro-F1**, per-class + macro.
+        **Accuracy is reported twice under two named definitions, and neither is
+        presented as the headline** — on a 3-band output over binary ground truth it is
+        genuinely ambiguous. `accuracy_strict = 0.531` counts Fair as wrong (punishes
+        the abstention Stage 5.6 bought on purpose); `accuracy_confident = 1.000`
+        excludes Fair (a system abstaining on 97/98 reps and getting the last right
+        would also score 1.000). The pair is the honest summary: **the system commits
+        on 52/98 reps (53.1%) and is right 100% of the time when it does.** Macro-F1
+        0.481, macro precision 1.000, macro recall 0.386.
+  - [x] **Confusion matrix** over the final fused 3-band output. Good→Good 50, Good→Fair
+        22, Good→Poor 0; Poor→Good 0, Poor→Fair 24, Poor→Poor 2. **Both severe cells are
+        0 — but this is consistent with Stage 5.6, not independent evidence for it**
+        (same out-of-fold predictions selected the operating point). Reported because
+        its absence would signal a bug.
+    - [x] **Figure:** `figures/confusion_matrix_3band.png` — 2×3, deliberately
+          non-square: ground truth has no Fair class, so that column is an abstention,
+          not a class that can be right or wrong. Stated on the figure itself.
+  - [x] **`error_tags` multi-label F1 NOT computed — two independent reasons, the second
+        found by reading the code and not in this checklist.** (1) REHAB24-6 is binary,
+        no per-fault ground truth. (2) **`router.py` never calls `exercise.error_tags()`
+        at all**: `SquatExercise.error_tags()` raises `NotImplementedError`, and only
+        the system flags (`low_confidence`/`low_capture_quality`/
+        `retry_camera_placement`) from `_system_error_tags()` are persisted, movement
+        taxonomy deferred to Stage 6. **Neither a prediction nor a reference exists.**
+    - [x] **Figure deliberately NOT produced:** `figures/error_tag_performance.png` —
+          per this checklist's own instruction not to fabricate bars for tags with no
+          ground truth. EC3D (5.9) is the only honest source.
+  - [x] **Robustness signals — the headline finding of this stage.**
+        **Low-confidence-frame frequency is saturated: 87/98 reps (89%) have NOT ONE
+        fully-valid frame** (median 100%). A metric pinned at its worst value for 89% of
+        the data cannot discriminate a good capture from a bad one — **it must not be
+        used as a robustness gate as it stands.** Cause measured, not assumed: sampling
+        rep `PM_008#1` (first in sorted order, fixed choice), far-limb R_knee median
+        visibility **0.396 (121/121 frames below threshold)** and R_ankle 0.598 (68/121)
+        vs near-limb 0.98–0.99 — and `valid_frame_ratio` requires **all 8** landmarks to
+        clear the bar simultaneously, so one occluded landmark zeroes the whole rep.
+        Safety flags: `low_confidence` 46.9%, `low_capture_quality` **0.0%**,
+        `retry_camera_placement` 0.0%.
+        **⚠ New limitation: `q` is blind to this capture geometry's dominant failure.**
+        q range [0.828, 0.930], **0/98 below `q_min=0.6`** — because `q` is a _mean_ over
+        the 8 landmarks and the 4 near-side ones are tracked near-perfectly. The far limb
+        can be entirely invisible while `q` stays "good".
+    - [x] **Figure:** `figures/robustness_signals.png` — histogram (not a mean) + flag
+          rates. The saturation spike at 100% is the point.
+  - [x] **Inference latency measured:** median **8.11 ms**, p95 **9.10 ms** vs a 33.3 ms
+        single-frame budget at 30 FPS (~3.7× headroom). Median of 5 timed repeats per
+        rep. **Scope stated: excludes pose estimation and preprocessing** (per-frame
+        browser costs); this is the per-rep cost the backend adds at the end of a set.
+        Supports "the analysis layer is not the bottleneck", **not** "the whole system
+        runs in real time".
+        **⚠ X8 carve-out, stated in the report rather than left to be discovered:
+        latency is the ONE Phase 5 output that is not byte-reproducible.** Wall-clock
+        cannot be. Verified: every other metric and all 3 other figures are byte-
+        identical across runs; only this section varies.
+    - [x] **Figure:** `figures/inference_latency_distribution.png` — x-axis scaled to the
+          data. The 33.3 ms budget is annotated, **not drawn as a line**: drawing it set
+          the x-limit ~4× wider than the data and crushed the whole distribution into one
+          invisible spike — the reference line destroyed the plot it was meant to
+          contextualise.
+  - [x] **Baseline comparison: `0.7347` (subject-wise) vs [S13] ~0.93 (non-subject-wise).**
+        The comparable quantity is the **binary classifier's** accuracy, not the fused
+        3-band system's — a published classifier cannot abstain.
+        **⚠ Our accuracy exactly equals the Good base rate (72/98 = 0.7347). This is a
+        coincidence, NOT a degenerate always-predict-Good classifier, and the report
+        proves the difference:** the model predicts Poor for 20/98 reps and is right
+        about 10 — it buys 10 correct Poor calls at the price of 10 Good reps it now gets
+        wrong, netting +0. It breaks even. The model has learned something (AUC 0.832);
+        accuracy is simply the wrong summary for an imbalanced problem.
+    - [x] **Figure:** `figures/baseline_comparison_bar.png` — the "NOT AN APPLES-TO-APPLES
+          COMPARISON" caveat is drawn **inside the axes** so a screenshot carries it.
+- [x] **Q4 remains OPEN — the REHAB24-6 authors' own baseline is deliberately NOT quoted.**
+      The checklist says to extract their protocol from the SISAP 2024 paper [S12] first.
+      Attempted: the Springer chapter is paywalled (auth redirect, not followed), the
+      Zenodo record carries no baseline results, and no open-access version was found.
+      Per Q4's own instruction ("do not silently resolve them by assumption") **no number
+      was invented for it** — the comparison rests solely on [S13], which `task.md`
+      itself supplies. Extend §6 of the report if the paper becomes available.
+- [x] **Deterministic replay harness** (Module A Stage 7 parity):
+  - [x] `backend/app/module_b/core/evaluation/replay_squat_session.py` — `--json-file`
+        (full replay: quality→preprocess→segment→features→rules→fuse, asserts two fresh
+        runs identical), `--session-id` (partial), `--corpus` (replays all 7 samples and
+        checks them against `labels.json`).
+  - [x] `ml/scripts/generate_squat_replay_corpus.py` → 7 committed samples: 2 Good, 2
+        Fair, 2 Poor, 1 low-Q reject. Fixed seed (20260716), byte-identical on
+        regeneration. 3.6 MB, in line with Module A's SLS corpus (3.4 MB).
+        **The manifest records the MEASURED band, not a hand-written expectation** —
+        every sample is run through the real pipeline at build time. This caught two real
+        bugs immediately: both Poor specs landed in Fair, and reps were being silently
+        dropped (1 and 2 segmented instead of 3 and 4).
+  - [x] Backend `SquatDeterminismTests` (+ corpus/harness tests): 9 tests. Suite
+        **146/146** (was 137).
+  - [x] **The WBLT caveat applies, and is strictly stronger for Module B: there is no
+        `module_b_landmark_log` table at all.** Module B **never persists frames** by
+        design — `crud.save_result()` stores "the exact analyzed snapshot without
+        persisting browser frames/video". So `--session-id` can only replay **rules +
+        fusion** from the `FeatureVector`s stored in `metrics_json`; preprocessing,
+        segmentation and feature extraction are unreplayable from the DB. (WBLT loses
+        _which attempt_; Module B has no frames at all.) `--session-id` also **reports**
+        rather than asserts drift vs the stored snapshot: `router.py` treats stored
+        results as historical and never recomputes them, and Stage 5.6 moved the fusion
+        weights, so any pre-5.6 session legitimately re-derives differently — asserting
+        equality would turn a correct config change into a crash.
+
+**Findings for later stages (recorded, not acted on):**
+
+- **Under `StubModel`, `score == rule_score` exactly** (P(Good)=rule/10 ⇒ ml_score=rule,
+  weights sum to 1). With `confidence_low_threshold=0.85` the only reachable bands are
+  Poor (`rule<1.5`), Fair (`1.5≤rule≤8.5`, always via `low_confidence`) and Good
+  (`rule>8.5`) — **the Fair _score band_ (4.0–7.0) is currently unreachable**; every Fair
+  is an abstention. **Stage 5.8 replaces `StubModel` and these bands move — regenerate
+  the corpus then, do not hand-patch `labels.json`.**
+- **One Euro's speed-adaptive cutoff couples whole-body translation to angle smoothing.**
+  Measured while building the corpus: raw peak knee flexion is identical (36.19°) at sway
+  0.0 and 0.4, but the _preprocessed_ peak moves 35.44°→36.44° — enough to change how many
+  reps segment. Larger sway ⇒ higher velocity ⇒ wider cutoff ⇒ _less_ smoothing. Sway and
+  depth are not independent downstream, only in the raw pose.
+- **`_release_persistent_occlusions` preserves coordinates for a wholly-occluded landmark**
+  (raises visibility to `MIN_VISIBILITY` rather than dropping it), which is why the low-Q
+  corpus sample still segments 3 reps at visibility 0.45 and is rejected on `q`, not on
+  a broken skeleton.
+
+**Deliberately not done (out of Stage 5.7 scope):** `q_min`/`confidence_threshold`
+unchanged despite §4's finding that `q` is blind to far-limb occlusion and
+`valid_frame_ratio` is saturated — **flagged for Stage 5.8's model card and a future
+quality-metric revision, not fixed here.** ROM band edges still untouched (see 5.6).
+No artifact export, no `StubModel` deletion (Stage 5.8). No EC3D (Stage 5.9).
 
 ### Stage 5.8 — Export + backend integration
 
-- [ ] Export to `ml/artifacts/squat/` (**committed**): `model.joblib`, `calibrator.joblib`, `feature_schema.json` (names + order + version), `label_map.json`, `model_card.md` (training data, protocol, metrics, date, limitations). `model_card.md` **links to** the confusion matrix and calibration figures already produced in Stages 5.5/5.7 by relative path — it does not regenerate or duplicate them.
-- [ ] `model_version` = a real, traceable id (e.g. `squat-1.0.0+rehab246-loso-<shorthash>`).
-- [ ] `core/model_registry.py` loads the real bundle; `**StubModel` is deleted, not left behind** (rules.md #20: no unnecessary code). The placeholder notice in `Report.tsx` disappears with it.
-- [ ] Schema guard fires on mismatch (Stage 4.5).
-- [ ] **Verified live end-to-end**: a real webcam squat session produces a real model-backed grade; `model_version` in the DB matches the artifact.
+**Completed 2026-07-16.** `ml/scripts/export_squat_model.py` → `ml/artifacts/squat/{model.joblib,calibrator.joblib,feature_schema.json,model_card.md}` +
+updated `ml/artifacts/label_map.json`; `core/model_registry.py` loads the real bundle,
+`StubModel` deleted; `router.py`/`replay_squat_session.py`/
+`generate_squat_replay_corpus.py` all switched to it; backend suite **150/150**
+(was 146); verified live against the real Postgres container + a running backend.
+
+- [x] Export to `ml/artifacts/squat/` (**committed**): `model.joblib` (the fitted
+      Extra Trees forest), `calibrator.joblib` (a plain `{"a":..., "b":...}` dict —
+      **not** sklearn's private `_SigmoidCalibration` object, deliberately, so the
+      calibrator file doesn't depend on a private class surviving a future sklearn
+      upgrade), `feature_schema.json` (names + order + `schema_version` +, since this
+      file is created fresh by this stage and owned by no earlier one,
+      `model_version`), and the extended `label_map.json` (now carries `label_order`,
+      needed by the loader). `model_card.md` **links** to Stage 5.5/5.7's confusion
+      matrix, calibration and robustness figures by relative path — does not
+      regenerate or duplicate them.
+      **The split is verified, not assumed:** `_verify_recomposition()` asserts
+      `np.array_equal` between the untouched `CalibratedClassifierCV.predict_proba()`
+      and the forest+sigmoid recomposition (`P(Good)=1/(1+exp(a·raw_p_good+b))`) on
+      the real training matrix before anything is written — confirmed bit-for-bit
+      identical (max abs diff `0.0`). Byte-identical on regeneration (X8).
+- [x] `model_version = squat-1.0.0+rehab246-loso-3c441ac.dirty` — a real
+      `git rev-parse --short HEAD`, `.dirty`-suffixed (uncommitted changes present at
+      export time) rather than falsely implying an exact committed snapshot.
+- [x] `core/model_registry.py`: `StubModel` **deleted**, not left behind.
+      `_CalibratedForestClassifier` composes the two files back into calibrated
+      probabilities; `get_model_bundle(model_key)` is the `lru_cache`d, load-once
+      accessor, keyed by `model_key` (not hardcoded to squat) so a future exercise's
+      own artifact directory is picked up without a router change. `router.py`,
+      `replay_squat_session.py` (both `--json-file` and `--session-id` paths) and
+      `generate_squat_replay_corpus.py` all switched to it. The placeholder notice in
+      `Report.tsx` is now unreachable (`is_placeholder=False` on every live result)
+      without any frontend change — the mechanism is generic and stays for any future
+      placeholder model.
+      **Backend now depends on `scikit-learn`/`numpy`** (added to
+      `backend/requirements.txt`, unpinned floor matching `ml/requirements.txt`) —
+      `joblib.load()` of a fitted sklearn model requires the library to be importable;
+      this was a real, previously-latent gap in Stage 4.5's `load_joblib_model_bundle`
+      scaffolding, only surfaced once a real artifact was actually loaded.
+- [x] Schema guard fires on mismatch (Stage 4.5): re-verified against the **real**
+      bundle (`test_module_b_fusion.py::RealSquatModelBundleTests`), not only the fake
+      classifier the Stage 4.5 tests originally used.
+- [x] **Verified live end-to-end**, against the real `fyp_postgres` docker container
+      and a real running `uvicorn` backend (no browser/webcam available to this agent,
+      so this is the most rigorous available proxy): registered a test user via
+      `/api/auth/register`, started a real squat session via `/api/sessions/start`,
+      POSTed a realistic frame stream to `/api/module-b/analyze`. Result:
+      `model_version="squat-1.0.0+rehab246-loso-3c441ac.dirty"`,
+      `placeholder_model_notice=false`, band/score derived from the real model — and
+      the **same** `model_version` confirmed directly in the `module_b_results` table
+      via SQL, and via `GET /api/module-b/results/{id}`. The `--session-id` replay
+      path was also run against this real, live session and reproduced the stored
+      score/band/rule_score exactly.
+
+**⚠ Major finding, not anticipated by this checklist: the shipped model may never
+return a confident "Poor" verdict for squat, for any input.** Checked directly
+(`export_squat_model.py::_deployed_confidence_check`) against every row in its own
+98-repetition training set: the single most Poor-leaning row reaches only
+P(Good)=0.244 (confidence 0.756), short of the 0.85 bar `confidence_low_threshold`
+requires. **Zero of 98 training rows clear it.** This is distinct from — not a
+contradiction of — Stage 5.7's reported recall(Poor)=0.077: that figure describes the
+5-fold **nested cross-validation** pooled estimate (5 different fold-specific
+calibrations, min P(Good)=0.134, 2/26 caught), an estimate of generalisation. This
+in-sample check is the first point the **actual shipped calibration** could be
+examined directly, and it is more conservative than that estimate suggested. A
+deliberate geometry sweep while rebuilding the replay corpus (below) could not
+reach a confident Poor synthetically either (closest: P(Good)≈0.50). Recorded
+prominently in `model_card.md`'s limitations section, not silently shipped.
+
+**Consequence — the replay corpus was substantially rebuilt, not just re-run:**
+
+- The original Stage 5.7 corpus was designed against `StubModel`'s analytic
+  `score == rule_score`, which rewards depth. The real forest learned the opposite
+  relationship for this population (incorrect reps are deeper — Stage 5.4/5.5/5.6),
+  so the old "deep + unstable = Poor" specs now read as confidently **Good** or merely
+  uncertain. All 7 specs were rebuilt from the real model's actual Good/Poor feature
+  statistics; the two "attempted Poor" samples are kept as the closest approach found
+  (`target_band_hint="Fair"`, honestly), not as a working Poor fixture.
+- `test_corpus_spans_every_reachable_band_plus_a_low_quality_reject` now asserts
+  `{"Good", "Fair"}`, with the finding above recorded inline — asserting the old
+  `{"Good","Fair","Poor"}` would assert something the shipped model cannot currently
+  do.
+- Corpus remains byte-identical on regeneration (X8); all 9 `test_module_b_replay.py`
+  tests + the `--corpus` CLI check still pass against the rebuilt manifest.
+
+**Deliberately not done (out of Stage 5.8 scope):** the ROM rule / `q` capture-quality
+blind spot (Stage 5.7 findings) are unchanged — this stage exports and wires the
+classifier, it does not revisit the rule engine or the quality metric. No EC3D
+validation (Stage 5.9). No fix attempted for the Poor-unreachability finding above; it
+is recorded for Stage 5.9/examiner visibility, not acted on — fixing it would mean
+re-touching calibration or the training data split, outside this stage's checklist.
 
 ### Stage 5.9 — EC3D external validation _(the firewall pays off here)_
 
@@ -1552,16 +1836,16 @@ Repeat Phase 4 Stages 4.1–4.8 and Phase 5 Stages 5.0–5.9 for lunge, as `back
 
 Track these; do not silently resolve them by assumption.
 
-| #   | Question                                                            | Blocks                                    | Settles via                                                                                   |
-| --- | ------------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Q1  | **Usable side-view Ex6 rep count** after the orientation filter     | Phase 5 Stage 5.0 gate                    | `Segmentation.csv` + `Segmentation.txt` + one visual check per orientation value              |
-| Q2  | Which camera is profile for each `cam17_orientation` value          | Phase 5 Stage 5.2                         | Same as Q1 — **verify, don't assume** the working hypothesis                                  |
-| Q3  | EC3D's exact 25-joint index order                                   | Phase 5 Stage 5.9; `knee_passes_toe`      | EC3D repo data-loader, or an empirical frame plot                                             |
-| Q4  | REHAB24-6 authors' own baseline **+ split protocol**                | Phase 5 Stage 5.7's comparison            | SISAP 2024 paper [S12] — a random-split number is not comparable to LOSO                      |
-| Q5  | No validated sway/jitter threshold exists for the Control sub-score | Phase 4 Stage 4.4 (heuristic, pilot-tune) | A postural-sway study with a quantitative in-plane cutoff (_not found_)                       |
-| Q6  | No normative lunge front-knee angle table exists                    | Phase 5B ROM bands                        | A published bodyweight-lunge kinematics norm (_not found_) — until then, dataset-derived only |
-| Q7  | Groq free-tier limits + model name at build time                    | Phase 6 Stage 6.4                         | Live provider docs; record retrieval date                                                     |
-| Q8  | Cloud Run → Groq egress in the deployed demo                        | Phase 8                                   | HY decision at Phase 8                                                                        |
+| #   | Question                                                                                                                                                                                                                                                                                          | Blocks                                                  | Settles via                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Q1  | **Usable side-view Ex6 rep count** after the orientation filter                                                                                                                                                                                                                                   | Phase 5 Stage 5.0 gate                                  | `Segmentation.csv` + `Segmentation.txt` + one visual check per orientation value                      |
+| Q2  | Which camera is profile for each `cam17_orientation` value                                                                                                                                                                                                                                        | Phase 5 Stage 5.2                                       | Same as Q1 — **verify, don't assume** the working hypothesis                                          |
+| Q3  | EC3D's exact 25-joint index order                                                                                                                                                                                                                                                                 | Phase 5 Stage 5.9; `knee_passes_toe`                    | EC3D repo data-loader, or an empirical frame plot                                                     |
+| Q4  | REHAB24-6 authors' own baseline **+ split protocol** — **STILL OPEN, attempted 2026-07-16:** SISAP 2024 chapter is paywalled (Springer auth redirect), Zenodo record has no baseline results, no open-access version found. **No number invented**; Stage 5.7's §6 quotes only [S13] and says so. | Phase 5 Stage 5.7's comparison (**shipped without it**) | SISAP 2024 paper [S12] — a random-split number is not comparable to LOSO. Needs institutional access. |
+| Q5  | No validated sway/jitter threshold exists for the Control sub-score                                                                                                                                                                                                                               | Phase 4 Stage 4.4 (heuristic, pilot-tune)               | A postural-sway study with a quantitative in-plane cutoff (_not found_)                               |
+| Q6  | No normative lunge front-knee angle table exists                                                                                                                                                                                                                                                  | Phase 5B ROM bands                                      | A published bodyweight-lunge kinematics norm (_not found_) — until then, dataset-derived only         |
+| Q7  | Groq free-tier limits + model name at build time                                                                                                                                                                                                                                                  | Phase 6 Stage 6.4                                       | Live provider docs; record retrieval date                                                             |
+| Q8  | Cloud Run → Groq egress in the deployed demo                                                                                                                                                                                                                                                      | Phase 8                                                 | HY decision at Phase 8                                                                                |
 
 ---
 

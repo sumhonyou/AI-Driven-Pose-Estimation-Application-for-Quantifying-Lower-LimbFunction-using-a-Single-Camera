@@ -1,0 +1,223 @@
+{
+  "generator": "ml/scripts/generate_squat_replay_corpus.py",
+  "seed": 20260716,
+  "fps": 30.0,
+  "model": "squat-1.0.0+rehab246-loso-3c441ac.dirty",
+  "config_at_build": {
+    "w_rule_default": 0.2,
+    "w_ml_default": 0.8,
+    "confidence_low_threshold": 0.85,
+    "q_min": 0.6,
+    "feature_schema_version": "1.0.0"
+  },
+  "note": "`measured` is what the real pipeline produced at build time, not a hand-written expectation. Stage 5.8 swapped in the trained model (`model_version` above): unlike the Phase 4 StubModel placeholder, there is no closed-form rule mapping a rule_score to a reachable band any more \u2014 the forest's decision boundary and its calibration are learned, not analytic, so which band a given synthetic sample lands in can only be discovered by running it through the real pipeline, which is what this manifest records. Regenerate this file after any retraining rather than editing it.",
+  "samples": [
+    {
+      "sample_id": "good_moderate_depth_1",
+      "frames_file": "good_moderate_depth_1.json",
+      "n_frames": 342,
+      "target_band_hint": "Good",
+      "measured": {
+        "n_reps": 3,
+        "band": "Good",
+        "score": 9.0211,
+        "rule_score": 7.4203,
+        "confidence": 0.9421,
+        "q": 0.98,
+        "flags": [],
+        "peak_knee_flexion_deg": 73.69
+      },
+      "hint_matched": true,
+      "spec": {
+        "duration_variation": 0.0,
+        "n_reps": 3,
+        "peak_flexion_deg": 75.0,
+        "rep_duration_s": 3.0,
+        "shank_tilt_deg": 28.0,
+        "sway_amplitude": 0.0,
+        "sway_hz": 0.0,
+        "trunk_lean_deg": 25.0,
+        "visibility": 0.98
+      }
+    },
+    {
+      "sample_id": "good_moderate_depth_2",
+      "frames_file": "good_moderate_depth_2.json",
+      "n_frames": 378,
+      "target_band_hint": "Good",
+      "measured": {
+        "n_reps": 3,
+        "band": "Good",
+        "score": 8.9966,
+        "rule_score": 7.9582,
+        "confidence": 0.9256,
+        "q": 0.95,
+        "flags": [],
+        "peak_knee_flexion_deg": 93.75
+      },
+      "hint_matched": true,
+      "spec": {
+        "duration_variation": 0.0,
+        "n_reps": 3,
+        "peak_flexion_deg": 95.0,
+        "rep_duration_s": 3.4,
+        "shank_tilt_deg": 28.0,
+        "sway_amplitude": 0.0,
+        "sway_hz": 0.0,
+        "trunk_lean_deg": 25.0,
+        "visibility": 0.95
+      }
+    },
+    {
+      "sample_id": "fair_uncertain_good_leaning_1",
+      "frames_file": "fair_uncertain_good_leaning_1.json",
+      "n_frames": 342,
+      "target_band_hint": "Fair",
+      "measured": {
+        "n_reps": 3,
+        "band": "Fair",
+        "score": 8.4474,
+        "rule_score": 8.6046,
+        "confidence": 0.8081,
+        "q": 0.92,
+        "flags": [
+          "low_confidence"
+        ],
+        "peak_knee_flexion_deg": 118.5
+      },
+      "hint_matched": true,
+      "spec": {
+        "duration_variation": 0.0,
+        "n_reps": 3,
+        "peak_flexion_deg": 120.0,
+        "rep_duration_s": 3.0,
+        "shank_tilt_deg": 28.0,
+        "sway_amplitude": 0.0,
+        "sway_hz": 0.0,
+        "trunk_lean_deg": 35.0,
+        "visibility": 0.92
+      }
+    },
+    {
+      "sample_id": "fair_uncertain_poor_leaning_1",
+      "frames_file": "fair_uncertain_poor_leaning_1.json",
+      "n_frames": 342,
+      "target_band_hint": "Fair",
+      "measured": {
+        "n_reps": 3,
+        "band": "Fair",
+        "score": 8.1429,
+        "rule_score": 8.7238,
+        "confidence": 0.6787,
+        "q": 0.9,
+        "flags": [
+          "low_confidence"
+        ],
+        "peak_knee_flexion_deg": 123.48
+      },
+      "hint_matched": true,
+      "spec": {
+        "duration_variation": 0.0,
+        "n_reps": 3,
+        "peak_flexion_deg": 125.0,
+        "rep_duration_s": 3.0,
+        "shank_tilt_deg": 28.0,
+        "sway_amplitude": 0.0,
+        "sway_hz": 0.0,
+        "trunk_lean_deg": 45.0,
+        "visibility": 0.9
+      }
+    },
+    {
+      "sample_id": "attempted_poor_deep_unstable_1",
+      "frames_file": "attempted_poor_deep_unstable_1.json",
+      "n_frames": 153,
+      "target_band_hint": "Fair",
+      "measured": {
+        "n_reps": 3,
+        "band": "Fair",
+        "score": 6.1759,
+        "rule_score": 6.6667,
+        "confidence": 0.5031,
+        "q": 0.88,
+        "flags": [
+          "low_confidence"
+        ],
+        "peak_knee_flexion_deg": 145.33
+      },
+      "hint_matched": true,
+      "spec": {
+        "duration_variation": 0.0,
+        "n_reps": 3,
+        "peak_flexion_deg": 150.0,
+        "rep_duration_s": 0.9,
+        "shank_tilt_deg": 50.0,
+        "sway_amplitude": 0.15,
+        "sway_hz": 3.0,
+        "trunk_lean_deg": 55.0,
+        "visibility": 0.88
+      }
+    },
+    {
+      "sample_id": "attempted_poor_deep_unstable_2",
+      "frames_file": "attempted_poor_deep_unstable_2.json",
+      "n_frames": 180,
+      "target_band_hint": "Fair",
+      "measured": {
+        "n_reps": 4,
+        "band": "Fair",
+        "score": 5.9512,
+        "rule_score": 6.0296,
+        "confidence": 0.5768,
+        "q": 0.86,
+        "flags": [
+          "low_confidence"
+        ],
+        "peak_knee_flexion_deg": 143.32
+      },
+      "hint_matched": true,
+      "spec": {
+        "duration_variation": 0.15,
+        "n_reps": 4,
+        "peak_flexion_deg": 150.0,
+        "rep_duration_s": 0.8,
+        "shank_tilt_deg": 45.0,
+        "sway_amplitude": 0.1,
+        "sway_hz": 3.0,
+        "trunk_lean_deg": 70.0,
+        "visibility": 0.86
+      }
+    },
+    {
+      "sample_id": "lowq_reject_occluded_1",
+      "frames_file": "lowq_reject_occluded_1.json",
+      "n_frames": 342,
+      "target_band_hint": "Fair",
+      "measured": {
+        "n_reps": 3,
+        "band": "Fair",
+        "score": 8.0203,
+        "rule_score": 7.4199,
+        "confidence": 0.9421,
+        "q": 0.45,
+        "flags": [
+          "low_capture_quality",
+          "retry_camera_placement"
+        ],
+        "peak_knee_flexion_deg": 73.69
+      },
+      "hint_matched": true,
+      "spec": {
+        "duration_variation": 0.0,
+        "n_reps": 3,
+        "peak_flexion_deg": 75.0,
+        "rep_duration_s": 3.0,
+        "shank_tilt_deg": 28.0,
+        "sway_amplitude": 0.0,
+        "sway_hz": 0.0,
+        "trunk_lean_deg": 25.0,
+        "visibility": 0.45
+      }
+    }
+  ]
+}

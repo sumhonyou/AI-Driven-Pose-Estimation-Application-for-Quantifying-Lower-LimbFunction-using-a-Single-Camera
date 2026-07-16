@@ -10,3 +10,5 @@ pyjwt>=2.10.0
 python-multipart>=0.0.12
 email-validator>=2.2.0
 joblib>=1.4.0
+numpy>=1.26.0
+scikit-learn>=1.5.0

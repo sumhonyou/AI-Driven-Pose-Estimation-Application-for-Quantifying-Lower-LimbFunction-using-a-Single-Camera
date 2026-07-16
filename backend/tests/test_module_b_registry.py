@@ -2,16 +2,19 @@ import asyncio
 import json
 import unittest
 
+from fastapi import HTTPException
+
 from app.main import app
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.exercise import ModuleBExercise
 from app.module_b.core.registry import get_exercise, registered_exercise_codes
 from app.seed import EXERCISES, LEGACY_MODULE_B_CODE
-from fastapi import HTTPException
 
 
 class ModuleBConfigTests(unittest.TestCase):
-    def test_core_config_freezes_stage_4_0_values(self):
+    def test_core_config_freezes_still_unresolved_stage_4_0_values(self):
+        """Values Stage 5.6 did not touch — `w_rule_default`/`w_ml_default`/
+        `confidence_low_threshold` moved to Stage 5.6 dataset-derived values below."""
         config = MODULE_B_CORE_CONFIG
 
         self.assertEqual(
@@ -22,10 +25,7 @@ class ModuleBConfigTests(unittest.TestCase):
                 "good": {"min_inclusive": 7.0, "max_inclusive": 10.0},
             },
         )
-        self.assertEqual(config["w_rule_default"], 0.4)
-        self.assertEqual(config["w_ml_default"], 0.6)
         self.assertEqual(config["w_rule_low_confidence"], 0.7)
-        self.assertEqual(config["confidence_low_threshold"], 0.65)
         self.assertEqual(config["q_min"], 0.6)
         self.assertEqual(config["confidence_threshold"], 0.6)
         self.assertEqual(
@@ -41,6 +41,16 @@ class ModuleBConfigTests(unittest.TestCase):
         )
         self.assertEqual(config["feature_schema_version"], "1.0.0")
         self.assertEqual(config["interpolation_max_gap_frames"], 5)
+
+    def test_core_config_stage_5_6_dataset_derived_fusion_values(self):
+        """`w_rule_default`/`w_ml_default`/`confidence_low_threshold` are earned by
+        Stage 5.6's iterated sweep (see ml/reports/SQUAT_FUSION_SWEEP.md), replacing
+        the Stage 4.0 0.4/0.6/0.65 placeholders."""
+        config = MODULE_B_CORE_CONFIG
+
+        self.assertEqual(config["w_rule_default"], 0.2)
+        self.assertEqual(config["w_ml_default"], 0.8)
+        self.assertEqual(config["confidence_low_threshold"], 0.85)
 
 
 class ModuleBRegistryTests(unittest.TestCase):

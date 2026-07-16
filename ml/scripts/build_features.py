@@ -229,12 +229,20 @@ def write_features_csv(feature_rows: list[dict]) -> list[str]:
 
 
 def write_label_map() -> None:
-    """Write the Option A label map, recording explicitly that there is no Fair class."""
+    """Write the Option A label map, recording explicitly that there is no Fair class.
+
+    `label_order` was added in Stage 5.8: `model_registry.load_joblib_model_bundle()`
+    reads it to build `JoblibModelBundle.label_order`, and `validate_model_bundle()`
+    requires it to be exactly `("Poor", "Good")` for Option A. Fixed independent of any
+    trained model (it is the labelling convention, not a training result), so it is
+    safe to write here at Stage 5.3 time rather than only once a model exists.
+    """
     LABEL_MAP_JSON.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "scheme": "Option A (binary Good/Poor)",
         "source_column": "correctness",
         "mapping": {"1": "Good", "0": "Poor"},
+        "label_order": ["Poor", "Good"],
         "no_fair_in_training": True,
         "fair_note": (
             "Fair is never a trained label. It is derived at inference from a "

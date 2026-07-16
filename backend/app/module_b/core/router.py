@@ -9,12 +9,11 @@ from app.db.models import Session as SessionModel
 from app.db.models import User
 from app.module_b.core import crud
 from app.module_b.core.fusion import fuse_model
-from app.module_b.core.model_registry import StubModel
+from app.module_b.core.model_registry import get_model_bundle
 from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.core.quality import assess_capture_quality
 from app.module_b.core.registry import get_exercise
-from app.module_b.core.schemas import (ModuleBAnalyzeRequest,
-                                       ModuleBResultResponse)
+from app.module_b.core.schemas import ModuleBAnalyzeRequest, ModuleBResultResponse
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -85,9 +84,9 @@ def analyze_module_b_session(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="No rule score is available for this set",
         )
-    # Phase 4 deliberately uses a transparent placeholder; Phase 5 replaces
-    # this one construction point with the registered trained bundle.
-    model = StubModel(rule_score=rule_scores.score)
+    # Stage 5.8: the registered trained bundle, keyed by the exercise's own
+    # model_key so a future exercise's artifact is picked up without a router change.
+    model = get_model_bundle(exercise.model_key)
     fusion = fuse_model(
         rule_scores=rule_scores,
         model=model,

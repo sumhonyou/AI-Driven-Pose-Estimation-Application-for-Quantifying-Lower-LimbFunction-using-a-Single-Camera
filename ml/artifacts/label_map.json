@@ -5,6 +5,10 @@
     "1": "Good",
     "0": "Poor"
   },
+  "label_order": [
+    "Poor",
+    "Good"
+  ],
   "no_fair_in_training": true,
   "fair_note": "Fair is never a trained label. It is derived at inference from a calibrated low-confidence margin (confidence_low_threshold) \u2014 see Phase 5 Stage 5.6."
 }
