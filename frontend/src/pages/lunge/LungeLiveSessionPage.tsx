@@ -68,6 +68,7 @@ export default function LungeLiveSessionPage() {
   const [trunkLeanDeg, setTrunkLeanDeg] = useState(0);
   const [repPeakFlexionDeg, setRepPeakFlexionDeg] = useState<number | null>(null);
   const [kneePassesToe, setKneePassesToe] = useState(false);
+  const [leadLegAwayFromCamera, setLeadLegAwayFromCamera] = useState(false);
   const [lastRepPeakDeg, setLastRepPeakDeg] = useState<number | null>(null);
   const [lastRepBand, setLastRepBand] = useState<LungeBandEstimate>(null);
   const [lastRepKneePassedToe, setLastRepKneePassedToe] = useState<boolean | null>(null);
@@ -190,6 +191,7 @@ export default function LungeLiveSessionPage() {
 
       setFrontLeg(update.frontLeg);
       setKneePassesToe(update.kneePassesToe);
+      setLeadLegAwayFromCamera(update.leadLegAwayFromCamera);
 
       const roundedKnee = Math.round(update.currentFrontKneeFlexionDeg);
       if (roundedKnee !== lastRenderedKneeDegRef.current) {
@@ -404,6 +406,19 @@ export default function LungeLiveSessionPage() {
                 <h3>{t("lunge.liveAnglesTitle")}</h3>
                 <span className="pill">{t("lunge.frontLeg_" + frontLeg)}</span>
               </div>
+
+              {/* Capture-setup hint, shown above the technique warning: if the leading
+                  leg faces away from the camera every angle below is measured less
+                  accurately, so fixing the stance comes first. Advisory only — it never
+                  stops the set or changes the score. */}
+              {leadLegAwayFromCamera && (
+                <div className="setup-banner" role="status" style={{ marginBottom: 14 }}>
+                  <Alert width={20} height={20} />
+                  <span>
+                    <strong>{t("lunge.turnAroundTitle")}</strong> — {t("lunge.turnAroundBody")}
+                  </span>
+                </div>
+              )}
 
               {kneePassesToe && (
                 <div className="setup-banner" role="status" style={{ marginBottom: 14 }}>

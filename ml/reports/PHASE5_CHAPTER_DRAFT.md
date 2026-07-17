@@ -1988,3 +1988,169 @@ This extends the running list in Sections 10, 11.5 and 11.8.
     this cohort — this class-mix imbalance, and the cohort-aligned measurement bias of
     limitation 24. Any aggregate statistic computed across these subjects, including any
     pooled evaluation summary, must be read with both in view.
+
+### 11.13 Training the Lunge Classifier: A Negative Result, and What Reverses It
+
+The lunge classifier was trained exactly as the squat's was — the same Extra Trees
+estimator, the same hyperparameter grid, the same nested subject-disjoint
+cross-validation, the same calibration. Leave-one-subject-out was not available: one
+subject performed only incorrect repetitions, so a fold holding that subject out would
+contain no correct repetition to score against, and the pre-declared fallback of
+subject-wise five-fold stratified grouping was triggered by that condition rather than
+chosen. Every reported figure is out-of-fold: each repetition is predicted once, by a
+model that never saw its subject.
+
+**The result is negative, and it is unambiguous. The lunge classifier does not work.**
+Its out-of-fold area under the curve is **0.344**, against **0.832** for the squat model
+built by the same code.
+
+#### The below-chance figure does not mean the model predicts backwards
+
+A value below 0.5 invites the conclusion that the model has learned the relationship
+inverted. That reading was tested and rejected. Shuffling the labels 200 times and
+repeating the entire out-of-fold procedure produces a null distribution centred at
+**0.487** with a standard deviation of **0.085**, spanning 0.30 to 0.68. The observed
+result sits comfortably inside it (**p = 0.657**). The honest statement is therefore that
+the model has **no detectable cross-subject signal**, not that its signal is inverted —
+an absence of evidence rather than a claim, and the distinction is worth preserving
+because the more dramatic reading is the more tempting one.
+
+Nor is the pipeline broken. Fitted and evaluated on the same repetitions, the model
+reaches an in-sample area under the curve of **0.982**. It learns the training
+repetitions almost perfectly and transfers none of that to an unseen subject. That gap
+is the entire finding: what it learns is largely _who the subject is_.
+
+#### Two interventions recover real signal, and neither touches the model
+
+Four responses to the cohort confound established in Section 11.11 were measured under
+one identical procedure. Two of them work.
+
+| strategy                                 | n   | out-of-fold AUC | permutation p | signal? |
+| ---------------------------------------- | --- | --------------- | ------------- | ------- |
+| baseline — all features, raw             | 88  | 0.344           | 0.657         | no      |
+| subtract each subject's own median       | 88  | **0.670**       | **0.005**     | **yes** |
+| subtract the lead-cohort's mean          | 88  | 0.355           | 0.423         | no      |
+| restrict to the near-limb-leading cohort | 42  | **0.696**       | **0.005**     | **yes** |
+
+Both successful interventions attack the confound rather than the classifier. Neither
+changes the estimator, the grid, or the feature set. This establishes that **the features
+are not the problem**: information about lunge correctness is present in them, and
+between-subject variation buries it.
+
+The two failures are as informative as the successes. Subtracting the _cohort's_ mean —
+which removes precisely the 8.9° camera-induced offset of Section 11.11 — recovers
+**nothing**, while subtracting each _subject's own_ median recovers a great deal. The
+between-subject variation obscuring the signal is therefore mostly **not** the camera
+artefact; it is individual differences in build and movement, to which the artefact
+merely adds. Correcting the artefact alone is insufficient, which is why the capture
+protocol described below is a better instrument than any post-hoc correction.
+
+Neither successful strategy is a deployable answer as it stands. Subject-median centring
+redefines the question from _"is this repetition correct?"_ to _"is this repetition
+better than your others?"_; a set in which every repetition is poor would centre to
+appear average, and the system would reassure a user whose technique was uniformly bad.
+That is a safety-relevant failure rather than a modelling trade-off, and no metric in the
+table above reveals it. Restricting to the near-limb-leading cohort rests on four
+subjects and 42 repetitions.
+
+One obvious correction is deliberately absent: subtracting the measured 8.9° bias
+directly. The bias is an OptiTrack measurement, and marker-based capture may not become
+an input to a model that must run from a single camera. The cohort-centring strategy is
+the marker-free equivalent of the same idea, and it did not work.
+
+#### The capture protocol, and why it is the strongest of the four
+
+The near-limb-leading result is the most consequential, for reasons beyond its score. It
+is the only subset in which true leave-one-subject-out is possible — all four of its
+subjects performed both correct and incorrect repetitions, whereas the far-limb cohort
+contains the single-class subject that forced the fallback. Its per-subject folds score
+0.960, 1.000, 0.760 and 0.750.
+
+More importantly, it is a **train/serve match**. Section 11.11 established that the
+leading limb's measurement quality depends on which side faces the camera. A capture
+protocol that asks the user to turn around when switching legs, so that the working leg
+is always nearest the lens, removes that difference at source rather than modelling
+around it. Under such a protocol the system only ever sees near-limb-leading
+repetitions — exactly the distribution this strategy was measured on. The protocol was
+implemented for this reason, and the detection supporting it is itself measurable: the
+difference between the leading and trailing knee's reported visibility separates the two
+geometries with no overlap across all 88 repetitions (near-leading spans +0.129 to
++0.319; far-leading spans −0.106 to −0.027).
+
+This does not resolve the confound. No strategy here can separate a camera artefact from
+a genuine between-subject difference, because in this cohort the two are perfectly
+aligned. Only new data can: either a cohort in which subjects perform both leading legs,
+or a capture protocol that eliminates the geometry difference. The second is now in
+place, and the near-limb result is the closest available estimate of what it buys.
+
+#### A latent defect in the calibration check, surfaced by this data
+
+The squat pipeline asserts that calibration preserves the area under the curve exactly,
+on the stated grounds that a sigmoid cannot reorder predictions. **That premise is
+false**, and the lunge data is what exposed it. Platt scaling fits
+`P = 1/(1 + exp(a·f + b))`, and nothing constrains the sign of `a`. Where the inner folds
+show the classifier's score anti-correlating with the label, the sigmoid correctly fits a
+positive `a`, becomes monotone _decreasing_, and exactly reverses the ranking — sending
+the area under the curve to its mirror about 0.5. This occurred in two of five folds; one
+fitted a slope of +2.70, moving that fold's score from 0.554 to 0.446, values that sum to
+exactly 1.000.
+
+The assertion was corrected to the true invariant — a monotone map either preserves the
+ranking or exactly reverses it — rather than removed. The flips are recorded rather than
+suppressed, because they are a symptom of the same instability: a sigmoid fitted on
+subject-disjoint inner folds learns whichever sign those subjects present, and on this
+cohort that sign is not stable. The squat pipeline never encountered the defect because
+its signal is consistent across subjects.
+
+The same instability motivates a check on the exported model itself. Were the shipped
+calibrator's slope positive, every live verdict would be inverted — the reported
+probability of correct technique would _rise_ as technique worsened — and nothing
+downstream would detect it, because the probabilities would remain perfectly well-formed.
+The exported model's slope was verified negative (−1.31).
+
+#### The hyperparameter search is a plateau
+
+Across all 180 combinations the mean inner-fold area under the curve spans only 0.077,
+while the median standard deviation across inner folds is 0.068: **the spread between
+combinations is smaller than the noise on any one of them**, and 95 of the 180 sit within
+one standard deviation of the best. The search's value is establishing that the result is
+insensitive to these parameters, not identifying an optimum. The negative result is not a
+tuning failure.
+
+![Lunge ROC curves](figures/lunge_roc_curves.png)
+_Figure 21. Out-of-fold ROC per strategy, subject-disjoint. The baseline and the cohort-centred variant fall on or below the diagonal; the two strategies that address the confound lift clearly above it._
+
+![Lunge hyperparameter search](figures/lunge_hyperparameter_search_results.png)
+_Figure 22. Inner-fold ROC AUC per swept value, other parameters held at their chosen value; bars are the standard deviation across inner folds. The vertical scale shows the plateau._
+
+![Lunge calibration reliability](figures/lunge_calibration_reliability_curve.png)
+_Figure 23. Predicted against observed frequency, before and after sigmoid calibration, with 95% Wilson intervals per quantile bin. Wilson rather than Wald, because Wald collapses to zero width at 0 and 1 and would assert perfect certainty from a handful of repetitions._
+
+### 11.14 Further limitations established by lunge training
+
+26. **⚠⚠ The lunge classifier trained on this dataset has no detectable cross-subject
+    predictive signal.** Out-of-fold AUC 0.344, indistinguishable from chance under a
+    200-shuffle permutation test (p = 0.657), against 0.832 for the squat model produced
+    by identical code (Section 11.13). It is not inverted and it is not a tuning failure —
+    the grid is a plateau and the in-sample AUC is 0.982. The cause is the confound of
+    limitation 24: the model learns subject identity, which does not transfer. **Any
+    deployment of this model would emit well-formed Good/Fair/Poor verdicts with no
+    evidence behind them**, and no downstream component can detect a merely uninformative
+    model.
+
+27. **The two interventions that recover signal are each disqualified or severely
+    limited.** Subject-median centring reaches 0.670 (p = 0.005) but silently redefines
+    the question as "better than your other repetitions", so a uniformly poor set would be
+    reported as average. Restricting to the near-limb-leading cohort reaches 0.696
+    (p = 0.005) and matches the deployed capture geometry, but rests on four subjects and
+    42 repetitions (Section 11.13). Neither is a validated model; both are evidence about
+    where the signal went.
+
+28. **A latent defect in the shared calibration check was found only because lunge's
+    signal is unstable.** The assertion that calibration preserves AUC rests on the false
+    premise that a sigmoid cannot reorder predictions; Platt scaling with a positive slope
+    reverses the ranking exactly, which occurred in two of five folds (Section 11.13). The
+    squat results are unaffected — its slopes are all negative — but the check that was
+    protecting them was weaker than it appeared, and an inverted exported model would be
+    undetectable downstream. Verifying the exported calibrator's slope is now a
+    prerequisite for export.

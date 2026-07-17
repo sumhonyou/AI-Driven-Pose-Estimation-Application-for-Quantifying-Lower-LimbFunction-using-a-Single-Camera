@@ -42,6 +42,8 @@ export type LungeLiveConfig = {
   romParallelStartDeg: number;
   romDeepStartDeg: number;
   romDeepFullScoreDeg: number;
+  leadLegNearMarginVis: number;
+  leadLegHintDebounceFrames: number;
 };
 
 // Identical starting values to backend lunge/config.py's current defaults.
@@ -52,6 +54,8 @@ export const FALLBACK_LUNGE_LIVE_CONFIG: LungeLiveConfig = {
   romParallelStartDeg: 90.0,
   romDeepStartDeg: 110.0,
   romDeepFullScoreDeg: 130.0,
+  leadLegNearMarginVis: 0.05,
+  leadLegHintDebounceFrames: 5,
 };
 
 const BAND_POOR_MAX = 4.0;
@@ -78,6 +82,10 @@ export interface LungeLiveUpdate {
   lastRepBandEstimate: LungeBandEstimate;
   /** Whether the front knee passed the toe at any point during the last completed rep. */
   lastRepKneePassedToe: boolean | null;
+  /** True when the leading leg is the limb FACING AWAY from the camera, so the user
+   * should turn around. Advisory only — never gates a set or affects a score.
+   * Debounced, so a single noisy frame cannot flash it. */
+  leadLegAwayFromCamera: boolean;
   repJustCompleted: boolean;
 }
 
@@ -103,6 +111,9 @@ export async function fetchLungeLiveConfig(): Promise<LungeLiveConfig> {
     const segmentation = (exercise?.segmentation ?? {}) as Record<string, number>;
     const rules = (exercise?.rules ?? {}) as Record<string, unknown>;
     const rom = (rules?.rom ?? {}) as Record<string, number>;
+    // `capture` sits outside `rules` on purpose: it drives an advisory setup hint,
+    // never a score (see lunge/config.py).
+    const capture = (exercise?.capture ?? {}) as Record<string, number>;
     return {
       cycleProminenceDeg:
         segmentation.cycle_prominence_deg ?? FALLBACK_LUNGE_LIVE_CONFIG.cycleProminenceDeg,
@@ -113,6 +124,11 @@ export async function fetchLungeLiveConfig(): Promise<LungeLiveConfig> {
       romDeepStartDeg: rom.deep_start_deg ?? FALLBACK_LUNGE_LIVE_CONFIG.romDeepStartDeg,
       romDeepFullScoreDeg:
         rom.deep_full_score_deg ?? FALLBACK_LUNGE_LIVE_CONFIG.romDeepFullScoreDeg,
+      leadLegNearMarginVis:
+        capture.lead_leg_near_margin_vis ?? FALLBACK_LUNGE_LIVE_CONFIG.leadLegNearMarginVis,
+      leadLegHintDebounceFrames:
+        capture.lead_leg_hint_debounce_frames ??
+        FALLBACK_LUNGE_LIVE_CONFIG.leadLegHintDebounceFrames,
     };
   } catch (err) {
     console.error("[lungeLiveEstimate] Config fetch failed, using fallback thresholds", err);
@@ -172,6 +188,30 @@ function resolveFrontLeg(w: WorldLandmark[], sign: number): LungeLeg {
   return leftForward >= rightForward ? "left" : "right";
 }
 
+/** Is the leading leg the limb facing AWAY from the camera?
+ *
+ * The near limb occludes the far one, so MediaPipe reports markedly lower visibility
+ * for whichever leg is further from the lens. Comparing the two knees therefore says
+ * which side the user is presenting, without needing to know the camera's position.
+ *
+ * Why it matters: Stage 5.4 measured peak front-knee flexion under-read by 15.1deg
+ * when the lead leg is the far limb, against 6.2deg when it is the near one. Turning
+ * around removes that difference at capture time rather than modelling around it.
+ *
+ * A relative comparison is used rather than an absolute visibility floor because the
+ * floor would move with lighting, clothing and distance; the near-minus-far *gap*
+ * is a property of the geometry.
+ */
+function leadLegIsFarFromCamera(
+  w: WorldLandmark[],
+  frontLeg: LungeLeg,
+  marginVis: number,
+): boolean {
+  const frontKnee = frontLeg === "left" ? LM.LEFT_KNEE : LM.RIGHT_KNEE;
+  const backKnee = frontLeg === "left" ? LM.RIGHT_KNEE : LM.LEFT_KNEE;
+  return w[frontKnee].visibility - w[backKnee].visibility < marginVis;
+}
+
 function interpolate(
   value: number,
   start: number,
@@ -228,6 +268,10 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
   let lastRepPeakFrontKneeDeg: number | null = null;
   let lastRepBandEstimate: LungeBandEstimate = null;
   let lastRepKneePassedToe: boolean | null = null;
+  // Debounce state for the turn-around hint: consecutive frames seen facing away, and
+  // the settled value actually shown.
+  let awayFrames = 0;
+  let leadLegAwayFromCamera = false;
 
   return {
     update(worldLandmarks: WorldLandmark[], nowMs: number): LungeLiveUpdate {
@@ -246,6 +290,7 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
           lastRepPeakFrontKneeDeg,
           lastRepBandEstimate,
           lastRepKneePassedToe,
+          leadLegAwayFromCamera,
           repJustCompleted,
         };
       }
@@ -275,6 +320,16 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
       const sign = anteriorSign(worldLandmarks);
       const kneePassesToe =
         (worldLandmarks[frontKneeIdx].x - worldLandmarks[frontToeIdx].x) * sign > 0;
+
+      // Turn-around hint, debounced both ways so it neither flashes on a noisy frame
+      // nor sticks once the user has actually turned.
+      if (leadLegIsFarFromCamera(worldLandmarks, frontLeg, config.leadLegNearMarginVis)) {
+        awayFrames += 1;
+        if (awayFrames >= config.leadLegHintDebounceFrames) leadLegAwayFromCamera = true;
+      } else {
+        awayFrames = 0;
+        leadLegAwayFromCamera = false;
+      }
 
       if (!seeded) {
         runningMaxDeg = meanFlexion;
@@ -330,6 +385,7 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
         lastRepPeakFrontKneeDeg,
         lastRepBandEstimate,
         lastRepKneePassedToe,
+        leadLegAwayFromCamera,
         repJustCompleted,
       };
     },
@@ -348,6 +404,8 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
       lastRepPeakFrontKneeDeg = null;
       lastRepBandEstimate = null;
       lastRepKneePassedToe = null;
+      awayFrames = 0;
+      leadLegAwayFromCamera = false;
     },
   };
 }

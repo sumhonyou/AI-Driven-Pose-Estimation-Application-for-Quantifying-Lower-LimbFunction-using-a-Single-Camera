@@ -666,9 +666,14 @@ const ms: Dict = {
     setupGuidanceSide:
       "Berdiri sebelah kamera supaya pinggul, lutut, buku lali, dan kaki anda jelas.",
     setupGuidanceStance:
-      "Berdiri dalam kedudukan lunge dengan satu kaki di hadapan — kamera akan mengesan kaki yang di hadapan secara automatik.",
+      "Berdiri dalam kedudukan lunge dengan kaki hadapan paling dekat dengan kamera — kaki yang lebih jauh separa terlindung dan kurang tepat diukur.",
+    setupGuidanceSwitch:
+      "Apabila menukar kaki, pusing menghadap arah bertentangan supaya kaki hadapan anda dekat dengan kamera semula.",
     setupGuidanceDepth:
       "Turun pada rentak terkawal, pastikan lutut hadapan tidak melepasi jari kaki hadapan.",
+    turnAroundTitle: "Sila pusing",
+    turnAroundBody:
+      "Kaki hadapan anda berada di sebelah jauh dari kamera. Pusing menghadap arah bertentangan supaya ia paling dekat dengan kamera — ukuran akan lebih tepat.",
     setupTargetPrompt:
       "Anda boleh menetapkan sasaran ulangan peribadi secara pilihan — ini tidak menjejaskan skor anda.",
     noTarget: "Tiada sasaran",

@@ -98,6 +98,7 @@ export default function CameraSetup() {
           ? [
               t("lunge.setupGuidanceSide"),
               t("lunge.setupGuidanceStance"),
+              t("lunge.setupGuidanceSwitch"),
               t("lunge.setupGuidanceDepth"),
             ]
           : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];

@@ -650,9 +650,14 @@ const en = {
     setupGuidanceSide:
       "Stand side-on to the camera so your hip, knee, ankle, and foot are visible.",
     setupGuidanceStance:
-      "Step into a split stance with one foot forward — the camera detects which leg is leading automatically.",
+      "Step into a split stance with your leading leg closest to the camera — the leg further away is partly hidden and measures less accurately.",
+    setupGuidanceSwitch:
+      "When you switch legs, turn around to face the other way so your leading leg is closest to the camera again.",
     setupGuidanceDepth:
       "Lower at a controlled pace, keeping your front knee behind your front toe.",
+    turnAroundTitle: "Turn around",
+    turnAroundBody:
+      "Your leading leg is on the far side of the camera. Turn to face the other way so it's closest to the camera — this leg is measured more accurately that way.",
     setupTargetPrompt: "Optionally set a personal rep goal — this never affects your score.",
     noTarget: "No target",
     targetOption: "Goal: {{n}} reps",

@@ -110,4 +110,31 @@ LUNGE_CONFIG = {
             "min_reps_per_leg": 1,
         },
     },
+    # Capture-setup guidance. Deliberately OUTSIDE "rules": this never enters S_rule,
+    # never gates a set, and never affects a score -- it drives an advisory on-screen
+    # hint only. Kept here so the frontend reads it over the config endpoint (X7)
+    # rather than hardcoding a second copy.
+    "capture": {
+        # [dataset-derived, Stage 5.4 (Lunge)] The leading leg should be the limb
+        # NEAREST the camera. Stage 5.4 measured why this matters: when the lead leg
+        # is the far/occluded limb, peak front-knee flexion is under-read by 15.1 deg
+        # against OptiTrack, versus 6.2 deg when it is the near limb -- an 8.9 deg
+        # measurement bias caused purely by which side faces the lens. Asking the user
+        # to turn around between legs removes it at capture time.
+        #
+        # Detected by front-knee visibility minus back-knee visibility. Measured over
+        # all 88 side-view reps, the two cases separate cleanly with NO overlap:
+        # lead-near spans +0.129..+0.319 (mean +0.203), lead-far spans -0.106..-0.027
+        # (mean -0.058). 0.05 is the midpoint of that empty gap, so it is a margin
+        # rather than a knife edge: it flags 0/46 lead-near reps and 46/46 lead-far
+        # reps in-sample.
+        #
+        # Honest caveat: measured on REHAB24-6's single fixed camera geometry, so the
+        # margin is in-sample and a home setup may differ. That is precisely why this
+        # is an advisory hint and not a gate.
+        "lead_leg_near_margin_vis": 0.05,
+        # A hint must persist this many frames before showing, so one noisy landmark
+        # frame cannot flash it (mirrors WBLT's heel_lift_debounce_frames precedent).
+        "lead_leg_hint_debounce_frames": 5,
+    },
 }

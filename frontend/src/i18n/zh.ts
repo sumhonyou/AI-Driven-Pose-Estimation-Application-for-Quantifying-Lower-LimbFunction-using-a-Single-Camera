@@ -613,8 +613,13 @@ const zh: Dict = {
     reportTitle: "腿部弓步",
     livePrompt: "按自己的节奏做弓步，完成后结束这组训练。",
     setupGuidanceSide: "侧身面对摄像头，确保髋部、膝部、踝部和脚部清晰可见。",
-    setupGuidanceStance: "呈弓步站姿，一脚在前——摄像头会自动检测哪条腿在前。",
+    setupGuidanceStance:
+      "呈弓步站姿，让在前的腿靠近摄像头——离摄像头较远的腿会被部分遮挡，测量准确度较低。",
+    setupGuidanceSwitch: "换腿时请转身面向另一侧，让在前的腿重新靠近摄像头。",
     setupGuidanceDepth: "以可控的节奏下降，保持前膝不超过前脚尖。",
+    turnAroundTitle: "请转身",
+    turnAroundBody:
+      "你在前的腿位于远离摄像头的一侧。请转身面向另一边，让它靠近摄像头——这样测量会更准确。",
     setupTargetPrompt: "可以选择性地设定个人次数目标——这不会影响你的评分。",
     noTarget: "不设目标",
     targetOption: "目标：{{n}} 次",
