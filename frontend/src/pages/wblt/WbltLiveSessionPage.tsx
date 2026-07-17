@@ -128,7 +128,7 @@ export default function WbltLiveSessionPage() {
   // Fetch bracket/attempts_per_leg config once, then load the first leg's target.
   useEffect(() => {
     if (!sessionId) return;
-    let cancelled = false;
+    const cancelled = false;
     wbltApi
       .config()
       .then((cfg) => {
@@ -151,7 +151,6 @@ export default function WbltLiveSessionPage() {
       .catch(() => {
         // Non-fatal: falls back to DEFAULT_LEG_ORDER/DEFAULT_ATTEMPTS_PER_LEG.
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   async function loadBracket(targetLeg: WbltLeg) {
@@ -170,7 +169,7 @@ export default function WbltLiveSessionPage() {
 
   useEffect(() => {
     if (!sessionId) return;
-    void loadBracket(leg);
+    queueMicrotask(() => void loadBracket(leg));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, leg]);
 
@@ -310,7 +309,6 @@ export default function WbltLiveSessionPage() {
         calibrationTimerRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
   function stopAndAskTouch() {
@@ -341,7 +339,6 @@ export default function WbltLiveSessionPage() {
         recordingTimerRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
   async function submitTouch(touched: boolean) {
@@ -373,7 +370,7 @@ export default function WbltLiveSessionPage() {
       window.clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
-    void submitTouch(false);
+    queueMicrotask(() => void submitTouch(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, liveUpdate.calibrated, liveUpdate.heelLifted]);
 
