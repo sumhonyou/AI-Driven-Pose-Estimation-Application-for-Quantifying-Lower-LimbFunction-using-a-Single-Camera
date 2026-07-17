@@ -1,25 +1,42 @@
 // Client-side live lunge rep count + rough front-knee band ESTIMATE for the live
 // UX only. Mirrors squatLiveEstimate.ts's shape closely, adapted for a lunge's
 // asymmetric front/back-leg structure (backend lunge/features.py, lunge/rules.py):
-// the rep-boundary FSM still drives off the BILATERAL MEAN knee flexion (matches
-// backend lunge/segmentation.py's "no lunge-specific delta" decision — both knees
-// cycle together even though their peak magnitude differs), but depth/band
-// feedback and the knee-passes-toe warning are read off the FRONT knee only,
-// since that is the one the ROM band and the fault actually apply to.
+// the rep counter drives off the BILATERAL MEAN knee flexion (matching backend
+// lunge/segmentation.py — both knees cycle together even though their peak
+// magnitude differs), but depth/band feedback and the knee-passes-toe warning are
+// read off the FRONT knee only, since that is the one the ROM band and the fault
+// actually apply to.
 //
-// Never authoritative — the backend's POST /api/module-b/analyze response (run
-// over the whole buffered set) is the only persisted, official score.
+// Reps are counted as movement CYCLES, not threshold crossings. Stage 5.3 (Lunge)
+// measured the previous enter/exit-threshold model (borrowed from squat) at 50/88 =
+// 56.8% rep recall against REHAB24-6's physio-verified boundaries: a lunge set is
+// performed continuously, and subjects who only partially extend at the top of each
+// cycle never sent the mean back under the standing threshold, so their reps merged.
+// One subject's 20 reps became 2. Cycle detection measured 88/88 on the same data.
+// See backend lunge/segmentation.py for the full reasoning and the alternatives that
+// were measured and rejected.
 //
-// Thresholds are fetched once from GET /api/module-b/lunge/config so this stays
-// in sync with the backend; the constants below are only the pre-fetch fallback
-// (X7 — do not hand-sync these long-term, per Phase 3E Stage 5's lesson).
+// This estimator is CAUSAL (one frame at a time), unlike the backend, which is handed
+// the whole buffered set at once and can look ahead. Two deliberate consequences:
+//   - A rep is counted the moment its bottom is confirmed (the signal has fallen
+//     `cycleProminenceDeg` back off the peak), i.e. as the user comes up out of the
+//     lunge. The backend instead emits complete trough-to-trough cycles. Counts agree
+//     for completed sets; counting at the bottom is what keeps the final rep of a set
+//     from sitting uncounted until the user happens to start another one.
+//   - `minRepDurationS` acts here as a debounce between counted reps rather than a
+//     measured trough-to-trough duration, which is not yet known at count time.
+//
+// Never authoritative — the backend's POST /api/module-b/analyze response (run over
+// the whole buffered set) is the only persisted, official score.
+//
+// Thresholds are fetched once from GET /api/module-b/lunge/config so this stays in
+// sync with the backend; the constants below are only the pre-fetch fallback (X7 —
+// do not hand-sync these long-term, per Phase 3E Stage 5's lesson).
 import { LM, type WorldLandmark } from "../../types/pose";
 import { moduleBService } from "../../services/moduleBService";
 
 export type LungeLiveConfig = {
-  enterDescendingDeg: number;
-  exitStandingDeg: number;
-  refractoryS: number;
+  cycleProminenceDeg: number;
   minRepDurationS: number;
   romShallowStartDeg: number;
   romParallelStartDeg: number;
@@ -27,13 +44,9 @@ export type LungeLiveConfig = {
   romDeepFullScoreDeg: number;
 };
 
-// Identical starting values to backend lunge/config.py's Stage 4.3/4.4 defaults
-// (themselves an interim, tagged-heuristic reuse of squat's own numbers — see
-// task.md Stage 4.4 (Lunge)).
+// Identical starting values to backend lunge/config.py's current defaults.
 export const FALLBACK_LUNGE_LIVE_CONFIG: LungeLiveConfig = {
-  enterDescendingDeg: 30.0,
-  exitStandingDeg: 20.0,
-  refractoryS: 0.5,
+  cycleProminenceDeg: 17.5,
   minRepDurationS: 0.5,
   romShallowStartDeg: 60.0,
   romParallelStartDeg: 90.0,
@@ -91,10 +104,8 @@ export async function fetchLungeLiveConfig(): Promise<LungeLiveConfig> {
     const rules = (exercise?.rules ?? {}) as Record<string, unknown>;
     const rom = (rules?.rom ?? {}) as Record<string, number>;
     return {
-      enterDescendingDeg:
-        segmentation.enter_descending_deg ?? FALLBACK_LUNGE_LIVE_CONFIG.enterDescendingDeg,
-      exitStandingDeg: segmentation.exit_standing_deg ?? FALLBACK_LUNGE_LIVE_CONFIG.exitStandingDeg,
-      refractoryS: segmentation.refractory_s ?? FALLBACK_LUNGE_LIVE_CONFIG.refractoryS,
+      cycleProminenceDeg:
+        segmentation.cycle_prominence_deg ?? FALLBACK_LUNGE_LIVE_CONFIG.cycleProminenceDeg,
       minRepDurationS:
         segmentation.min_rep_duration_s ?? FALLBACK_LUNGE_LIVE_CONFIG.minRepDurationS,
       romShallowStartDeg: rom.shallow_start_deg ?? FALLBACK_LUNGE_LIVE_CONFIG.romShallowStartDeg,
@@ -192,19 +203,28 @@ function scoreToBandEstimate(score: number): LungeBandEstimate {
   return "Good";
 }
 
-/** Stateful per-set live tracker: hysteresis rep counter (bilateral mean) + a
- * front-leg-aware ROM band estimate and knee-passes-toe warning. */
+/** Stateful per-set live tracker: causal cycle rep counter (bilateral mean) + a
+ * front-leg-aware ROM band estimate and knee-passes-toe warning.
+ *
+ * The counter is a zigzag/swing pass mirroring the backend's `_confirmed_maxima`: a
+ * running extremum is only confirmed once the signal has reversed by at least
+ * `cycleProminenceDeg` from it. That rejects jitter without needing an absolute
+ * posture threshold anywhere — which is exactly what the old model could not do, since
+ * rest posture and rep depth overlap across subjects. */
 export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNGE_LIVE_CONFIG) {
   let repCount = 0;
   let phase: LungePhase = "standing";
-  let active = false;
   let frontLeg: LungeLeg = "left";
-  let candidateStartS: number | null = null;
+  // Zigzag state: 0 = no swing established yet, 1 = rising into a rep (flexing),
+  // -1 = falling back out of one (extending).
+  let direction: 0 | 1 | -1 = 0;
+  let runningMaxDeg = 0;
+  let runningMinDeg = 0;
+  let seeded = false;
   let peakFrontKneeDeg = 0;
   let peakTrunkLeanDeg = 0;
   let kneePassedToeDuringRep = false;
-  let previousMeanFlexionDeg = 0;
-  let refractoryUntilS = 0;
+  let lastCountedRepS: number | null = null;
   let lastRepPeakFrontKneeDeg: number | null = null;
   let lastRepBandEstimate: LungeBandEstimate = null;
   let lastRepKneePassedToe: boolean | null = null;
@@ -221,7 +241,7 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
           frontLeg,
           currentFrontKneeFlexionDeg: 0,
           currentTrunkLeanDeg: 0,
-          currentRepPeakFrontKneeFlexionDeg: active ? peakFrontKneeDeg : null,
+          currentRepPeakFrontKneeFlexionDeg: direction === 1 ? peakFrontKneeDeg : null,
           kneePassesToe: false,
           lastRepPeakFrontKneeDeg,
           lastRepBandEstimate,
@@ -244,8 +264,9 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
       const trunkLean = trunkLeanDeg(worldLandmarks);
 
       // Front leg is a stance property, not a per-frame one (Stage 4.3's research
-      // finding) — only re-resolve it while standing, so it can't flicker mid-rep.
-      if (!active) {
+      // finding) — only re-resolve it while not descending, so it can't flicker
+      // mid-rep.
+      if (direction !== 1) {
         frontLeg = resolveFrontLeg(worldLandmarks, anteriorSign(worldLandmarks));
       }
       const frontKneeFlex = frontLeg === "left" ? leftKneeFlex : rightKneeFlex;
@@ -255,37 +276,48 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
       const kneePassesToe =
         (worldLandmarks[frontKneeIdx].x - worldLandmarks[frontToeIdx].x) * sign > 0;
 
-      if (!active) {
-        if (timestampS >= refractoryUntilS && meanFlexion >= config.enterDescendingDeg) {
-          active = true;
-          candidateStartS = timestampS;
-          peakFrontKneeDeg = frontKneeFlex;
-          peakTrunkLeanDeg = trunkLean;
-          kneePassedToeDuringRep = kneePassesToe;
-          phase = "descending";
-        }
-      } else {
+      if (!seeded) {
+        runningMaxDeg = meanFlexion;
+        runningMinDeg = meanFlexion;
+        seeded = true;
+      }
+
+      // Track whichever running extremum is still live for the current swing.
+      if (direction >= 0 && meanFlexion > runningMaxDeg) runningMaxDeg = meanFlexion;
+      if (direction <= 0 && meanFlexion < runningMinDeg) runningMinDeg = meanFlexion;
+
+      // While descending, accumulate the metrics this rep will be judged on.
+      if (direction === 1) {
         if (frontKneeFlex > peakFrontKneeDeg) peakFrontKneeDeg = frontKneeFlex;
         if (trunkLean > peakTrunkLeanDeg) peakTrunkLeanDeg = trunkLean;
         if (kneePassesToe) kneePassedToeDuringRep = true;
-        phase = meanFlexion >= previousMeanFlexionDeg ? "descending" : "ascending";
-
-        if (meanFlexion <= config.exitStandingDeg) {
-          const durationS = timestampS - (candidateStartS ?? timestampS);
-          if (durationS + 1e-9 >= config.minRepDurationS) {
-            repCount += 1;
-            lastRepPeakFrontKneeDeg = peakFrontKneeDeg;
-            lastRepBandEstimate = scoreToBandEstimate(romScoreEstimate(peakFrontKneeDeg, config));
-            lastRepKneePassedToe = kneePassedToeDuringRep;
-            repJustCompleted = true;
-          }
-          active = false;
-          candidateStartS = null;
-          refractoryUntilS = timestampS + config.refractoryS;
-          phase = "standing";
-        }
       }
-      previousMeanFlexionDeg = meanFlexion;
+
+      if (direction !== -1 && meanFlexion <= runningMaxDeg - config.cycleProminenceDeg) {
+        // Bottom confirmed: the user has come far enough back up off the peak for it
+        // to be a real rep rather than jitter. Count it here (see the note at the top
+        // on why the live counter fires at the bottom, not at the closing trough).
+        const sinceLastS = lastCountedRepS === null ? Infinity : timestampS - lastCountedRepS;
+        if (sinceLastS + 1e-9 >= config.minRepDurationS) {
+          repCount += 1;
+          lastRepPeakFrontKneeDeg = peakFrontKneeDeg;
+          lastRepBandEstimate = scoreToBandEstimate(romScoreEstimate(peakFrontKneeDeg, config));
+          lastRepKneePassedToe = kneePassedToeDuringRep;
+          lastCountedRepS = timestampS;
+          repJustCompleted = true;
+        }
+        direction = -1;
+        runningMinDeg = meanFlexion;
+        phase = "ascending";
+      } else if (direction !== 1 && meanFlexion >= runningMinDeg + config.cycleProminenceDeg) {
+        // A genuine descent has begun: this is the start of the next rep.
+        direction = 1;
+        runningMaxDeg = meanFlexion;
+        peakFrontKneeDeg = frontKneeFlex;
+        peakTrunkLeanDeg = trunkLean;
+        kneePassedToeDuringRep = kneePassesToe;
+        phase = "descending";
+      }
 
       return {
         repCount,
@@ -293,7 +325,7 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
         frontLeg,
         currentFrontKneeFlexionDeg: frontKneeFlex,
         currentTrunkLeanDeg: trunkLean,
-        currentRepPeakFrontKneeFlexionDeg: active ? peakFrontKneeDeg : null,
+        currentRepPeakFrontKneeFlexionDeg: direction === 1 ? peakFrontKneeDeg : null,
         kneePassesToe,
         lastRepPeakFrontKneeDeg,
         lastRepBandEstimate,
@@ -304,14 +336,15 @@ export function createLungeLiveEstimator(config: LungeLiveConfig = FALLBACK_LUNG
     reset() {
       repCount = 0;
       phase = "standing";
-      active = false;
       frontLeg = "left";
-      candidateStartS = null;
+      direction = 0;
+      runningMaxDeg = 0;
+      runningMinDeg = 0;
+      seeded = false;
       peakFrontKneeDeg = 0;
       peakTrunkLeanDeg = 0;
       kneePassedToeDuringRep = false;
-      previousMeanFlexionDeg = 0;
-      refractoryUntilS = 0;
+      lastCountedRepS = null;
       lastRepPeakFrontKneeDeg = null;
       lastRepBandEstimate = null;
       lastRepKneePassedToe = null;

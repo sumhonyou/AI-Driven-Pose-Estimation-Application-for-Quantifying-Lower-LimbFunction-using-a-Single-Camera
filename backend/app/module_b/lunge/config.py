@@ -11,19 +11,46 @@ LUNGE_CONFIG = {
     # Mirrors squat's Stage 4.2 starting point (thigh_length); lunge's own Stage 5.4
     # bake-off picks the winner (thigh_length vs trunk_length) empirically.
     "norm_ref_strategy": "thigh_length",
+    # Cycle segmentation, NOT absolute threshold-crossing. This replaced squat's
+    # borrowed enter/exit thresholds (enter_descending_deg=30 / exit_standing_deg=20)
+    # after Stage 5.3 (Lunge) measured them at 50/88 = 56.8% rep recall against
+    # REHAB24-6's physio-verified boundaries, versus squat's 93/98 = 94.9%.
+    #
+    # Why the old model could not be rescued by retuning, measured not argued: a
+    # lunge set is performed *continuously* (the dataset annotates reps back-to-back,
+    # median 1-frame gap), and subjects differ in how far they straighten at the top
+    # of each cycle. A single global (enter, exit) pair would need exit > 60.0 deg
+    # (one subject's worst cycle top) AND enter < 14.8 deg (another's weakest rep
+    # peak) AND exit < enter -- arithmetically impossible. Driving off the front knee
+    # only was measured *worse* (subjects rest with the front knee more flexed than
+    # the bilateral mean), and a per-clip baseline-relative threshold failed globally
+    # too. Absolute posture thresholds cannot separate these subjects because rest
+    # posture and rep depth overlap *across* them; cycle shape can.
+    #
+    # A squat necessarily returns to a two-legs-extended stance so its mean flexion
+    # reliably falls to baseline; a lunge carries no such requirement. This is the
+    # empirical check Stage 4.3 (Lunge) recorded the borrowed thresholds as pending.
     "segmentation": {
-        # [proposed heuristic, R9] Flexion from standing that starts a descent.
-        # Same value as squat's Stage 4.3: REHAB24-6 Segmentation.csv (Ex5, n=174)
-        # measures a mean rep duration of 3.37s vs squat Ex6's 3.31s (n=195) and a
-        # near-identical median (3.33s vs 3.20s) -- the two movements' overall
-        # rep-timing envelope is close enough that squat's tuned starting point
-        # transfers, pending Stage 5.4's own empirical check on real lunge reps.
-        "enter_descending_deg": 30.0,
-        # [proposed heuristic, R9] Lower exit creates hysteresis against jitter.
-        "exit_standing_deg": 20.0,
-        # [proposed heuristic, R9] Blocks a rebound from becoming a second rep.
-        "refractory_s": 0.5,
-        # [proposed heuristic, R9] Rejects very brief threshold-noise candidates.
+        # [dataset-derived, Stage 5.3 (Lunge) sweep] How far the bilateral-mean knee
+        # flexion must fall from a local maximum (or rise from a local minimum) for
+        # that extremum to be confirmed -- i.e. the minimum swing depth of a real rep
+        # cycle. Serves the noise-rejection role the old hysteresis deadband and
+        # refractory window served, in cycle terms rather than absolute-posture terms.
+        #
+        # Swept 10-30 deg against REHAB24-6's physio-verified boundaries. Selection
+        # rule, fixed before reading the numbers: the **largest** prominence that still
+        # recovers every side-view rep (higher prominence = stricter = fewer spurious
+        # detections, so take the strictest setting that costs no recall). 17.5 deg is
+        # that value -- front-rep recall 88/88 (100%) and precision 99.4%, detecting
+        # exactly 174 reps against 174 annotated. It sits mid-plateau, not on a knife
+        # edge: 10-17.5 deg all hold 100% recall while precision climbs monotonically
+        # (86.5% -> 99.4%), and recall only starts falling at 20 deg (87/88).
+        #
+        # Honest caveat: this was tuned on the same cohort it is measured against, so
+        # 99.4% is an in-sample figure, not a generalisation estimate. The plateau's
+        # width is the reason to believe it is not a fluke of one threshold.
+        "cycle_prominence_deg": 17.5,
+        # [proposed heuristic, R9] Rejects very brief spurious cycles. Unchanged.
         "min_rep_duration_s": 0.5,
     },
     "rules": {

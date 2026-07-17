@@ -5,8 +5,8 @@ squat model end to end: dataset audit, landmark extraction, feature engineering,
 validity analysis, Extra Trees classifier training, fusion threshold/weight selection,
 system evaluation including replay determinism, export to the production backend, and
 external validation against an independent dataset. Section 11 covers the lunge's own
-dataset audit and landmark extraction; the lunge model's feature engineering, training,
-and evaluation will extend this chapter as that work is completed. Written for direct
+dataset audit, landmark extraction, and feature table; the lunge model's training and
+evaluation will extend this chapter as that work is completed. Written for direct
 adaptation into the dissertation; figures are embedded and referenced by their existing
 filenames in `ml/reports/figures/`._
 
@@ -1560,3 +1560,156 @@ lunge is free of the same problem: a window average can conceal a lower minimum 
 specific point in a repetition where flexion, and therefore occlusion, is greatest. Rather
 than assume either outcome, this is left as an explicit question for the feature-validity
 analysis to answer once per-frame data is examined at that resolution.
+
+### 11.7 Feature Table and a Failure of the Repetition Detector
+
+The lunge feature table was constructed exactly as the squat's was (Section 3): each
+video's full landmark stream was passed through the runtime preprocessing pipeline once,
+then windowed by the dataset's physio-verified repetition boundaries, and the backend's
+own feature extractor was called on each window. It contains 88 repetitions — 39 correct,
+49 incorrect — across 8 subjects, with 17 features per repetition, and rebuilds
+byte-identically across runs.
+
+Two decisions specific to the lunge were settled here. The lead leg was taken from the
+dataset's own annotation rather than inferred geometrically, since the annotation is
+given and is ground truth in the same sense the repetition boundaries are. And the
+knee-passes-toe measurement was retained as a genuine measured quantity rather than
+approximated from the ankle position: the fallback anticipated when the feature was
+designed proved unnecessary, because the pose model's foot-tip landmarks were present
+throughout the extracted data (Section 11.6).
+
+The lead-leg annotation is written alongside the feature table but is deliberately not a
+model input. Section 11.4 established that it is perfectly confounded with subject
+identity, so under leave-one-subject-out validation it would function as a subject
+identifier. This exclusion is structural rather than procedural: the feature vector was
+designed to be lead-leg invariant, expressing every quantity in terms of the front and
+rear limb rather than the left and right one, so that a left-leading repetition and an
+otherwise identical right-leading repetition produce the same vector. The annotation is
+retained only for traceability and for per-cohort analysis.
+
+#### A repetition detector that merged repetitions
+
+Building the feature table also permits a free comparison that the squat's own
+construction performed: the system's repetition-detection state machine can be run over
+the same recordings and its boundaries compared against the physio-verified ones. For the
+squat this comparison was reassuring, recovering 93 of 98 side-view repetitions. For the
+lunge it was not: only **50 of 88** side-view repetitions were recovered, a recall of
+56.8% against the squat's 94.9%.
+
+The cause is specific and measurable rather than a general degradation. It is not the
+threshold that begins a repetition: the signal the detector follows — the mean flexion of
+both knees — rises above that threshold in 173 of the 174 annotated repetitions, so every
+descent is seen. It is the threshold that _ends_ one.
+
+Understanding why requires noting what the dataset's repetition boundaries are. The
+repetitions are annotated back to back, with a median gap between consecutive
+repetitions of a single frame: a set is a continuous sequence of repetitions, and each
+boundary falls at the top of a movement cycle rather than in a period of rest. The
+detector closes a repetition only when the mean knee flexion falls back below a standing
+threshold. A subject who straightens fully at the top of each cycle sends the signal back
+under that threshold and the repetition closes; a subject who extends only partially
+between consecutive repetitions never does, so the repetition never closes and
+consecutive repetitions merge into a single detection. This explains the otherwise
+contradictory pairing of high precision (94.1%) with low recall: the detector is not
+firing incorrectly, it is firing too seldom.
+
+The mechanism accounts for the loss almost exactly. Fifty-nine cycle tops never return
+below the closing threshold, against sixty-two unrecovered repetitions. Seven of the nine
+recordings contain at least one such cycle top and three contain them in the majority of
+theirs. The extremes are instructive: in one recording eighteen of nineteen cycle tops
+never release — its median top-of-cycle flexion is 46.1°, more than twice the closing
+threshold — and twenty repetitions collapse into two detections; in two other recordings
+every cycle top releases and detection is near-perfect, at 24 of 25 and 14 of 14. The
+failure tracks a per-subject movement habit — how far a subject straightens between
+continuous repetitions — not measurement noise.
+
+This finding retires an assumption the system was built on. The lunge detector reuses the
+squat's driving signal and thresholds, a choice made on the grounds that the two
+movements have near-identical repetition-duration envelopes, and recorded at the time as
+provisional pending an empirical check against real lunge data. This is that check, and
+the assumption does not survive it. The relevant difference is not timing but terminal
+posture: a squat necessarily returns to a two-legs-extended stance, so its bilateral mean
+reliably falls to baseline between repetitions, whereas a lunge has no such requirement
+and for most subjects here does not.
+
+The consequence was not confined to offline analysis. The deployed application's live
+repetition counter and the server-side detector shared this signal and these thresholds,
+so a user who did not straighten fully between repetitions would have had their
+repetitions undercounted in the same way and for the same reason. The feature table
+itself was unaffected — every repetition in it is windowed by the dataset's annotation,
+never by the detector — so no result reported elsewhere in this chapter inherited the
+error.
+
+#### Why the obvious remedies do not work
+
+Three remedies suggest themselves, and each was measured against the data rather than
+argued about. None survives.
+
+Following the front knee alone, rather than the mean of both, performs _worse_. Subjects
+rest with the leading knee more flexed than the bilateral average, not less — in one
+recording the leading knee's typical cycle top sits at 37.5° against the mean's 26.0° —
+so the signal releases less often, not more.
+
+Raising the closing threshold cannot work at all, for an arithmetic reason. A single
+threshold pair applying to every subject would have to close above 60.0°, to release the
+subject whose cycle tops never fall below that, while opening below 14.8°, to catch the
+weakest repetition another subject performs — and closure must sit below opening. No such
+pair exists.
+
+Defining closure relative to each recording's own measured standing baseline, rather than
+as an absolute angle, fails for the same underlying reason at every baseline estimator
+tried. One subject rests 46.1° above their own baseline between repetitions, while
+another's repetitions peak only 24.7° above theirs.
+
+The common cause is now stateable precisely: resting posture and repetition depth
+**overlap across subjects**. One subject's rest is deeper than another subject's
+repetitions. No threshold on absolute posture, however it is referenced, can separate two
+populations that overlap; only the _shape_ of the movement distinguishes them.
+
+#### Cycle detection
+
+The detector was therefore replaced with one that segments repetitions as movement
+cycles: a flexion maximum, bracketed by the flexion minima either side of it, with an
+extremum confirmed only once the signal has reversed away from it by a set amount. That
+reversal depth performs the noise rejection the previous deadband and refractory window
+performed, but expressed in the movement's own terms rather than against a fixed posture,
+which is what allows it to accommodate subjects who rest at different depths.
+
+The reversal depth was selected by a rule fixed before the numbers were read: take the
+largest value that still recovers every side-view repetition, since a larger value is
+stricter and yields fewer spurious detections. Sweeping from 10° to 30° identified 17.5°.
+The choice sits in the middle of a plateau rather than on a knife edge — every value from
+10° to 17.5° recovers all 88 repetitions while precision rises steadily from 86.5% to
+99.4%, and recall only begins to fall at 20°.
+
+On the same recordings, measured in the same harness, the replacement recovers **88 of 88
+side-view repetitions (100%)** against the previous detector's 50 (56.8%), and 173 of 174
+overall at 99.4% precision. The recording whose twenty repetitions had collapsed into two
+detections now yields twenty. Boundary placement improved as a side effect that was not
+sought: the median start and end error against the physio-verified boundaries fell from
+25 and 12 frames to 7 and 7.
+
+Two caveats bound that result. The reversal depth was tuned on the same cohort it is
+measured against, so 99.4% is an in-sample figure and not a generalisation estimate; the
+plateau's width is the reason to think it is not an artefact of one threshold. And the
+squat detector was deliberately left alone: its threshold model fits the squat precisely
+because a squat necessarily returns to a two-legs-extended stance, and it scores 94.9%
+unchanged. The two exercises now segment by different principles because the movements
+genuinely differ, not by oversight.
+
+### 11.8 A further limitation established by the feature-table build
+
+This extends the running list in Section 10 and Section 11.5. The repetition-detection
+defect that this stage's validation uncovered is not listed here, because it was
+diagnosed and corrected rather than merely recorded (Section 11.7); what remains of it is
+the tuning caveat below.
+
+22. **The lunge repetition detector's reversal-depth setting is tuned in-sample.** The
+    replacement detector recovers 88 of 88 side-view repetitions at 99.4% precision
+    (Section 11.7), but its one free parameter was selected by sweeping against the same
+    cohort those figures are measured on, so they describe fit rather than
+    generalisation. Two things bound the risk: the selection rule was fixed before the
+    numbers were read (take the strictest setting costing no recall), and the chosen
+    value sits mid-plateau rather than at a sharp optimum, so the result does not depend
+    on the exact threshold. It has not been tested on any independent lunge cohort. Every
+    caveat in limitations 1 and 17 about single-dataset evidence applies.
