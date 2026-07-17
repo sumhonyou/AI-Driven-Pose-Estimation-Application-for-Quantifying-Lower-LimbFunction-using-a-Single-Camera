@@ -1,10 +1,9 @@
 import os
 
-from sqlalchemy import select
-
 from app.core.security import hash_password
 from app.db.database import SessionLocal
 from app.db.models import ExerciseCatalog, User, UserProfile
+from sqlalchemy import select
 
 EXERCISES = [
     {
@@ -35,14 +34,11 @@ EXERCISES = [
         "description": "Side-view rehabilitation movement-quality grading for squats.",
         "view_guidance": "side_view",
     },
-    # Placeholder-only (task.md Phase 4 Stage 4.7): shows the thumbnail + camera
-    # setup demo video ahead of Phase 5B, which builds its Module B plugin/live
-    # page. Start Session is disabled for it in CameraSetup.tsx until then.
     {
         "code": "lunge",
         "name": "Leg Lunge",
         "mode": "rehab",
-        "description": "Side-view rehabilitation movement-quality grading for lunges. Coming soon.",
+        "description": "Side-view rehabilitation movement-quality grading for lunges.",
         "view_guidance": "side_view",
     },
 ]

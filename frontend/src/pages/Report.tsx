@@ -6,7 +6,11 @@ import { Lightbulb, ShieldCheck, History, Plus, Alert } from "../components/Icon
 import InfoTooltip from "../components/InfoTooltip";
 import { sessionService } from "../services/sessionService";
 import { moduleAService, type ModuleAResult } from "../services/moduleAService";
-import { moduleBService, type ModuleBResult } from "../services/moduleBService";
+import {
+  moduleBService,
+  type ModuleBResult,
+  type ModuleBSubScore,
+} from "../services/moduleBService";
 import { wbltApi, type WbltLegTrend } from "../services/wblt/wbltApi";
 import type { SessionDTO } from "../types/api";
 import { useReveal } from "../useReveal";
@@ -52,6 +56,33 @@ function wbltTrendText(
   return parts.length
     ? `${t("wblt.trendVsLast")}: ${parts.join(" · ")}`
     : t("wblt.trendNoPrevious");
+}
+
+// Exercise codes graded by Module B's generic registry+plugin pipeline (task.md
+// Stage 4.1's architecture) -- exact-match set, not a substring check, since
+// Module B's "lunge" code also contains the substring "lunge" that Module A's
+// "weight_bearing_lunge_test" does (the bug this set replaces).
+const MODULE_B_EXERCISE_CODES = new Set(["squat", "lunge"]);
+
+// Stage 4.4 (Lunge)'s cross-rep Symmetry sub-score is report-only: its `score`
+// is always null by design (core/rules.py's SubScore docstring), so a plain
+// "—" row would be unexplained. Surfaces its `metrics` instead when present;
+// returns undefined for every other sub-score (squat's three have no metrics).
+function symmetryNote(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  subScore: ModuleBSubScore,
+): string | undefined {
+  if (subScore.code !== "symmetry_cross_rep") return undefined;
+  const m = subScore.metrics;
+  if (!m || m.front_knee_peak_symmetry_index_pct == null) {
+    return t("report.symmetryUnavailableSingleLeg");
+  }
+  return t("report.symmetryCrossRep", {
+    left: m.left_lead_reps,
+    right: m.right_lead_reps,
+    peak: m.front_knee_peak_symmetry_index_pct.toFixed(1),
+    rom: m.front_knee_rom_symmetry_index_pct.toFixed(1),
+  });
 }
 
 // Maps a Module B error tag's severity to the existing `.sev` dot CSS class.
@@ -105,7 +136,7 @@ export default function Report() {
         if (cancelled) return;
         setSession(sessionData);
 
-        if (sessionData.exercise_type === "squat") {
+        if (MODULE_B_EXERCISE_CODES.has(sessionData.exercise_type)) {
           const moduleBData = await moduleBService.get(sessionId);
           if (cancelled) return;
           setModuleBResult(moduleBData);
@@ -115,7 +146,7 @@ export default function Report() {
           if (cancelled) return;
           setResult(resultData);
           console.log(`[Report] Loaded session ${sessionId} — band=${resultData.band}`);
-          if (sessionData.exercise_type?.includes("lunge")) {
+          if (sessionData.exercise_type === "weight_bearing_lunge_test") {
             try {
               const summary = await wbltApi.session(sessionId);
               if (!cancelled) setWbltTrend(summary.trend);
@@ -139,7 +170,8 @@ export default function Report() {
   // Session's exercise_type decides which of Module A's `result` or Module B's
   // `moduleBResult` is the live one — the two responses have different shapes
   // (Phase 3E Stage 2's lesson: a wrong-panel bug was silent before; see the test).
-  const isModuleB = session?.exercise_type === "squat";
+  const isModuleB = !!session && MODULE_B_EXERCISE_CODES.has(session.exercise_type);
+  const isLunge = session?.exercise_type === "lunge";
   const band = isModuleB ? (moduleBResult?.band?.toLowerCase() ?? null) : (result?.band ?? null);
   const score = isModuleB ? (moduleBResult?.score ?? 0) : (result?.score ?? 0);
   const captureQualityBandTop = isModuleB
@@ -150,7 +182,9 @@ export default function Report() {
     pct = Math.max(0, Math.min(1, score / 10));
 
   const isSls = session?.exercise_type?.includes("single_leg");
-  const isWblt = session?.exercise_type?.includes("lunge");
+  // Exact match only -- Module B's "lunge" code also contains the substring
+  // "lunge" (the collision bug this replaces; mirrors CameraSetup.tsx's fix).
+  const isWblt = session?.exercise_type === "weight_bearing_lunge_test";
   // Migration signal: only SLS rows from the both-legs rebuild carry `perLeg`.
   // Older single-leg rows (pre-rebuild) fall through to the legacy metricRows below.
   const perLeg = result?.metrics.perLeg;
@@ -171,6 +205,10 @@ export default function Report() {
         ...moduleBResult.metrics.rule_subscores.map((s) => ({
           label: t(("moduleB.subscore_" + s.code) as never, { defaultValue: s.code }),
           value: s.score != null ? `${s.score.toFixed(1)}/10` : "—",
+          // Report-only sub-scores (Stage 4.4 (Lunge)'s Symmetry: score is always
+          // null by design, see core/rules.py's SubScore docstring) surface their
+          // numbers here instead, rather than rendering an unexplained "—".
+          note: symmetryNote(t, s),
         })),
         {
           label: t("report.mlPred"),
@@ -318,7 +356,10 @@ export default function Report() {
             <div className="dash-note reveal" style={{ marginBottom: 18 }}>
               <Alert />
               <span>
-                {t("report.moduleBPlaceholderNotice", { version: moduleBResult.model_version })}
+                {t("report.moduleBPlaceholderNotice", {
+                  version: moduleBResult.model_version,
+                  exercise: session?.exercise_name ?? "",
+                })}
               </span>
             </div>
           )}
@@ -399,13 +440,15 @@ export default function Report() {
           <div style={{ marginBottom: 8 }}>
             <span className="eyebrow">
               {t(
-                isModuleB
-                  ? "report.squatMetrics"
-                  : isWblt
-                    ? "report.wbltMetrics"
-                    : isSls
-                      ? "report.slsMetrics"
-                      : "report.metrics",
+                isLunge
+                  ? "report.lungeMetrics"
+                  : isModuleB
+                    ? "report.squatMetrics"
+                    : isWblt
+                      ? "report.wbltMetrics"
+                      : isSls
+                        ? "report.slsMetrics"
+                        : "report.metrics",
               )}
             </span>
           </div>
@@ -418,6 +461,11 @@ export default function Report() {
                     <b>{row.label}</b>
                     <span>{row.value}</span>
                   </div>
+                  {"note" in row && row.note && (
+                    <p className="muted" style={{ fontSize: "0.78rem", marginTop: 6 }}>
+                      {row.note}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

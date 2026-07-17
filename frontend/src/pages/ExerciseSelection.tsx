@@ -63,8 +63,7 @@ export default function ExerciseSelection() {
 
   const repInfoFor = (code: string) => {
     if (code.includes("single_leg")) return t("exercise.hold");
-    if (code === "squat") return t("exercise.repsUnlimited");
-    if (code === "lunge") return t("exercise.comingSoon");
+    if (code === "squat" || code === "lunge") return t("exercise.repsUnlimited");
     if (code.includes("lunge")) return t("exercise.trials");
     return t("exercise.reps");
   };

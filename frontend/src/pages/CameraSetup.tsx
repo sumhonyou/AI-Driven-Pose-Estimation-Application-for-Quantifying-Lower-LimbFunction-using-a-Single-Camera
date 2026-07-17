@@ -72,11 +72,12 @@ export default function CameraSetup() {
 
   const viewGuidance = getViewGuidance(exerciseCode);
   const isSls = !!exerciseCode?.includes("single_leg");
-  const isWblt = !!(exerciseCode?.includes("lunge") || exerciseCode?.includes("wblt"));
+  // Exact match only: Module B's "lunge" code also contains the substring
+  // "lunge", so a loose `.includes("lunge")` check here would wrongly treat a
+  // real lunge session as WBLT (mirrors ExerciseSelection.tsx's own precedent).
+  const isWblt = exerciseCode === "weight_bearing_lunge_test";
   const isSquat = exerciseCode === "squat";
-  // Placeholder-only: Phase 5B's Module B lunge plugin/live page don't exist yet
-  // (task.md Stage 4.7 is squat-only). This exact code is reserved for it.
-  const isLungePlaceholder = exerciseCode === "lunge";
+  const isLunge = exerciseCode === "lunge";
 
   const guidanceSteps = isSls
     ? [
@@ -93,7 +94,13 @@ export default function CameraSetup() {
             t("squat.setupGuidanceSpace"),
             t("squat.setupGuidancePace"),
           ]
-        : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
+        : isLunge
+          ? [
+              t("lunge.setupGuidanceSide"),
+              t("lunge.setupGuidanceStance"),
+              t("lunge.setupGuidanceDepth"),
+            ]
+          : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
 
   // Pick the tutorial clip per exercise; null hides the demo panel.
   const demoSrc = isSls
@@ -102,7 +109,7 @@ export default function CameraSetup() {
       ? wbltDemoSrc
       : isSquat
         ? squatDemoSrc
-        : isLungePlaceholder
+        : isLunge
           ? lungeDemoSrc
           : exerciseCode === "sit_to_stand"
             ? stsDemoSrc
@@ -138,7 +145,17 @@ export default function CameraSetup() {
         device_info: navigator.userAgent,
       });
       setSessionId(response.session_id);
-      nav(isSls ? "/sls/live" : isWblt ? "/wblt/live" : isSquat ? "/squat/live" : "/sts/live");
+      nav(
+        isSls
+          ? "/sls/live"
+          : isWblt
+            ? "/wblt/live"
+            : isSquat
+              ? "/squat/live"
+              : isLunge
+                ? "/lunge/live"
+                : "/sts/live",
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : t("camera.startError"));
       startedRef.current = false;
@@ -154,9 +171,7 @@ export default function CameraSetup() {
   // "ready" while silently never firing if exerciseCode was lost (e.g. a page reload). Instead
   // we always let the timer run, and beginSession() itself reports a clear error if the
   // exercise is missing.
-  // Lunge is a placeholder-only card (no live page/backend plugin yet) -- never
-  // auto-start into a broken session; the Start button is hidden for it too.
-  const autoStartEnabled = webcamReady && poseReady && !hasAutoStarted && !isLungePlaceholder;
+  const autoStartEnabled = webcamReady && poseReady && !hasAutoStarted;
   const { progress: autoStartProgress, active: autoStartActive } = useAutoStartGate(
     bodyQuality,
     FULL_BODY_QUALITY_THRESHOLD,
@@ -373,20 +388,14 @@ export default function CameraSetup() {
             </p>
           )}
 
-          {isLungePlaceholder ? (
-            <p className="muted center" style={{ padding: "10px 0" }}>
-              {t("squat.lungeComingSoon")}
-            </p>
-          ) : (
-            <button
-              className="btn btn-primary btn-lg btn-block"
-              onClick={beginSession}
-              disabled={starting || hasAutoStarted}
-            >
-              {starting ? t("common.loading") : t("camera.startSession")}
-              <ArrowRight />
-            </button>
-          )}
+          <button
+            className="btn btn-primary btn-lg btn-block"
+            onClick={beginSession}
+            disabled={starting || hasAutoStarted}
+          >
+            {starting ? t("common.loading") : t("camera.startSession")}
+            <ArrowRight />
+          </button>
         </div>
       </div>
     </>
