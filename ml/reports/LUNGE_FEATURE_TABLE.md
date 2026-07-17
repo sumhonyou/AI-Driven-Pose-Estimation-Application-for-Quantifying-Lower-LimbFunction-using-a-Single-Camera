@@ -37,7 +37,7 @@ Feature columns are written in `FeatureVector.names` order and asserted against 
 - `front_knee_flex_peak_deg`: min 49.7°, median 81.3°, max 110.9° — non-trivial front-knee flexion in every window confirms the dataset frame indices align with the Camera18 extraction.
 - `back_knee_flex_peak_deg`: min 25.7°, median 84.3°, max 119.4°.
 - `rep_duration_s`: min 1.33s, median 3.35s, max 5.50s.
-- `knee_passes_toe_norm`: min -0.243, median 0.605, max 1.431 — a real spread rather than a constant, i.e. the foot-tip landmark is carrying signal, not a frozen default.
+- `knee_passes_toe_norm`: min -0.209, median 0.465, max 1.144 — a real spread rather than a constant, i.e. the foot-tip landmark is carrying signal, not a frozen default.
 
 ## FSM vs. dataset segmentation agreement (free validation)
 

@@ -1,7 +1,7 @@
 # FYP Development Tasks
 
 **Project:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied — **Phase 4 (Lunge) is now fully complete**, Stages 4.1-4.8, verified live end-to-end against the real backend + Postgres (2026-07-17): Module B works for lunge with an announced `stub-0` placeholder model, using the same registry with zero router changes. **Phase 5B Stage 5.0 (Lunge) data audit is complete and its gate is resolved (2026-07-17): HY chose option (a), accept the smaller N** — side-view Ex5 = **88 reps, 39 Good / 49 Poor** (small but balanced, the opposite shape to squat's 72/26); the audit also found that **lead-leg is perfectly confounded with subject** (no subject performs both legs — so `lead_leg` is a LOSO leakage risk and cross-rep Symmetry has no ground truth here), and that **REHAB24-6 is _not_ the only labelled lunge dataset** — EC3D's lunge partition (127 sequences, both faults sagittal, incl. "Knee passes toe") is already on disk. See [`ml/reports/LUNGE_DATA_AUDIT.md`](./ml/reports/LUNGE_DATA_AUDIT.md). **Stage 5.1 (Lunge) `ml/` scaffold is complete (2026-07-17)** — no lunge-specific delta; verified the shared scaffold (editable install, `plotting.py`, `requirements.txt`) extends to the `LungeExercise` plugin live, not assumed. **Stage 5.2 (Lunge) landmark extraction is complete (2026-07-17):** all 9 side-view Ex5 videos extracted, **26,087 frames, 0 missing pose (0.00%)**; the toe-joint delta closed with real data (foot-index landmarks present in 100% of frames); and a real finding — **near/far-limb visibility asymmetry is a camera-orientation artifact, not lead-leg-linked** (left is the higher-visibility limb in all 9 videos regardless of lead leg), milder than squat's but flagged for Stage 5.4 to confirm empirically. **Stage 5.3 (Lunge) is complete (2026-07-17):** `ml/data/lunge_features.csv` built — **88 reps, 39 Good / 49 Poor, 8 subjects, 17 features**, byte-identical across runs (X8); `knee_passes_toe` **kept** as a real measured feature (no ankle proxy needed); `lead_leg` emitted as **metadata only**, outside the feature block (Stage 5.5 must not train on it). Two real findings: a dataset annotation overruns its video by 2 frames on one rep (`PM_117a` rep 9 — clamped, tabled, guard tightened rather than loosened), and — significant — **the lunge rep detector merged reps, 56.8% recall vs squat's 94.9%**, because the bilateral-mean signal never falls back under the 20° exit threshold at the top of each cycle (reps are annotated back-to-back, median 1-frame gap — a set is continuous, not rest-separated). **That is now fixed** (cross-cutting entry, HY chose cycle detection after all three proposed options were measured and rejected as unworkable): front-rep agreement **50/88 → 88/88 (100%)**, overall 173/174, and the feature table is provably unchanged (byte-identical CSV). Backend suite 195/195. **Stage 5.4 (Lunge) — feature-validity sanity [GATE] — is next.**  
+**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied — **Phase 4 (Lunge) is now fully complete**, Stages 4.1-4.8, verified live end-to-end against the real backend + Postgres (2026-07-17): Module B works for lunge with an announced `stub-0` placeholder model, using the same registry with zero router changes. **Phase 5B Stage 5.0 (Lunge) data audit is complete and its gate is resolved (2026-07-17): HY chose option (a), accept the smaller N** — side-view Ex5 = **88 reps, 39 Good / 49 Poor** (small but balanced, the opposite shape to squat's 72/26); the audit also found that **lead-leg is perfectly confounded with subject** (no subject performs both legs — so `lead_leg` is a LOSO leakage risk and cross-rep Symmetry has no ground truth here), and that **REHAB24-6 is _not_ the only labelled lunge dataset** — EC3D's lunge partition (127 sequences, both faults sagittal, incl. "Knee passes toe") is already on disk. See [`ml/reports/LUNGE_DATA_AUDIT.md`](./ml/reports/LUNGE_DATA_AUDIT.md). **Stage 5.1 (Lunge) `ml/` scaffold is complete (2026-07-17)** — no lunge-specific delta; verified the shared scaffold (editable install, `plotting.py`, `requirements.txt`) extends to the `LungeExercise` plugin live, not assumed. **Stage 5.2 (Lunge) landmark extraction is complete (2026-07-17):** all 9 side-view Ex5 videos extracted, **26,087 frames, 0 missing pose (0.00%)**; the toe-joint delta closed with real data (foot-index landmarks present in 100% of frames); and a real finding — **near/far-limb visibility asymmetry is a camera-orientation artifact, not lead-leg-linked** (left is the higher-visibility limb in all 9 videos regardless of lead leg), milder than squat's but flagged for Stage 5.4 to confirm empirically. **Stage 5.3 (Lunge) is complete (2026-07-17):** `ml/data/lunge_features.csv` built — **88 reps, 39 Good / 49 Poor, 8 subjects, 17 features**, byte-identical across runs (X8); `knee_passes_toe` **kept** as a real measured feature (no ankle proxy needed); `lead_leg` emitted as **metadata only**, outside the feature block (Stage 5.5 must not train on it). Two real findings: a dataset annotation overruns its video by 2 frames on one rep (`PM_117a` rep 9 — clamped, tabled, guard tightened rather than loosened), and — significant — **the lunge rep detector merged reps, 56.8% recall vs squat's 94.9%**, because the bilateral-mean signal never falls back under the 20° exit threshold at the top of each cycle (reps are annotated back-to-back, median 1-frame gap — a set is continuous, not rest-separated). **That is now fixed** (cross-cutting entry, HY chose cycle detection after all three proposed options were measured and rejected as unworkable): front-rep agreement **50/88 → 88/88 (100%)**, overall 173/174, and the feature table is provably unchanged (byte-identical CSV). Backend suite 195/195. **Stage 5.4 (Lunge) is complete and its GATE PASSES (2026-07-17):** `front_knee_flex_peak_deg` separates the classes (**AUC 0.639**, Good 77.2° vs Poor 83.8°, direction holding in 5/7 subjects and in _both_ lead-leg cohorts) — weaker than squat's 0.837 but unambiguous, and **in the same "Poor reps are deeper" direction**, now found independently in two exercises. The `norm_ref` bake-off picked **`trunk_length`** (variance ratio 1.606 vs 2.118, unanimous across all three normalised features) and the backend config was changed to match; feature table regenerated (md5 → `54f98787…`), X8 determinism re-verified, backend **195/195** after fixing one genuine fixture breakage (a zero-length trunk). **Five significant findings, four of them about method rather than results:** (1) **⚠⚠ squat's pooled-AUC rule does not transfer — pooling inverts the truth for 9 of 17 features**; `back_knee_rom_deg` pools to AUC 0.564 (DROP) while **0/7 subjects agree with the pooled direction** and its within-subject AUC is **0.860** — a textbook Simpson's paradox caused by **one** single-class subject (P3: 0 Good/11 Poor, lowest ROM of anyone), mechanism measured at corr(level, %Poor) = −0.505. Pre-declared verdicts were **deliberately not rewritten**; **Stage 5.5 must train on all 17 features** and treat DROP as advisory (squat's 5.5 already did, so nothing is lost). (2) squat's **CV statistic is invalid** for the signed, zero-crossing `knee_passes_toe_norm` (18/88 reps negative) — a **variance ratio** was used instead, and CV agrees where valid. (3) **⚠⚠ leg identity is SETTLED for lunge, where squat's was not** — squat's leg-difference test failed here too (r=+0.28, mixed signs, and the prediction that lunge's asymmetry would rescue it was **wrong**), so identity was established from **foot position** instead: mocap 9/9 and MediaPipe 9/9 against the annotated lead leg ⇒ **mapping CONFIRMED**. (4) **⚠⚠ occlusion inverts the anatomy** — mocap says right knee deeper in 9/9, MediaPipe says left in 9/9; with identity confirmed this is not a swap but a far-limb under-read of **18.2° vs 2.5° near**, i.e. the artefact is **larger than the signal**; it follows near/far (15.7° gap) not front/back (0.3°), and is **confident** error (0.938 visibility, −15.1° bias) that no confidence threshold can catch. Stage 5.3's deferred far-leg question is answered: **"merely plausible."** (5) **⚠⚠ the gate feature carries an 8.9° cohort-dependent bias** (−6.19° left-lead vs −15.13° right-lead), closing Stage 5.2's open question — the lead limb IS near/far fixed per subject — and upgrading Stage 5.0's leakage warning to a measured fact: the confound is encoded in the feature _values_, so dropping the `lead_leg` column is necessary but **not sufficient**. Stage 5.2's other flagged question also answered: the far limb **does** dip below `MIN_VISIBILITY` at depth in **10/88** reps (the mean masked it), but that is the _smaller_ part of the problem. See [`LUNGE_FEATURE_VALIDITY.md`](./ml/reports/LUNGE_FEATURE_VALIDITY.md), [`LUNGE_NORM_REF_BAKEOFF.md`](./ml/reports/LUNGE_NORM_REF_BAKEOFF.md), [`LUNGE_MOCAP_AGREEMENT.md`](./ml/reports/LUNGE_MOCAP_AGREEMENT.md), [`LUNGE_OCCLUSION_CHECK.md`](./ml/reports/LUNGE_OCCLUSION_CHECK.md). **Stage 5.5 (Lunge) — train the Extra Trees classifier — is next**, and must (a) train on all 17 features, (b) not train on `lead_leg`, and (c) watch for the cohort-aligned measurement bias, which excluding `lead_leg` does not remove.  
 **Related docs:** [FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md](./FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md) (architecture & design), [rules.md](./rules.md) (coding agent rules)
 
 ---
@@ -2344,6 +2344,15 @@ carry forward into Stage 5.3's feature decisions and the eventual write-up.
 - [x] **Real finding #1 — lead-leg is perfectly confounded with subject.** `exercise_subtype` is constant within every video **and within every subject**: all 8 subjects lunged with exactly one lead leg, **none performed both** (9 videos, verified in code). Not a view artifact — no gate option fixes it. Two consequences: (i) under LOSO, `lead_leg` is perfectly collinear with the held-out subject, so **Stage 5.3 (Lunge) must treat `lead_leg` as a leakage risk, not a free feature choice** — the apparent lead-leg/label association (left 21G/21P vs right 18G/28P) is **entirely subject 3**, and vanishes without it (right → 18G/17P); (ii) **Stage 4.4's cross-rep Symmetry sub-score has no ground truth in this dataset at all** and cannot be validated by any filtering of it. It is already report-only by HY's Stage 4.4 decision, so nothing shipped is wrong — but Phase 5B cannot produce evidence for it, and the write-up must not imply it was validated.
 - [x] **Real finding #2 — the generalisation note's premise is false, and it's good news.** REHAB24-6 is **not** the only public labelled lunge dataset. **EC3D** (already on disk — the same `data_3D.pickle` Stage 5.9 used for squat) has **127 lunge sequences, 4 subjects, 46 Correct / 81 faulty**, and its lunge partition is **larger than its squat one** (12,754 frames vs 11,109). Label ids confirmed against the EC3D paper's own Table 1 by **exact count match, not inference**: `1`=Correct (46), `4`="Not low enough" (40), `6`="Knee passes toe" (41). **Both lunge faults are sagittal-plane** — unlike EC3D squat, where 2 of 4 were frontal and invisible under Locked Assumption #3 — and "Knee passes toe" is **exactly** the signal Stage 4.2/4.7 already implemented. **UI-PRMD** also has inline/side lunge (10 subjects, correct/incorrect), Kinect+Vicon skeletons only. **The plan's practical consequence survives:** both alternatives ship skeletons, not RGB, and Stage 5.2's pipeline needs RGB video (X1/X3) — so the corrected statement is "the only public labelled lunge dataset **with RGB video**". **Caveat kept explicit:** EC3D's canonicalisation and its shallower-is-incorrect fault direction are the same two failure modes that sank squat's Stage 5.9; lunge has a _better-matched_ external cohort available, not a guaranteed-successful one.
 - [x] **Open question flagged, not answered:** because each subject has a fixed facing _and_ a fixed lead leg, whether the lead limb is the near or far limb from Camera18 may be fixed per subject — which would couple the known far-limb occlusion problem (chapter draft §3.2) to lead-leg and therefore to subject. The frames are _consistent_ with this but cannot establish it (near/far limb is not reliably readable by eye). Needs landmark-level visibility/`z`-ordering measurement at **Stage 5.4 (Lunge)**. Recorded as a risk to measure, not a finding.
+  - ✅ **RESOLVED at Stage 5.4 (Lunge) (2026-07-17) — the risk is real and now measured.**
+    The far limb is **right in all 9 videos** and lead leg is fixed per subject, so the front
+    leg **is** the occluded limb for right-lead subjects and the clearly-visible one for
+    left-lead. Against OptiTrack, `front_knee_flex_peak_deg` is biased **−6.19° (left-lead)**
+    vs **−15.13° (right-lead)** — an **8.9° cohort-dependent offset on the gate feature**,
+    produced purely by which side faced the lens. This upgrades Stage 5.0's `lead_leg`
+    leakage warning from hypothesis to fact **and sharpens it**: the confound is physically
+    encoded in the feature _values_, so excluding the `lead_leg` column is necessary but
+    **not sufficient**. See `ml/reports/LUNGE_MOCAP_AGREEMENT.md`.
 - [x] **Reports written:** `ml/reports/LUNGE_DATA_AUDIT.md` (every number above + the gate options; supersedes `DATA_AUDIT.md` §2's Ex5 forward-reference summary), and `ml/reports/PHASE5_CHAPTER_DRAFT.md` extended in place per rules.md with **§11 The Lunge Dataset** (§11.1 data availability, §11.2 view selection + Figure 16, §11.3 sample size + Table 7, §11.4 the lead-leg confound, §11.5 limitations **19-21** added to the running list). Chapter title/preamble widened from "Squat Model Development" to "Model Development" since §11 is no longer squat-only.
 - [ ] **Not done, correctly:** Stage 5.1/5.2 onward (scaffold reuse, landmark extraction, feature table, training) — gate is now resolved (option (a), above), but Stage 5.1 has not been started, per scope discipline (this stage stops at the gate decision).
 
@@ -2455,6 +2464,13 @@ Mirrors squat's Stage 5.2 — `task.md:796-987`.
       the same failure mode — mean-over-rep-window can mask a lower minimum at the deepest
       part of individual reps — so it is **flagged for Stage 5.4 (Lunge)'s feature-validity
       check to confirm empirically**, not resolved here.
+  - ✅ **RESOLVED at Stage 5.4 (Lunge) (2026-07-17): the mean DID mask it — 10/88 reps drop
+    below `MIN_VISIBILITY` in their deepest 20% of frames** (all of them left-lead subjects,
+    where the far/right limb is the _back_ leg). **But the dip is not the important part:**
+    the far limb's ~18° under-read persists where visibility is high (right-lead: 0.938 mean,
+    0/46 reps dipping, still −15.1° bias), so MediaPipe is _confidently wrong_ rather than
+    flagging uncertainty, and no confidence-threshold policy can catch it. See
+    `ml/reports/LUNGE_OCCLUSION_CHECK.md` and `ml/reports/LUNGE_MOCAP_AGREEMENT.md`.
 - [x] **Parity check reused by reference, not re-run — reasoning recorded, not silently
       skipped.** `ml/reports/PARITY_CHECK.md` measured WASM-vs-native-delegate numeric
       divergence (0.90° mean / 4.6° max knee-flexion angle) using the _same_ model asset,
@@ -2525,7 +2541,147 @@ Follow-up to Stage 5.3 (Lunge)'s finding #2, spawned rather than fixed mid-stage
 
 Mirrors squat's Stage 5.4 — `task.md:1099-1245`.
 
-- [ ] Apply squat's Stage 5.4 gate to lunge features — no lunge-specific delta.
+- [x] Apply squat's Stage 5.4 gate to lunge features — the gate itself had no
+      lunge-specific delta, but three of its four mechanics did (gate feature, CV
+      validity, leg identity). See the dated entry below.
+
+### Phase 5B — Stage 5.4 (Lunge): Feature-validity sanity [GATE] (2026-07-17)
+
+- [x] **GATE: PASS.** `front_knee_flex_peak_deg` separates the classes — **AUC 0.639**
+      (Good median 77.2° vs Poor median 83.8°), 0.139 from the 0.5 no-separation point,
+      direction holding in **5/7** voting subjects. Extraction, view filter and windowing are
+      not broken, which is what the gate exists to catch. Weaker than squat's 0.837 but
+      unambiguous, and **the direction matches squat's** (Poor reps are _deeper_) — the same
+      counter-intuitive relationship now found independently in two exercises.
+  - **Gate feature is `front_knee_flex_peak_deg`, not `knee_flex_peak_deg`** — the one
+    real delta in the gate: a lunge is asymmetric, so no bilateral-mean depth feature
+    exists to gate on. The front knee is squat's gate feature's direct correspondent.
+  - **Checked per lead-leg cohort too**, since Stage 5.0 found lead-leg confounded with
+    subject and a pooled AUC could be a between-cohort offset: it is not — left 0.580 /
+    right 0.728, both above 0.5, same direction. New `ml/scripts/check_feature_validity_lunge.py`,
+    report `ml/reports/LUNGE_FEATURE_VALIDITY.md`, figures `lunge_feature_validity_boxplots.png`
+    (new `grid_5x4` figsize in `plotting.py` — 17 features need 20 slots, not squat's 16)
+    and `lunge_feature_correlation_heatmap.png`. Only redundant pair at |r|>=0.90:
+    `front_ankle_df_proxy_deg ~ knee_passes_toe_norm` (r=0.95) — not dropped (tree
+    ensemble, and dropping changes the vector => schema bump).
+- [x] **⚠⚠ Real finding #1 (the big one) — squat's pooled-AUC rule DOES NOT transfer:
+      pooling inverts the truth for 9 of 17 lunge features.** The pre-declared rule returns
+      **7 keep / 10 drop**, but several DROPs are pooling artefacts. Worst case
+      `back_knee_rom_deg`: pooled AUC **0.564** (scored DROP), yet the direction vote is
+      **0/7** — _not one_ voting subject agrees with the pooled direction; every subject shows
+      Poor with **higher** back-knee ROM. Subtracting each subject's own median (label-free
+      centring) and re-pooling gives a within-subject AUC of **0.860** — from weakest feature
+      to strongest. **Textbook Simpson's paradox, mechanism measured not asserted:**
+      corr(subject median, subject %Poor) = **−0.505**, and **one subject causes it** — P3 is
+      the cohort's only single-class subject (0 Good / 11 Poor) _and_ has the lowest
+      `back_knee_rom_deg` of anyone (40.1° vs 42–92°), while every other subject is ~50/50.
+      Excluding P3 alone lifts pooled AUC 0.564 → 0.679 (still << 0.860).
+  - **The pre-declared verdicts were deliberately NOT rewritten** — the rule was fixed
+    before squat's results were seen; swapping in whichever statistic gives the nicer
+    answer is what pre-declaring exists to prevent. Verdicts stand, contradicting evidence
+    published beside them, resolution handed to Stage 5.5.
+  - **Stage 5.5 MUST train on all 17 features** and treat the DROP column as advisory —
+    squat's 5.5 already did this (to avoid LOSO selection bias), so **no feature is
+    actually lost to the artefact**. The DROP column is not wired to anything.
+- [x] **`norm_ref` bake-off: `trunk_length` WINS** (mean cross-subject variance ratio
+      **1.606 vs 2.118**), unanimously on all three normalised features. **Backend config
+      changed** `thigh_length` → `trunk_length` in `backend/app/module_b/lunge/config.py`,
+      re-tagged `[dataset-derived, Stage 5.4 (Lunge) bake-off]`. Reproduces squat's result on
+      an independent exercise. New `ml/scripts/check_norm_ref_lunge.py`, report
+      `ml/reports/LUNGE_NORM_REF_BAKEOFF.md`, figure `lunge_norm_ref_variance_comparison.png`.
+  - **Real finding #2 — squat's CV statistic is INVALID for one lunge feature.** Lunge
+    normalises **three** features (vs squat's two), and `knee_passes_toe_norm` is
+    **signed** (positive = knee past toe = the fault) and genuinely crosses zero: **18/88
+    reps negative, one subject's mean at +0.06**. CV = std/mean explodes near a zero mean,
+    so a CV verdict there would turn on where the cohort's zero happened to fall. Verdict
+    therefore taken on a **variance ratio** (between-subject var of per-subject means /
+    mean within-subject var) — scale-invariant like CV, needs no non-zero mean, and
+    penalises a reference that cancels between-subject spread by inflating within-subject
+    noise. **CV agrees on the two features where it is valid**, so the statistic choice did
+    not decide the outcome. Squat never hit this: both its normalised features are unsigned.
+  - **Re-ran everything the default touched, as the stage requires.** Backend suite
+    **195/195** after one genuine test breakage: `test_knee_passes_toe_sign_flips_with_knee_position`
+    left the shoulders at the hip midpoint => zero-length trunk => divide-by-zero under
+    `trunk_length`. Fixed the **fixture** (gave the pose a real trunk — the same fix squat's
+    `test_module_b_segmentation.py` already carries), not the production guard. Feature
+    table regenerated: md5 `1a66a9f6…` → **`54f98787ca56aac742ad3c6637b89451`**, X8
+    determinism re-verified (byte-identical across two runs), gate re-run on the new table
+    and still PASS.
+- [x] **⚠⚠ Real finding #3 — leg identity SETTLED for lunge (squat could not), and the
+      test that was supposed to settle it failed.** Squat closed this as unresolvable and
+      escaped via the swap-invariant **bilateral mean**; lunge has no such escape (every
+      feature is front/back split — a swapped mapping transposes all of them).
+  - **The expected test failed and is reported, not dropped.** Predicted that a lunge's
+    asymmetry would rescue squat's leg-difference test (`θ_L − θ_R`). It did **not**: mean
+    r = **+0.28**, signs mixed, **UNRESOLVED** against a rule fixed in advance
+    (|mean r| ≥ 0.5 + consistent signs). Checked it was not a sync artefact — recomputing
+    at each video's own offset instead of lag 0 moves r by <0.03. _Why_ it fails is the
+    insight: the difference of two angles inherits the worse-measured one's error.
+  - **The test that works: foot POSITION**, which occlusion perturbs far less than angle,
+    checked against an independent key (the dataset annotates the lead leg; the front foot
+    is anterior by definition). Mocap recovers the annotated lead leg **9/9**; MediaPipe
+    **9/9**. Both label sets correct ⇒ **mapping CONFIRMED**. The front/back split every
+    lunge feature rests on is now verified ground.
+- [x] **⚠⚠ Real finding #4 — occlusion is large enough to INVERT the anatomy, and it is
+      _confident_ error.** Mocap says right knee deeper in **9/9** videos; MediaPipe says left
+      deeper in **9/9** — a perfect reversal (chance ≈ 4/9). With identity confirmed this
+      **cannot** be a swap (it is exactly a swap's signature — which is why identity had to be
+      settled first): the far limb is under-read by **18.2°** vs **2.5°** near, a ~15.7°
+      differential, while the true L-R difference is a few degrees. **The artefact is bigger
+      than the signal.**
+  - **Answers Stage 5.3's deferred far-leg question: "merely plausible."** Far limb tracks
+    shape (r=0.824, cf. near 0.713) but mis-states magnitude by 18.2°.
+  - **Decomposed by (cohort × limb) vs raw visibility:** error follows **near/far (15.7°
+    gap)**, NOT front/back (**0.3°**) — the right knee is bad in _both_ roles. And it is
+    **confidently** wrong: where the far limb leads, mean visibility **0.938** (far above
+    `MIN_VISIBILITY=0.6`, filter never engages) yet bias **−15.1°**. **No
+    confidence-threshold policy can catch this.**
+  - New `ml/scripts/check_mocap_agreement_lunge.py` (reuses `module_a/core/evaluation/agreement.py`,
+    not forked), report `ml/reports/LUNGE_MOCAP_AGREEMENT.md`, figure
+    `lunge_mocap_agreement_bland_altman.png`. Headline `front_knee_flex_peak_deg`:
+    **ICC 0.623, bias −10.87°, LoA [−29.57°, 7.84°], r 0.791, n 88**. Offset −3 frames
+    (One Euro's own lag) on every video.
+- [x] **⚠⚠ Real finding #5 (the one with the furthest reach) — the gate feature carries an
+      8.9° COHORT-DEPENDENT bias, closing Stage 5.2's open question (`task.md:2346`).** _Is the
+      lead limb the near or far limb, fixed per subject?_ **YES.** Far limb = right in all 9
+      videos (camera artefact, not lead-leg — Stage 5.2); lead leg is fixed per subject ⇒ the
+      front leg **is** the occluded limb for right-lead subjects and the clearly-visible one
+      for left-lead. Measured: `front_knee_flex_peak_deg` bias **−6.19° (left-lead, front=near)**
+      vs **−15.13° (right-lead, front=far)** ⇒ **8.9° systematic offset between two subject
+      groups, produced purely by which side faced the lens.** No subject moves differently.
+  - **Upgrades Stage 5.0's leakage warning from hypothesis to measured fact, and sharpens
+    it:** the lead-leg confound is **physically encoded in the feature values themselves**,
+    so a model can infer the cohort from measurement bias alone. **Excluding `lead_leg` from
+    the vector (Stage 5.3 did) is necessary but NOT sufficient.** Stage 5.5 must watch for it.
+  - **The mocap definitional caveat does not weaken this** — a definitional offset applies to
+    both cohorts equally and cannot create a difference between them.
+  - **Bounds Stage 5.6 (Lunge)'s ROM banding**: an error differing by 8.9° by lead leg cannot
+    be corrected by one global constant — this is the measurement justifying 5.6's existing
+    [dataset-derived] instruction, and a reason not to soften it.
+- [x] **Answered Stage 5.2's other flagged question: does the far limb dip below
+      `MIN_VISIBILITY=0.6` at rep depth (window means may mask it)?** **YES — the mean did hide
+      it, the concern was justified**: **10/88 reps** cross the threshold in their deepest 20% of
+      frames (75/1452 at-depth frames), where per-video means bottom out at 0.652.
+      **But it is NOT the cause of the bias** — every affected rep is a _left-lead_ subject's
+      (far limb = back leg, vis 0.652–0.776), the opposite of the pattern the bias follows, and
+      right-lead subjects never dip (0/46) yet still carry −15.1°. The flagged reps are the
+      smaller, _honest_ part of the problem; the larger part is invisible to any confidence-based
+      defence. New `ml/scripts/check_far_limb_visibility_lunge.py` (measures **raw** visibility —
+      preprocessing rewrites it, so asking the preprocessed stream would let the filter grade its
+      own homework), report `ml/reports/LUNGE_OCCLUSION_CHECK.md`.
+- [x] **`ml/reports/PHASE5_CHAPTER_DRAFT.md` extended in place** (not forked): §11.9 feature
+      validity + the pooling artefact, §11.10 body-scale normalisation, §11.11 agreement with
+      marker-based mocap, §11.12 limitations **23/24/25**; Figures 17–20 continuing the existing
+      numbering and `_Figure N._` caption style.
+- [ ] **Deliberately not done — shared preprocessing untouched.** Changing `MIN_VISIBILITY`,
+      the gap-fill width or the release policy would alter Module B behaviour for **squat as well
+      as lunge** (`preprocess_world_landmarks` is the single shared implementation, X1) and squat's
+      Phase 5 results were verified against current behaviour. This gate establishes the fact; the
+      change is a cross-cutting decision for HY.
+- [ ] **Deliberately not done — no feature dropped, no calibration constant applied.** The
+      DROP verdicts are advisory (see finding #1) and the mocap bias is **not** applied as a
+      correction: an unknown share of it is definitional (where a "knee centre" is), so
+      subtracting it would encode marker-convention differences as pipeline calibration.
 
 #### Stage 5.5 (Lunge) — Train the Extra Trees classifier
 
@@ -2586,6 +2742,17 @@ Mirrors squat's Stage 5.9 — `task.md:1693-1842`.
 | `low_confidence`     | calibrated `max(P)` / `Q`        | "Result is uncertain — try improving your camera placement."        | —        | system    |
 
 - [ ] `**knee_valgus` is NOT in this table.** Record the omission + reason in `docs/module_b_limitations.md`: it is a frontal-plane fault, ill-posed from a single monocular side view. This mirrors the WBLT precedent of refusing to measure what one camera cannot (see [Deliberately Not Built](#deliberately-not-built-phases-47)).
+- [ ] `backend/app/module_b/lunge/tags.py` — the lunge equivalent, **front-knee valgus excluded** for the same monocular-side-view reason (already excluded from the feature set itself, see Phase 5B Stage 4.4 (Lunge)'s "Deliberately excluded" note):
+
+| Tag                  | Observable from                                       | User-facing message                                          | Severity | Signal                                                                                                      |
+| -------------------- | ----------------------------------------------------- | ------------------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `insufficient_depth` | `front_knee_flex_peak_deg`                            | "Lower until your front knee bends closer to 90°."           | Medium   | rule + ML — EC3D "Not-low-enough"                                                                           |
+| `knee_passes_toe`    | `knee_passes_toe_norm` (front-knee-vs-toe horizontal) | "Keep your front shin more upright — knee over ankle."       | Medium   | rule + ML — EC3D "Knee-passes-toe"; degrades if no toe joint                                                |
+| `forward_trunk_lean` | `trunk_lean_peak_deg` [S4]                            | "Stay tall through your torso."                              | Medium   | rule-only                                                                                                   |
+| `lead_leg_asymmetry` | cross-rep symmetry (Stage 4.4 (Lunge))                | "Your two sides look uneven — focus on your weaker leg."     | Medium   | rule-only, **report-only** — no ground-truth cohort (Stage 5.0 (Lunge): `lead_leg` confounded with subject) |
+| `low_confidence`     | calibrated `max(P)` / `Q`                             | "Result is uncertain — try improving your camera placement." | —        | system                                                                                                      |
+
+- `knee_valgus` is **not** in this table either, for the identical reason as squat's — see Phase 5B Stage 4.4 (Lunge)'s exclusion note. `heel_lift`, `feet_too_wide`, and `inconsistent_tempo` (squat-only tags) have no lunge equivalent in the current feature set (`ankle_df_proxy_deg` exists as `front_ankle_df_proxy_deg` but feeds Stability, not a standalone tag here — extend if HY wants tempo/heel-lift parity).
 - [ ] `core/feedback.py` — `build_structured_feedback(session) -> StructuredFeedback`: band, S_final, three sub-scores, confidence, ranked tags (severity → magnitude), rep count. **Pure and deterministic** (X8).
 
 ### Stage 6.2 — Template fallback _(built first, on purpose)_

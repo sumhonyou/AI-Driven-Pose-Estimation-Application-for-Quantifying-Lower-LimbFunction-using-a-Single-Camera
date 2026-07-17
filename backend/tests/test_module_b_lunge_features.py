@@ -10,8 +10,7 @@ from unittest.mock import patch
 from app.module_a.core.schemas import FrameIn
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.lunge.config import LUNGE_CONFIG
-from app.module_b.lunge.features import (LUNGE_FEATURE_NAMES,
-                                         extract_lunge_features)
+from app.module_b.lunge.features import LUNGE_FEATURE_NAMES, extract_lunge_features
 
 # Feet are clearly separated along +x so the front (more-forward) foot is
 # unambiguous; the sign convention here makes +x the anterior (forward) direction.
@@ -150,6 +149,13 @@ class LungeFeatureValueTests(unittest.TestCase):
     def test_knee_passes_toe_sign_flips_with_knee_position(self) -> None:
         # Front (left) foot planted forward, flat; back (right) foot behind, flat.
         base = [_landmark(0.0, 0.0) for _ in range(33)]
+        # Shoulders one unit above the hips (-y is up) so the pose has a real trunk.
+        # This test only reads knee_passes_toe, but extraction normalises by norm_ref,
+        # and the Stage 5.4 bake-off made trunk_length the default -- shoulders left at
+        # the hip midpoint give a zero-length trunk (anatomically impossible) and
+        # divide by zero. Same fixture fix squat's segmentation tests already carry.
+        base[11] = _landmark(_FRONT_BASE_X, -1.0)  # left shoulder
+        base[12] = _landmark(_BACK_BASE_X, -1.0)  # right shoulder
         base[24] = _landmark(_BACK_BASE_X, 0.0)  # right hip (back)
         base[26] = _landmark(_BACK_BASE_X, 1.0)  # right knee
         base[28] = _landmark(_BACK_BASE_X, 2.0)  # right ankle (planted)

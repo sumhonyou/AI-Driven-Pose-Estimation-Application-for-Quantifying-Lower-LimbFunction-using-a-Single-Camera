@@ -7,10 +7,20 @@ LUNGE_CONFIG = {
     "required_view": "side_view",
     # [proposed heuristic] Phase 5B stub key; replaced by a versioned artifact in Stage 5.8.
     "model_key": "lunge",
-    # [proposed heuristic, R5.3] Body-scale reference for normalised features.
-    # Mirrors squat's Stage 4.2 starting point (thigh_length); lunge's own Stage 5.4
-    # bake-off picks the winner (thigh_length vs trunk_length) empirically.
-    "norm_ref_strategy": "thigh_length",
+    # [dataset-derived, Stage 5.4 (Lunge) bake-off] Body-scale reference for the three
+    # normalised features. Was thigh_length (squat's Stage 4.2 starting point, carried
+    # over as a placeholder); the bake-off measured trunk_length as the better body-size
+    # canceller and this is that result, not an inherited default.
+    #
+    # Verdict statistic: between-subject variance of the per-subject means over the mean
+    # within-subject variance (lower = better). Raw variance was NOT used -- it is
+    # scale-confounded, since the longer reference shrinks the feature and its variance
+    # regardless of how well it normalises. CV (squat's statistic) was not used either:
+    # knee_passes_toe_norm is signed and crosses zero (18/88 reps negative), so its CV
+    # would turn on where the zero happened to fall. trunk_length wins on all three
+    # features, and CV agrees on the two where it is valid -- so the statistic choice
+    # did not decide the outcome. See ml/reports/LUNGE_NORM_REF_BAKEOFF.md.
+    "norm_ref_strategy": "trunk_length",
     # Cycle segmentation, NOT absolute threshold-crossing. This replaced squat's
     # borrowed enter/exit thresholds (enter_descending_deg=30 / exit_standing_deg=20)
     # after Stage 5.3 (Lunge) measured them at 50/88 = 56.8% rep recall against
