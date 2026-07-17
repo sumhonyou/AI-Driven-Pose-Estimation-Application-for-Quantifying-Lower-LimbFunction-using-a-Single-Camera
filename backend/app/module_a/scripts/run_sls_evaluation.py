@@ -17,8 +17,7 @@ import argparse
 import json
 from pathlib import Path
 
-from app.module_a.core.evaluation.agreement import (bland_altman, cohens_kappa,
-                                                    icc_2_1)
+from app.module_a.core.evaluation.agreement import bland_altman, cohens_kappa, icc_2_1
 from app.module_a.sls import analysis, config
 from app.module_a.sls.scoring import hold_time_band
 

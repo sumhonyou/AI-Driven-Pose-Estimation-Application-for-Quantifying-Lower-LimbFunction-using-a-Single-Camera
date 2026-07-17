@@ -28,8 +28,7 @@ import argparse
 import json
 from pathlib import Path
 
-from app.module_a.core.evaluation.agreement import (bland_altman, cohens_kappa,
-                                                    icc_2_1)
+from app.module_a.core.evaluation.agreement import bland_altman, cohens_kappa, icc_2_1
 from app.module_a.wblt import analysis, config
 from app.module_a.wblt.age_band import resolve_ageband_sex
 

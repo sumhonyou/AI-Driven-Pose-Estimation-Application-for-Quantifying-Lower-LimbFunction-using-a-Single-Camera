@@ -9,6 +9,10 @@ sls.analysis core — so there is no duplicated auth/persistence logic.
 import logging
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DbSession
+
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import Session as SessionModel
@@ -22,9 +26,6 @@ from app.module_a.sls.schemas import (
     SlsSupportRequest,
 )
 from app.module_a.sls.scoring import score_to_band
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session as DbSession
 
 logger = logging.getLogger(__name__)
 

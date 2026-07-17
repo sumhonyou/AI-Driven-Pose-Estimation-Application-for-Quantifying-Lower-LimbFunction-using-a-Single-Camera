@@ -16,9 +16,10 @@ from app.module_a.sls import analysis
 
 
 def load_frames_from_db(session_id: str) -> list[dict]:
+    from sqlalchemy import select
+
     from app.db.database import SessionLocal
     from app.db.models import ModuleALandmarkLog
-    from sqlalchemy import select
 
     with SessionLocal() as db:
         rows = db.scalars(

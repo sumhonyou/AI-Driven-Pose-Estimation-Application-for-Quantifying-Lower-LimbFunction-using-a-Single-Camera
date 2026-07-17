@@ -3,6 +3,10 @@
 import logging
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DbSession
+
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import Session as SessionModel
@@ -14,9 +18,6 @@ from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.core.quality import assess_capture_quality
 from app.module_b.core.registry import get_exercise
 from app.module_b.core.schemas import ModuleBAnalyzeRequest, ModuleBResultResponse
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session as DbSession
 
 logger = logging.getLogger(__name__)
 

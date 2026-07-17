@@ -14,10 +14,15 @@ from typing import Any, Protocol
 
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.features import FeatureVector
-from app.module_b.core.geometry import (distance, hip_flexion_deg,
-                                        knee_flexion_deg, landmark_value,
-                                        midpoint, shank_vs_vertical_deg,
-                                        trunk_lean_deg)
+from app.module_b.core.geometry import (
+    distance,
+    hip_flexion_deg,
+    knee_flexion_deg,
+    landmark_value,
+    midpoint,
+    shank_vs_vertical_deg,
+    trunk_lean_deg,
+)
 from app.module_b.lunge.config import LUNGE_CONFIG
 
 

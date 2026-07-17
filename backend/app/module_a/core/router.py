@@ -8,6 +8,10 @@ output) differ from this shared single-buffer analyze endpoint.
 import logging
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DbSession
+
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import Session as SessionModel
@@ -15,9 +19,6 @@ from app.db.models import User
 from app.module_a.core import banding, crud
 from app.module_a.core.schemas import AnalyzeRequest, ModuleAResultResponse
 from app.module_a.sts.engine import run_sts
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session as DbSession
 
 logger = logging.getLogger(__name__)
 

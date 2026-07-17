@@ -16,8 +16,7 @@ from app.module_a.core.quality import session_quality
 from app.module_a.core.smoothing import LandmarkSmoother
 from app.module_a.wblt import config
 from app.module_a.wblt import geometry as geo
-from app.module_a.wblt.age_band import (age_to_band, resolve_ageband_sex,
-                                        sex_from_gender)
+from app.module_a.wblt.age_band import age_to_band, resolve_ageband_sex, sex_from_gender
 
 _CFG = config.WBLT_CONFIG
 

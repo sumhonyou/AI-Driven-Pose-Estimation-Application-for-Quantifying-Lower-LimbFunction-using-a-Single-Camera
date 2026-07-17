@@ -1,7 +1,8 @@
 """Registry for Module B exercise plugins."""
 
-from app.module_b.core.exercise import ModuleBExercise
 from fastapi import HTTPException, status
+
+from app.module_b.core.exercise import ModuleBExercise
 
 _EXERCISES: dict[str, ModuleBExercise] = {}
 

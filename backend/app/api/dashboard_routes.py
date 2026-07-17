@@ -8,8 +8,7 @@ from app.api.session_routes import _session_response
 from app.db.database import get_db
 from app.db.models import Session as SessionModel
 from app.db.models import User
-from app.db.schemas import (DashboardErrorTag, DashboardSummary,
-                            DashboardTrendPoint)
+from app.db.schemas import DashboardErrorTag, DashboardSummary, DashboardTrendPoint
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 

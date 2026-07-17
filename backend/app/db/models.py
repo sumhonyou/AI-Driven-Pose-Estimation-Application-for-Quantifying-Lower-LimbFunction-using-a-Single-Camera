@@ -3,7 +3,6 @@ from decimal import Decimal
 from uuid import UUID as PyUUID
 from uuid import uuid4
 
-from app.db.database import Base
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -17,6 +16,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.database import Base
 
 
 class User(Base):
