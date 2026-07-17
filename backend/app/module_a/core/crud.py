@@ -5,12 +5,13 @@ SLS has its own incremental (per-leg) upsert — see app/module_a/sls/crud.py.
 
 from uuid import UUID
 
-from app.db.models import ModuleAResult
-from app.db.models import Session as SessionModel
-from app.module_a.core import config
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import selectinload
+
+from app.db.models import ModuleAResult
+from app.db.models import Session as SessionModel
+from app.module_a.core import config
 
 
 def save_result(

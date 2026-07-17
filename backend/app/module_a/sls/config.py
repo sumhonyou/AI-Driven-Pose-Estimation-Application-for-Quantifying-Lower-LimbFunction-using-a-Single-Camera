@@ -6,8 +6,12 @@ Prototype starting values — conservative, tunable after pilot testing.
 # Re-exported so sls/analysis.py and sls/scoring.py can keep addressing every
 # threshold they need through a single `config.` import, same as before the
 # per-exercise config split.
-from app.module_a.core.config import (CALIBRATION_SECONDS, MIN_VISIBILITY,
-                                      SCORE_FAIR_MAX, SCORE_POOR_MAX)
+from app.module_a.core.config import (
+    CALIBRATION_SECONDS,
+    MIN_VISIBILITY,
+    SCORE_FAIR_MAX,
+    SCORE_POOR_MAX,
+)
 
 SLS_MAX_HOLD_SEC = 45.0  # per-leg hold cap (seconds)
 SLS_LEG_ORDER = ("right", "left")  # prompted lift order (right first, then left)

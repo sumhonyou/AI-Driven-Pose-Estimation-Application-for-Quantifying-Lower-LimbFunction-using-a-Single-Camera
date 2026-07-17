@@ -1,9 +1,10 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import User, UserProfile
 from app.db.schemas import ProfileRead, ProfileUpdate
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 

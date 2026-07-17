@@ -7,10 +7,16 @@ import unittest
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.features import FeatureVector
 from app.module_b.lunge.features import LUNGE_FEATURE_NAMES
-from app.module_b.lunge.rules import (ROM_CODE, STABILITY_CODE, SYMMETRY_CODE,
-                                      rom_subscore, score_lunge_set,
-                                      stability_subscore, symmetry_subscore,
-                                      tempo_subscore)
+from app.module_b.lunge.rules import (
+    ROM_CODE,
+    STABILITY_CODE,
+    SYMMETRY_CODE,
+    rom_subscore,
+    score_lunge_set,
+    stability_subscore,
+    symmetry_subscore,
+    tempo_subscore,
+)
 
 
 def _features(lead_leg: str = "left", **overrides: float) -> FeatureVector:

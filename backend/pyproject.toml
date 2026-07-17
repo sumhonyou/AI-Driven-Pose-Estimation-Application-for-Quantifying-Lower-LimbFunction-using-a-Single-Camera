@@ -13,3 +13,6 @@ dependencies = []
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.isort]
+profile = "black"

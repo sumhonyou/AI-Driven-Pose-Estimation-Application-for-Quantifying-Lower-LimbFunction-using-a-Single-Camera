@@ -10,8 +10,7 @@ from unittest.mock import patch
 from app.module_a.core.schemas import FrameIn
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.lunge.config import LUNGE_CONFIG
-from app.module_b.lunge.features import (LUNGE_FEATURE_NAMES,
-                                         extract_lunge_features)
+from app.module_b.lunge.features import LUNGE_FEATURE_NAMES, extract_lunge_features
 
 # Feet are clearly separated along +x so the front (more-forward) foot is
 # unambiguous; the sign convention here makes +x the anterior (forward) direction.

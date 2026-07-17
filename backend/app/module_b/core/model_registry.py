@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
+
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.features import FeatureVector
 

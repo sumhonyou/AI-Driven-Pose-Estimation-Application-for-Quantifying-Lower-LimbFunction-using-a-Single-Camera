@@ -2,8 +2,9 @@
 
 from uuid import UUID
 
-from app.module_a.core.schemas import FrameIn
 from pydantic import BaseModel, Field
+
+from app.module_a.core.schemas import FrameIn
 
 
 class ModuleBAnalyzeRequest(BaseModel):

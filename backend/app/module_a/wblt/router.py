@@ -20,11 +20,13 @@ from app.db.models import Session as SessionModel
 from app.db.models import User
 from app.module_a.core.crud import save_landmark_log
 from app.module_a.wblt import analysis, config, crud
-from app.module_a.wblt.schemas import (WbltAnalyzeRequest,
-                                       WbltAttemptResultResponse,
-                                       WbltBracketStateResponse,
-                                       WbltConfigResponse,
-                                       WbltSessionSummaryResponse)
+from app.module_a.wblt.schemas import (
+    WbltAnalyzeRequest,
+    WbltAttemptResultResponse,
+    WbltBracketStateResponse,
+    WbltConfigResponse,
+    WbltSessionSummaryResponse,
+)
 
 logger = logging.getLogger(__name__)
 

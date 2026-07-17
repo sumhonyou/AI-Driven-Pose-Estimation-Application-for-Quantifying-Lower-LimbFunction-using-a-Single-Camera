@@ -1,9 +1,10 @@
 import os
 
+from sqlalchemy import select
+
 from app.core.security import hash_password
 from app.db.database import SessionLocal
 from app.db.models import ExerciseCatalog, User, UserProfile
-from sqlalchemy import select
 
 EXERCISES = [
     {

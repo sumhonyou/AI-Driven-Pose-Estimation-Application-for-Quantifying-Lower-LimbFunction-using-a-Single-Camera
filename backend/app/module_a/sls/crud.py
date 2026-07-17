@@ -4,10 +4,11 @@ See app/module_a/core/crud.py for the shared STS/WBLT one-shot writer and the
 exercise-agnostic read/log helpers this reuses.
 """
 
+from sqlalchemy.orm import Session as DbSession
+
 from app.db.models import ModuleAResult
 from app.db.models import Session as SessionModel
 from app.module_a.core.crud import get_result_by_session
-from sqlalchemy.orm import Session as DbSession
 
 
 def save_sls_result(

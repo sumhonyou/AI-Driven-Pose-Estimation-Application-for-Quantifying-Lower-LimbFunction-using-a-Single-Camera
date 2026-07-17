@@ -2,16 +2,17 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DbSession
+from sqlalchemy.orm import selectinload
+
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import ExerciseCatalog
 from app.db.models import Session as SessionModel
 from app.db.models import User
 from app.db.schemas import SessionEnd, SessionRead, SessionStart, SessionStartResponse
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session as DbSession
-from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 

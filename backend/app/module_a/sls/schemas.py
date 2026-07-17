@@ -7,8 +7,9 @@ single-buffer /api/module-a/analyze (see app/module_a/core/schemas.py).
 from typing import Literal
 from uuid import UUID
 
-from app.module_a.core.schemas import FrameIn
 from pydantic import BaseModel, Field
+
+from app.module_a.core.schemas import FrameIn
 
 
 class SlsAnalyzeRequest(BaseModel):

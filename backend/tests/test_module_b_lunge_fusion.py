@@ -7,8 +7,7 @@ import unittest
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.features import FeatureVector
 from app.module_b.core.fusion import fuse_model
-from app.module_b.core.model_registry import (PlaceholderModelBundle,
-                                              get_model_bundle)
+from app.module_b.core.model_registry import PlaceholderModelBundle, get_model_bundle
 from app.module_b.core.rules import SubScore, assemble_rule_scores
 from app.module_b.lunge.features import LUNGE_FEATURE_NAMES
 

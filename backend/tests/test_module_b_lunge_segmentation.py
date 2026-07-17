@@ -5,8 +5,11 @@ from __future__ import annotations
 import math
 import unittest
 
-from app.module_b.lunge.segmentation import (LungeSegmentationFSM, LungeState,
-                                             segment_lunge_frames)
+from app.module_b.lunge.segmentation import (
+    LungeSegmentationFSM,
+    LungeState,
+    segment_lunge_frames,
+)
 
 
 def _landmark(x: float, y: float, z: float = 0.0) -> dict[str, float]:

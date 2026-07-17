@@ -9,8 +9,7 @@ import unittest
 from app.module_a.sls import analysis, config
 from app.module_a.sls import geometry as geo
 from app.module_a.sls import scoring
-from app.module_a.sls.fsm import (HOLDING, STOPPED, WAITING, CircleDebouncer,
-                                  LiftHoldFSM)
+from app.module_a.sls.fsm import HOLDING, STOPPED, WAITING, CircleDebouncer, LiftHoldFSM
 
 
 def _lm(x=0.0, y=0.0, z=0.0, visibility=1.0):

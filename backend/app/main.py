@@ -1,3 +1,6 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from app.api import (
     auth_routes,
     dashboard_routes,
@@ -11,8 +14,6 @@ from app.module_a.core.router import router as module_a_router
 from app.module_a.sls.router import router as sls_router
 from app.module_a.wblt.router import router as wblt_router
 from app.module_b.core.router import router as module_b_router
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="FYP Pose Rehab API",
