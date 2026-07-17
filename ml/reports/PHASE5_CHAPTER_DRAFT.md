@@ -4,10 +4,11 @@ _Draft source material for the Results and Discussion chapter. Sections 1–10 c
 squat model end to end: dataset audit, landmark extraction, feature engineering, feature
 validity analysis, Extra Trees classifier training, fusion threshold/weight selection,
 system evaluation including replay determinism, export to the production backend, and
-external validation against an independent dataset. Section 11 covers the lunge dataset
-audit; the lunge model's own training and evaluation will extend this chapter as that work
-is completed. Written for direct adaptation into the dissertation; figures are embedded and
-referenced by their existing filenames in `ml/reports/figures/`._
+external validation against an independent dataset. Section 11 covers the lunge's own
+dataset audit and landmark extraction; the lunge model's feature engineering, training,
+and evaluation will extend this chapter as that work is completed. Written for direct
+adaptation into the dissertation; figures are embedded and referenced by their existing
+filenames in `ml/reports/figures/`._
 
 ---
 
@@ -1490,3 +1491,72 @@ These extend the running list in Section 10 and are specific to the lunge scope.
     sample is comparable in size (Section 11.3), but it remains small, single-source, and
     single-site. Every caveat in limitations 1 and 17 about single-dataset evidence
     applies here unchanged.
+
+### 11.6 Landmark Extraction
+
+Landmark extraction for the lunge followed the same procedure as the squat (Section 2):
+the same self-hosted pose model, the same detection configuration, world landmarks only,
+one cached file per video. All nine side-view Ex5 recordings were processed, yielding
+26,087 frames with a pose detected in every single one — a slightly cleaner result than
+the squat's own extraction, which recorded one frame with no detection out of 30,028.
+
+The parity result established for the squat (Section 2) was not re-measured for the
+lunge. That check compared the same pose model, the same detection configuration, and the
+same delegate across the native Python runtime and the browser's WASM runtime, and found
+the divergence attributable to floating-point differences between the two backends rather
+than to any property of the movement being tracked. Because the infrastructure under test
+is identical for both exercises, re-running the comparison on a lunge clip would measure
+the same fact a second time rather than establish anything new, and the temporary
+browser-side harness used for the original check had already been removed once its
+purpose was served.
+
+Two further checks were specific to the lunge and had not arisen for the squat. The first
+concerns the joint used for the knee-passes-toe feature (Section 4.2 of the lunge
+implementation, not reproduced here): the pose model's foot-tip landmarks were present in
+every one of the 26,087 extracted frames, with mean visibility no lower than 0.826 on
+either side, and their coordinates changed frame to frame in a manner consistent with
+genuine tracking rather than a frozen or missing signal. No fallback to an ankle-based
+approximation was required.
+
+The second concerns the far-limb occlusion problem identified for the squat (Section
+3.2), where a single side-view camera tracks the leg nearer the camera substantially
+better than the leg farther from it. The same pattern recurs for the lunge, but with a
+finding that was not anticipated when the dataset audit was written. Mean knee and ankle
+visibility, measured within each recording's labelled repetition windows, is higher on
+the left side than the right in every one of the nine videos — and this holds regardless
+of which leg a given subject led with. Table 8 shows visibility split by both side and
+lead leg to make the pattern explicit.
+
+_Table 8. Mean knee and ankle visibility within labelled repetition windows, by video, alongside each video's lead leg._
+
+| Video     | Lead leg | Knee (L) | Knee (R) | Ankle (L) | Ankle (R) |
+| --------- | -------- | -------- | -------- | --------- | --------- |
+| `PM_021`  | left     | 0.982    | 0.825    | 0.994     | 0.931     |
+| `PM_028`  | right    | 0.996    | 0.966    | 0.995     | 0.990     |
+| `PM_037`  | right    | 0.998    | 0.979    | 0.980     | 0.993     |
+| `PM_042`  | right    | 0.995    | 0.957    | 0.987     | 0.985     |
+| `PM_104`  | left     | 0.981    | 0.773    | 0.988     | 0.893     |
+| `PM_112`  | right    | 0.996    | 0.967    | 0.985     | 0.988     |
+| `PM_117a` | left     | 0.974    | 0.743    | 0.989     | 0.906     |
+| `PM_117b` | left     | 0.988    | 0.672    | 0.988     | 0.899     |
+| `PM_125`  | left     | 0.988    | 0.778    | 0.995     | 0.939     |
+
+Left-side visibility exceeds right-side visibility in every row, whether the subject's
+lead leg for that recording was left or right. This partially resolves a question the
+dataset audit (Section 11.4) had left open — whether the near/far-limb asymmetry might be
+coupled to lead leg, and therefore, through Section 11.4's confound, to subject identity.
+It is not: the asymmetry tracks a fixed relationship between the subject and Camera18
+common to the whole cohort, independent of stance. The mechanism producing that fixed
+relationship — most plausibly a recording convention about which way subjects were asked
+to face — is not established by this measurement and remains unexplained.
+
+The severity of the asymmetry is milder here than it was for the squat, where the
+far knee's visibility fell as low as 0.59 across entire repetitions, below the
+threshold used to detect brief occlusion and severe enough to substantially damage
+the resulting joint-angle signal before that damage was corrected (Section 3.2). The
+lowest value recorded here, 0.672 for one subject's right knee, remains above that
+threshold when averaged over a repetition window. This is not sufficient to conclude the
+lunge is free of the same problem: a window average can conceal a lower minimum at the
+specific point in a repetition where flexion, and therefore occlusion, is greatest. Rather
+than assume either outcome, this is left as an explicit question for the feature-validity
+analysis to answer once per-frame data is examined at that resolution.

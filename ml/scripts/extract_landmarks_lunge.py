@@ -30,8 +30,9 @@ re-implementing anything here:
    regardless of exercise — this is a property of the pose model, not something that
    needs checking per exercise. Stage 4.2 already confirmed this is what the live stream
    provides. Verified for the extracted lunge data specifically (not just assumed from
-   the live path) in `ml/reports/LUNGE_EXTRACTION_REPORT.md` — landmarks 31/32 are
-   present and move plausibly across a rep, not NaN or frozen.
+   the live path) — see the Stage 5.2 (Lunge) task.md entry: landmarks 31/32 are present
+   in 100% of frames across all 9 videos and move plausibly across a rep, not NaN or
+   frozen.
 
 Parity check (WASM-vs-native delegate numeric divergence) is not re-run for lunge: it
 tests the pose-landmarker pipeline itself (same model asset, same

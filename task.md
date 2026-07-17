@@ -1,7 +1,7 @@
 # FYP Development Tasks
 
 **Project:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied — **Phase 4 (Lunge) is now fully complete**, Stages 4.1-4.8, verified live end-to-end against the real backend + Postgres (2026-07-17): Module B works for lunge with an announced `stub-0` placeholder model, using the same registry with zero router changes. **Phase 5B Stage 5.0 (Lunge) data audit is complete and its gate is resolved (2026-07-17): HY chose option (a), accept the smaller N** — side-view Ex5 = **88 reps, 39 Good / 49 Poor** (small but balanced, the opposite shape to squat's 72/26); the audit also found that **lead-leg is perfectly confounded with subject** (no subject performs both legs — so `lead_leg` is a LOSO leakage risk and cross-rep Symmetry has no ground truth here), and that **REHAB24-6 is _not_ the only labelled lunge dataset** — EC3D's lunge partition (127 sequences, both faults sagittal, incl. "Knee passes toe") is already on disk. See [`ml/reports/LUNGE_DATA_AUDIT.md`](./ml/reports/LUNGE_DATA_AUDIT.md). **Stage 5.1 (Lunge) `ml/` scaffold is complete (2026-07-17)** — no lunge-specific delta; verified the shared scaffold (editable install, `plotting.py`, `requirements.txt`) extends to the `LungeExercise` plugin live, not assumed. **Stage 5.2 (Lunge) landmark extraction is next.**  
+**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied — **Phase 4 (Lunge) is now fully complete**, Stages 4.1-4.8, verified live end-to-end against the real backend + Postgres (2026-07-17): Module B works for lunge with an announced `stub-0` placeholder model, using the same registry with zero router changes. **Phase 5B Stage 5.0 (Lunge) data audit is complete and its gate is resolved (2026-07-17): HY chose option (a), accept the smaller N** — side-view Ex5 = **88 reps, 39 Good / 49 Poor** (small but balanced, the opposite shape to squat's 72/26); the audit also found that **lead-leg is perfectly confounded with subject** (no subject performs both legs — so `lead_leg` is a LOSO leakage risk and cross-rep Symmetry has no ground truth here), and that **REHAB24-6 is _not_ the only labelled lunge dataset** — EC3D's lunge partition (127 sequences, both faults sagittal, incl. "Knee passes toe") is already on disk. See [`ml/reports/LUNGE_DATA_AUDIT.md`](./ml/reports/LUNGE_DATA_AUDIT.md). **Stage 5.1 (Lunge) `ml/` scaffold is complete (2026-07-17)** — no lunge-specific delta; verified the shared scaffold (editable install, `plotting.py`, `requirements.txt`) extends to the `LungeExercise` plugin live, not assumed. **Stage 5.2 (Lunge) landmark extraction is complete (2026-07-17):** all 9 side-view Ex5 videos extracted, **26,087 frames, 0 missing pose (0.00%)**; the toe-joint delta closed with real data (foot-index landmarks present in 100% of frames); and a real finding — **near/far-limb visibility asymmetry is a camera-orientation artifact, not lead-leg-linked** (left is the higher-visibility limb in all 9 videos regardless of lead leg), milder than squat's but flagged for Stage 5.4 to confirm empirically. **Stage 5.3 (Lunge) — build the feature table — is next.**  
 **Related docs:** [FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md](./FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md) (architecture & design), [rules.md](./rules.md) (coding agent rules)
 
 ---
@@ -2399,9 +2399,79 @@ extract_lunge_features` both succeeded through the same `pip install -e ../backe
 
 Mirrors squat's Stage 5.2 — `task.md:796-987`.
 
-- [ ] **Lead-leg tag:** at runtime, infer from which foot is forward in world landmarks.
-- [ ] Check whether a toe/foot-tip joint is available in the extracted landmark set, for `knee_passes_toe` (see Stage 4.2 and Stage 5.9's open question).
-- [ ] Apply squat's Stage 5.2 steps to lunge landmark extraction, swapping in the deltas above.
+- [x] **Lead-leg tag:** at runtime, infer from which foot is forward in world landmarks.
+- [x] Check whether a toe/foot-tip joint is available in the extracted landmark set, for `knee_passes_toe` (see Stage 4.2 and Stage 5.9's open question).
+- [x] Apply squat's Stage 5.2 steps to lunge landmark extraction, swapping in the deltas above.
+
+### Phase 5B — Stage 5.2 (Lunge): Landmark extraction (2026-07-17)
+
+- [x] **Reconciliation check passed first:** confirmed squat's `extract_landmarks.py`, its
+      9 cached `.npz` files, and `ml/reports/PARITY_CHECK.md` are all present and unchanged;
+      confirmed all 9 Ex5 video files exist for both cameras (including the `PM_117a`/
+      `PM_117b` two-file split for subject 9) before writing anything.
+- [x] **`ml/scripts/extract_landmarks_lunge.py`** (new) — a structural mirror of
+      `extract_landmarks.py`: identical `PoseLandmarkerOptions` (CPU delegate, `VIDEO` mode,
+      `num_poses=1`, confidence thresholds 0.5), one fresh `PoseLandmarker` per video (avoids
+      the non-monotonic-timestamp crash squat's own Stage 5.2 hit and fixed), skip-if-exists
+      resumability (verified live: a second run correctly skipped all 9 cached videos),
+      `.npz` output to `ml/data/landmarks_lunge/` (gitignored, matches `ml/data/*`, no new
+      `.gitignore` rule needed). Swapped: `TARGET_EXERCISE_ID = "5"`, `videos_dir / "Ex5"`.
+      Black/isort clean.
+- [x] **Two Stage 5.2 (Lunge) deltas resolved by reading the code, not by adding new
+      logic:** (1) **lead-leg inference** is rep-scoped
+      (`app.module_b.lunge.features._anterior_sign`/`_resolve_front_leg`), which this
+      extractor — dumping raw, unsegmented per-frame landmarks — has no reps to run it on;
+      live inference already shipped at Stage 4.2/4.7, offline training uses
+      `exercise_subtype` instead per Stage 5.3 (Lunge)'s own delta, so there is nothing for
+      this script to compute. (2) **toe/foot-tip joint availability** is a property of
+      MediaPipe's fixed 33-landmark output (`LEFT_FOOT_INDEX`=31, `RIGHT_FOOT_INDEX`=32),
+      not something that varies by exercise — verified against the real extracted data
+      below rather than just asserted.
+- [x] **Extraction result, all 9 side-view Ex5 videos (verified by reading every `.npz`
+      back):** **26,087 total frames, 0 frames with no detected pose (0.00%)** — cleaner
+      than squat's own 30,028-frame run (1 missing frame). Runtime ~4m 44s (9 videos, one
+      landmarker each). Per-video frame counts: PM_021 2846, PM_028 3638, PM_037 2246,
+      PM_042 3614, PM_104 3193, PM_112 4445, PM_117a 1184, PM_117b 1772, PM_125 3149 — all at
+      30fps, matching `Segmentation.csv`'s frame indices.
+- [x] **Toe-joint delta closed with real numbers:** landmarks 31 (`LEFT_FOOT_INDEX`) and
+      32 (`RIGHT_FOOT_INDEX`) are present (non-NaN) in **100% of all 26,087 frames**, with
+      plausible mean visibility (left 0.967–0.989, right 0.826–0.980) and coordinates that
+      visibly change frame-to-frame rather than sitting frozen (spot-checked `PM_021` frames
+      150/300). No ankle-approximation fallback is needed — confirmed, not assumed.
+- [x] **Real finding — partially answers Stage 5.0's open question about near/far-limb
+      occlusion and lead leg.** Measured mean knee/ankle visibility **within the labelled rep
+      windows only** (`Segmentation.csv`'s `first_frame`/`last_frame`), cross-referenced
+      against each video's `exercise_subtype`: **left knee/ankle visibility is higher than
+      right in all 9 videos, regardless of lead leg** (true for both `front leg left` and
+      `front leg right` videos alike — e.g. `PM_028`, lead=right: knee L 0.996/R 0.966;
+      `PM_104`, lead=left: knee L 0.981/R 0.773). This means near/far-limb visibility is a
+      **camera/subject-orientation artifact** (Camera18 consistently sees the subject's left
+      side more clearly), **not** coupled to lead leg as Stage 5.0 speculated it might be —
+      the open question is now answered in the "not lead-leg-linked" direction, though the
+      camera-orientation mechanism itself is still not fully explained. **Severity is milder
+      than squat's:** the lowest right-knee mean visibility here is 0.672 (`PM_117b`), still
+      above the `MIN_VISIBILITY = 0.6` threshold that triggered squat's persistent-occlusion
+      freeze bug (squat's right knee fell to 0.59–0.78). This does not prove lunge is free of
+      the same failure mode — mean-over-rep-window can mask a lower minimum at the deepest
+      part of individual reps — so it is **flagged for Stage 5.4 (Lunge)'s feature-validity
+      check to confirm empirically**, not resolved here.
+- [x] **Parity check reused by reference, not re-run — reasoning recorded, not silently
+      skipped.** `ml/reports/PARITY_CHECK.md` measured WASM-vs-native-delegate numeric
+      divergence (0.90° mean / 4.6° max knee-flexion angle) using the _same_ model asset,
+      _same_ `PoseLandmarkerOptions`, and _same_ delegate this script also uses — a property
+      of the shared pose-landmarker pipeline, invariant to which exercise the subject is
+      performing. Rebuilding the removed browser harness (`frontend/parity-check.html` +
+      `devPages/parityCheck.ts`, deliberately deleted after squat's check per that report's
+      own "Cleanup" section) to re-measure the same infrastructure fact on a lunge clip would
+      not test anything the squat result didn't already establish. Recorded as a scoping
+      decision, not an oversight.
+- [x] **Gate:** Black/isort clean on `extract_landmarks_lunge.py`; full backend suite
+      still 192/192 (nothing in `backend/app` touched); `npx tsc --noEmit` clean (nothing in
+      `frontend/src` touched); `git status` on `frontend/` clean (no harness re-created).
+- [x] `ml/reports/PHASE5_CHAPTER_DRAFT.md` extended with **§11.6 Landmark Extraction**
+      (frame counts, the toe-joint verification, the near/far-limb finding, and the parity
+      reuse rationale) since this stage produced measured results, per the Phase 5 Result
+      Recording rule.
 
 #### Stage 5.3 (Lunge) — Build the feature table
 
