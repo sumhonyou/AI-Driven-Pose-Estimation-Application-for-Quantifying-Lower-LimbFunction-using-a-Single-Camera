@@ -1,4 +1,9 @@
-# `ml/` — Squat model training (Phase 5)
+# `ml/` — Model training (Phase 5: squat, Phase 5B: lunge)
+
+Shared scaffold for both exercises — one `config.yaml`, one editable install, one
+`plotting.py`. Per-exercise work (landmark extraction, feature tables, trained
+artifacts) lives in per-exercise scripts/subdirectories (`scripts/*_squat.py`,
+`artifacts/squat/`, etc.) inside this same tree, not a forked `ml/` per exercise.
 
 ## Setup
 
@@ -14,11 +19,17 @@ pip install -r requirements.txt
 pip install -e ../backend
 ```
 
-Verify the install worked:
+Verify the install worked (both plugins reachable — confirmed live for lunge at Stage
+5.1 (Lunge), the same way squat's own Stage 5.1 confirmed it for squat):
 
 ```bash
-python3 -c "from app.module_b.core.features import FeatureVector; print(FeatureVector)"
+python3 -c "from app.module_b.core.features import FeatureVector; from app.module_b.squat.exercise import SquatExercise; from app.module_b.lunge.exercise import LungeExercise; print(FeatureVector, SquatExercise, LungeExercise)"
 ```
+
+Note: this import path deliberately avoids `app.module_b.core.registry`, which imports
+FastAPI at module level — `ml/`'s own `requirements.txt` does not install the backend's
+web-framework dependencies, only `app`'s feature/exercise modules, which is all Stage 5
+scripts need.
 
 `../backend/pyproject.toml` exists solely to make this editable install possible — it
 does not replace `backend/requirements.txt` as the FastAPI app's own dependency list.

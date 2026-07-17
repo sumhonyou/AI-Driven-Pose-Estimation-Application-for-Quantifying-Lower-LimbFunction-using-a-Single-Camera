@@ -42,6 +42,11 @@ applies to it.
 
 ## 2. Ex5 — Leg lunge: raw counts (for reference, Phase 5B scope)
 
+> **Superseded by [`LUNGE_DATA_AUDIT.md`](./LUNGE_DATA_AUDIT.md) (2026-07-17).** The
+> counts below are correct but incomplete — this squat-scoped pass did not apply the view
+> filter to Ex5, and did not look for the lead-leg/subject confound or the subject-count
+> difference (Ex5 has 8 subjects, not 9). Read the lunge report for the full picture.
+
 - Total reps: **174**. Correctness: Good **78**, Poor **96**.
 - `cam17_orientation`: `front` **88**, `half-profile` **86**, `profile` **0**.
 - `mocap_erroneous`: **0**. `lights_on`: on **154**, off **20**.

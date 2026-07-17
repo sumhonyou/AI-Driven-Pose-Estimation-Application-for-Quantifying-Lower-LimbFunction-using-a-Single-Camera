@@ -76,35 +76,68 @@ def audit(rows: list[dict]) -> dict:
 
         report[f"Ex{ex_id}_{EXERCISE_NAMES[ex_id]}"] = section
 
-    # The view question, Ex6 only: usable side-view rep count.
-    # Verified hypothesis (see DATA_AUDIT.md / rehab24_6_schema.md): cam17_orientation=='front'
-    # means camera18 sees a true profile/side view of the subject; 'half-profile' is neither
-    # camera's true sagittal view; 'profile' never occurs for Ex6 in this dataset.
-    ex6_rows = [r for r in rows if r["exercise_id"] == "6"]
-    side_view_rows = [r for r in ex6_rows if r["cam17_orientation"] == "front"]
-    report["ex6_side_view_rep_count"] = len(side_view_rows)
-    report["ex6_side_view_camera"] = "Camera18"
-    report["ex6_side_view_by_person"] = dict(
-        Counter(r["person_id"] for r in side_view_rows)
-    )
-    report["ex6_side_view_by_correctness"] = dict(
-        Counter(r["correctness"] for r in side_view_rows)
-    )
+    # The view question, per exercise: usable side-view rep count.
+    # Verified hypothesis (see DATA_AUDIT.md / LUNGE_DATA_AUDIT.md / rehab24_6_schema.md):
+    # cam17_orientation=='front' means camera18 sees a true profile/side view of the
+    # subject; 'half-profile' is neither camera's true sagittal view; 'profile' never
+    # occurs for Ex5 or Ex6 in this dataset.
+    # Verified visually per exercise, not carried over between them — a lunge is a
+    # directional movement, so Ex6's verification does not transfer to Ex5 on its own.
+    for ex_id in (5, 6):
+        report.update(_side_view_report(rows, ex_id))
+
+    return report
+
+
+def _side_view_report(rows: list[dict], ex_id: int) -> dict:
+    """Side-view (cam17_orientation=='front' -> Camera18) counts for one exercise."""
+    prefix = f"ex{ex_id}"
+    ex_rows = [r for r in rows if r["exercise_id"] == str(ex_id)]
+    side_view_rows = [r for r in ex_rows if r["cam17_orientation"] == "front"]
+
+    out: dict = {
+        f"{prefix}_side_view_rep_count": len(side_view_rows),
+        f"{prefix}_side_view_camera": "Camera18",
+        f"{prefix}_side_view_by_person": dict(
+            Counter(r["person_id"] for r in side_view_rows)
+        ),
+        f"{prefix}_side_view_by_correctness": dict(
+            Counter(r["correctness"] for r in side_view_rows)
+        ),
+    }
+
     # LOSO viability specifically on the side-view-filtered subset
-    side_view_by_person_correctness: dict = defaultdict(lambda: Counter())
+    by_person_correctness: dict = defaultdict(lambda: Counter())
     for r in side_view_rows:
-        side_view_by_person_correctness[r["person_id"]][r["correctness"]] += 1
-    report["ex6_side_view_single_class_subjects"] = sorted(
-        [pid for pid, c in side_view_by_person_correctness.items() if len(c) < 2],
-        key=int,
+        by_person_correctness[r["person_id"]][r["correctness"]] += 1
+    out[f"{prefix}_side_view_reps_per_person_x_correctness"] = {
+        pid: dict(counts)
+        for pid, counts in sorted(
+            by_person_correctness.items(), key=lambda kv: int(kv[0])
+        )
+    }
+    out[f"{prefix}_side_view_single_class_subjects"] = sorted(
+        [pid for pid, c in by_person_correctness.items() if len(c) < 2], key=int
     )
-    report["ex6_side_view_subjects_missing_entirely"] = sorted(
-        set(r["person_id"] for r in ex6_rows)
+    out[f"{prefix}_side_view_subjects_missing_entirely"] = sorted(
+        set(r["person_id"] for r in ex_rows)
         - set(r["person_id"] for r in side_view_rows),
         key=int,
     )
 
-    return report
+    # Lead-leg tag survival (Ex5 only — Ex6 has no subtype). Stage 4.4's cross-rep
+    # Symmetry and Stage 5.3's lead-leg feature both need both cohorts to survive.
+    subtypes = Counter(r["exercise_subtype"] for r in side_view_rows)
+    if any(s for s in subtypes):
+        out[f"{prefix}_side_view_by_subtype"] = dict(subtypes)
+        subtype_x_correctness: dict = defaultdict(lambda: Counter())
+        for r in side_view_rows:
+            subtype_x_correctness[r["exercise_subtype"]][r["correctness"]] += 1
+        out[f"{prefix}_side_view_subtype_x_correctness"] = {
+            st: dict(c) for st, c in sorted(subtype_x_correctness.items())
+        }
+
+    return out
 
 
 def print_report(report: dict) -> None:

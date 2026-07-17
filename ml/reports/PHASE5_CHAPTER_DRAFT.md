@@ -1,12 +1,13 @@
-# Phase 5 — Squat Model Development: Dataset, Feature Pipeline, Classifier Training, Evaluation, and Deployment
+# Phase 5 — Model Development: Dataset, Feature Pipeline, Classifier Training, Evaluation, and Deployment
 
-_Draft source material for the Results and Discussion chapter. Covers Stages 5.0–5.9
-of the project's development plan: dataset audit, landmark extraction, feature
-engineering, feature validity analysis, Extra Trees classifier training, fusion
-threshold/weight selection, system evaluation including replay determinism, export
-to the production backend, and external validation against an independent dataset.
-Written for direct adaptation into the dissertation; figures are embedded and referenced
-by their existing filenames in `ml/reports/figures/`._
+_Draft source material for the Results and Discussion chapter. Sections 1–10 cover the
+squat model end to end: dataset audit, landmark extraction, feature engineering, feature
+validity analysis, Extra Trees classifier training, fusion threshold/weight selection,
+system evaluation including replay determinism, export to the production backend, and
+external validation against an independent dataset. Section 11 covers the lunge dataset
+audit; the lunge model's own training and evaluation will extend this chapter as that work
+is completed. Written for direct adaptation into the dissertation; figures are embedded and
+referenced by their existing filenames in `ml/reports/figures/`._
 
 ---
 
@@ -1323,3 +1324,169 @@ should be stated explicitly rather than discovered by an examiner. Limitations 1
 particular should be read together: the deployed model abstains rather than warns, its
 learned notion of correctness did not transfer to the one cohort available to test it,
 and no evidence exists either way as to whether it would transfer to a comparable one.
+
+---
+
+## 11. The Lunge Dataset
+
+The second graded exercise, the leg lunge, draws on the same source as the squat —
+REHAB24-6, using exercise Ex5 — and was audited under the same constraints before any
+training work began. The audit is reported here because its findings differ from the
+squat's in ways that change what can be claimed, and because two of them are structural
+properties of the dataset that no modelling choice can remedy.
+
+### 11.1 Availability of labelled lunge data
+
+The project's working assumption had been that REHAB24-6 was the only public dataset of
+labelled lunge repetitions, leaving no independent source against which to cross-check a
+trained model. The audit established that this was incorrect. At least two other public
+sources contain lunges performed both correctly and incorrectly: the EC3D dataset, which
+contains 127 lunge sequences from 4 subjects, and UI-PRMD, which contains both inline and
+side lunge performed correctly and incorrectly by 10 subjects.
+
+The assumption's practical consequence nevertheless survives, for a reason worth stating
+precisely. Both alternatives distribute skeleton data only — EC3D as canonicalised 3D
+poses, UI-PRMD as Kinect and Vicon joint streams — whereas this project's feature
+pipeline is defined on landmarks extracted from RGB video by the same pose estimator the
+deployed system runs in the browser. REHAB24-6 is therefore the only viable _training_
+source, not because it is the only labelled lunge dataset, but because it is the only one
+carrying RGB video alongside repetition boundaries and correctness labels. The corrected
+statement is narrower than the original and better supported.
+
+The distinction matters because it changes the outlook for external validation. The squat
+model had no usable independent cohort (Section 9). The lunge has one already in hand: the
+same EC3D file, whose lunge partition is in fact larger than its squat partition (12,754
+frames against 11,109). Its label structure is also better matched to this system than the
+squat partition's was. EC3D annotates lunges with two faults, "Not low enough" and "Knee
+passes toe", both of which lie in the sagittal plane; neither is excluded by this project's
+decision to drop frontal-plane assessment, and the latter corresponds directly to a fault
+signal the lunge implementation already computes. The squat partition, by contrast,
+devoted roughly half its faulty repetitions to frontal-plane faults this system is
+designed never to detect (limitation 18).
+
+This is an improvement in prospect, not a result. Two of the three failure modes that
+made the squat's external check unusable are properties of the EC3D file as a whole and
+will apply unchanged to its lunge partition: the poses are canonicalised, which destroys
+gravity-referenced and translation-derived features (Section 9.2), and an insufficient-depth
+fault label raises the same risk of directional inversion that dominated the squat result
+(limitation 16), depending on whether REHAB24-6's incorrect lunges prove deeper or
+shallower than its correct ones — a question the feature-validity analysis has yet to
+answer. The honest position is that the lunge has a better-matched independent cohort
+available than the squat did, and that this does not yet establish the check will succeed.
+
+### 11.2 Camera view selection
+
+The camera-orientation mapping was re-verified for the lunge rather than carried over from
+the squat. This was not a formality: a lunge is a directional movement in which the subject
+steps along their facing axis, so the relationship between the orientation tag and the
+resulting sagittal geometry does not follow from the squat's verification on its own.
+
+Frames were extracted from both cameras at the mid-point of a repetition — the deepest
+position, where view geometry matters most — under each orientation label (Figure 16). The
+result matches the squat's. Where `cam17_orientation == "front"`, Camera 17 views the
+subject dead-on and the split stance is foreshortened almost to overlap, because the lunge
+travels along that camera's optical axis; Camera 18 shows a clean sagittal view in which
+the forward leg, the dropped rear knee, and the hip-knee-ankle chain are all separated in
+the image plane. Where the tag reads `half-profile`, both cameras show a diagonal and
+neither is usable. The `profile` tag does not occur for Ex5. Unlike the squat's
+verification, which rested on a single recording, this one was repeated on a second subject
+with the opposite lead leg, confirming the result is not specific to one subject's
+placement.
+
+![Lunge view verification: front vs half-profile orientation, both cameras](figures/view_verification_ex5.png)
+_Figure 16. Visual verification of the camera-orientation mapping for the lunge. Top row: `cam17_orientation == "front"`, Camera 18 (right) shows a true sagittal view of the split stance. Bottom row: `cam17_orientation == "half-profile"`, neither camera is a usable side view._
+
+### 11.3 Usable sample size and class balance
+
+Before the view filter, Ex5 contains 174 repetitions across 8 subjects, with a Good/Poor
+split of 78/96. Two differences from the squat are already visible at this stage. The
+incorrect class is the _majority_ here, inverting the squat's 134/61 imbalance; and the
+exercise has 8 subjects rather than 9, one subject having performed no lunges at all.
+
+After restricting to usable side-view rows, 88 repetitions remain — 50.6% of the exercise's
+total — split 39 Good / 49 Poor. Table 7 gives the per-subject breakdown.
+
+_Table 7. Usable side-view lunge repetitions per subject after the camera-view filter, with each subject's lead leg._
+
+| Subject | Lead leg | Side-view reps | Good | Poor |
+| ------- | -------- | -------------- | ---- | ---- |
+| 2       | left     | 10             | 5    | 5    |
+| 3       | right    | 11             | 0    | 11   |
+| 4       | right    | 10             | 5    | 5    |
+| 5       | right    | 13             | 7    | 6    |
+| 6       | left     | 10             | 5    | 5    |
+| 7       | left     | 10             | 5    | 5    |
+| 8       | right    | 12             | 6    | 6    |
+| 9       | left     | 12             | 6    | 6    |
+
+The lunge cohort is therefore small but well balanced, where the squat's was larger but
+severely lopsided. This is a materially better starting position than the squat's in three
+respects. The class split is near-even (39/49) rather than 72/26, removing the
+minority-class scarcity that dominated the squat's training and evaluation findings. The
+view filter introduces no new single-class subject: subject 3 contributes only incorrect
+repetitions, but did so already in the unfiltered data, whereas the squat's filter turned
+three otherwise-healthy subjects single-class. And seven of eight subjects retain both
+classes, against six of nine for the squat. The total sample is comparable (88 against 98),
+so the improvement is in structure rather than size.
+
+The residual weakness is subject 3, whose fold would have no correct repetitions to
+predict. Excluding that subject entirely would leave 77 repetitions from 7 subjects split
+39 Good / 38 Poor — near-perfect balance at the cost of roughly an eighth of the data.
+
+### 11.4 A structural confound: lead leg is fixed per subject
+
+The audit examined the dataset's own lead-leg annotation and found that it is constant
+within every recording and, more consequentially, within every subject. Each of the eight
+subjects performed lunges leading with one leg only; not one performed both. Lead leg is
+thus a subject-level constant rather than a within-subject variable.
+
+Two consequences follow, and neither is a function of the view filter — they hold for any
+subset of this dataset.
+
+First, under leave-one-subject-out cross-validation, lead leg is perfectly collinear with
+the held-out subject. A model given lead leg as a feature would be given a subject
+identifier in disguise, and the validation scheme is structurally incapable of detecting
+the substitution. The apparent association between lead leg and label in the side-view
+data — 21 Good / 21 Poor for left-leading repetitions against 18 Good / 28 Poor for
+right-leading ones — is entirely attributable to subject 3, whose eleven repetitions are
+all incorrect and all right-leading; with that subject removed the right-leading split is
+18 Good / 17 Poor. The lead-leg signal that a naive reading would find in this data is a
+single-subject artefact.
+
+Second, the cross-repetition symmetry measurement the lunge implementation computes — which
+compares peak flexion and range of motion between left-leading and right-leading
+repetitions within a single set — has no ground truth in this dataset whatsoever. No
+recording and no subject contains both lead legs, so the quantity cannot be validated
+against REHAB24-6 by any filtering of it. The measurement was already specified as
+report-only, contributing no weight to the rule score, so nothing in the deployed system
+depends on an unvalidated number; but it cannot be evidenced by this phase, and should be
+presented as an uncorroborated descriptive statistic rather than a validated one.
+
+A related question is deferred rather than answered. Because each subject faces a fixed
+direction with a fixed lead leg, whether the leading limb is the near or the far limb from
+the sagittal camera may itself be fixed per subject, which would couple the far-limb
+occlusion problem established for the squat (Section 3.2) to lead leg and thus to subject
+identity. The extracted frames are consistent with this possibility but cannot establish
+it, since near and far limb identity is not reliably readable by eye from a single frame.
+It requires landmark-level measurement of per-limb visibility and depth ordering, and is
+recorded here as a risk to be measured rather than a finding.
+
+### 11.5 Additional limitations established by the lunge audit
+
+These extend the running list in Section 10 and are specific to the lunge scope.
+
+19. **Lead leg cannot be used as a feature without incurring subject leakage.** Every
+    subject in the lunge data leads with one leg only (Section 11.4), making lead leg
+    perfectly collinear with subject identity under leave-one-subject-out validation. Any
+    apparent lead-leg effect in this dataset is indistinguishable from a subject effect,
+    and the one visible in the raw counts is traceable to a single subject.
+20. **The cross-repetition symmetry measurement is unvalidated and cannot be validated on
+    this dataset.** It compares left-leading against right-leading repetitions within a
+    set, and no subject in REHAB24-6 performs both (Section 11.4). It is reported to users
+    as a descriptive measurement only and carries no weight in the rule score, but no
+    evidence exists as to its agreement with any ground truth.
+21. **The lunge training cohort is 88 repetitions from 8 subjects, one of which
+    contributes no correct repetitions.** Balance is better than the squat's and the
+    sample is comparable in size (Section 11.3), but it remains small, single-source, and
+    single-site. Every caveat in limitations 1 and 17 about single-dataset evidence
+    applies here unchanged.

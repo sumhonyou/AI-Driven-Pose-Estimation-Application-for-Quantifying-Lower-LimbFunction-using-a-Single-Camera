@@ -1,7 +1,7 @@
 # FYP Development Tasks
 
 **Project:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied — **Phase 4 (Lunge) is now fully complete**, Stages 4.1-4.8, verified live end-to-end against the real backend + Postgres (2026-07-17): Module B works for lunge with an announced `stub-0` placeholder model, using the same registry with zero router changes. **Phase 5 (Lunge) Stage 5.0 (data audit, hard gate) is next.**  
+**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied — **Phase 4 (Lunge) is now fully complete**, Stages 4.1-4.8, verified live end-to-end against the real backend + Postgres (2026-07-17): Module B works for lunge with an announced `stub-0` placeholder model, using the same registry with zero router changes. **Phase 5B Stage 5.0 (Lunge) data audit is complete and its gate is resolved (2026-07-17): HY chose option (a), accept the smaller N** — side-view Ex5 = **88 reps, 39 Good / 49 Poor** (small but balanced, the opposite shape to squat's 72/26); the audit also found that **lead-leg is perfectly confounded with subject** (no subject performs both legs — so `lead_leg` is a LOSO leakage risk and cross-rep Symmetry has no ground truth here), and that **REHAB24-6 is _not_ the only labelled lunge dataset** — EC3D's lunge partition (127 sequences, both faults sagittal, incl. "Knee passes toe") is already on disk. See [`ml/reports/LUNGE_DATA_AUDIT.md`](./ml/reports/LUNGE_DATA_AUDIT.md). **Stage 5.1 (Lunge) `ml/` scaffold is complete (2026-07-17)** — no lunge-specific delta; verified the shared scaffold (editable install, `plotting.py`, `requirements.txt`) extends to the `LungeExercise` plugin live, not assumed. **Stage 5.2 (Lunge) landmark extraction is next.**  
 **Related docs:** [FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md](./FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md) (architecture & design), [rules.md](./rules.md) (coding agent rules)
 
 ---
@@ -16,6 +16,7 @@
   - [Third Milestone](#third-milestone)
   - [Fourth Milestone (Module B Squat, Placeholder Model)](#fourth-milestone-module-b-squat-placeholder-model)
   - [Data Audit Gate (Phase 5, Stage 5.0)](#data-audit-gate-phase-5-stage-50)
+  - [Data Audit Gate (Phase 5B, Stage 5.0 — Lunge)](#data-audit-gate-phase-5b-stage-50--lunge)
   - [Fifth Milestone (Trained Squat Model)](#fifth-milestone-trained-squat-model)
 - [Phase 0: Project Setup](#phase-0-project-setup)
 - [Phase 1: Basic Full-Stack Skeleton](#phase-1-basic-full-stack-skeleton)
@@ -137,7 +138,11 @@ Since the project is at 0 progress, do **not** start with ML first. Work in this
 
 ### Data Audit Gate (Phase 5, Stage 5.0)
 
-> `ml/reports/DATA_AUDIT.md` reports the exact usable side-view squat (Ex6) rep count after the camera-orientation filter, and HY has chosen among options (a) accept the smaller N, (b) admit half-profile reps as a flagged cohort, or (c) relax to both views and add `view` as a feature. No ML training work begins before this decision (see [Open Questions](#open-questions-phases-47) Q1/Q2).
+> `ml/reports/DATA_AUDIT.md` reports the exact usable side-view squat (Ex6) rep count after the camera-orientation filter, and HY has chosen among options (a) accept the smaller N, (b) admit half-profile reps as a flagged cohort, or (c) relax to both views and add `view` as a feature. No ML training work begins before this decision (see [Open Questions](#open-questions-phases-47) Q1/Q2). **✅ Resolved 2026-07-16 — option (a).**
+
+### Data Audit Gate (Phase 5B, Stage 5.0 — Lunge)
+
+> `ml/reports/LUNGE_DATA_AUDIT.md` reports the usable side-view lunge (Ex5) rep count — **88 reps, Good 39 / Poor 49** — and lays out the same three options with lunge-specific trade-offs. **✅ Resolved by HY (2026-07-17): option (a) — accept the smaller N.** Stage 5.2 (Lunge) onward trains on these 88 reps only.
 
 ### Fifth Milestone (Trained Squat Model)
 
@@ -2317,14 +2322,78 @@ Mirrors squat's Stage 4.8 — `task.md:609-627`.
 
 Mirrors squat's Stage 5.0 — `task.md:632-730`.
 
-- [ ] **Generalisation note:** confirm during the audit that REHAB24-6 is the **only public labelled lunge dataset** — there is no second source to cross-check against.
-- [ ] Apply squat's Stage 5.0 steps to the lunge data audit, swapping in the delta above.
+- [x] **Generalisation note:** confirm during the audit that REHAB24-6 is the **only public labelled lunge dataset** — there is no second source to cross-check against. **→ Checked, and the premise is false. See the Phase 5B — Stage 5.0 entry below.**
+- [x] Apply squat's Stage 5.0 steps to the lunge data audit, swapping in the delta above.
+
+### Phase 5B — Stage 5.0 (Lunge): Data audit (2026-07-17)
+
+Full numbers and the three options with trade-offs: [`ml/reports/LUNGE_DATA_AUDIT.md`](./ml/reports/LUNGE_DATA_AUDIT.md). The side-view Ex5 cohort is **88 reps, Good 39 / Poor 49** — both classes materially below the gate text's ~90/category reference, so the gate triggered, but with the **opposite shape to squat's** (squat was large-but-lopsided at 72/26; lunge is small-but-balanced). Options were (a) accept 88 / (b) admit half-profile as a flagged cohort (+86 reps, 39 Good / 47 Poor) / (c) relax to both views + a `view` feature.
+
+**✅ Resolved by HY (2026-07-17): option (a) — accept the smaller N.** Stage 5.2 (Lunge)
+onward trains on the 88 verified side-view Ex5 reps (39 Good / 49 Poor, 8 subjects) only.
+The lead-leg/subject confound (§5.1 of the report) and the unvalidated cross-rep Symmetry
+metric remain open regardless of this choice — neither is fixed by any gate option — and
+carry forward into Stage 5.3's feature decisions and the eventual write-up.
+
+- [x] **Reconciliation check passed first:** every artifact squat's Stage 5.0 claims (`ml/config.yaml`, `ml/docs/rehab24_6_schema.md`, `ml/scripts/audit_rehab246.py`, `ml/reports/DATA_AUDIT.md`) exists on disk and the dataset root is present; re-ran `audit_rehab246.py` and reproduced `DATA_AUDIT.md`'s Ex6 numbers exactly before touching anything.
+- [x] **`ml/scripts/audit_rehab246.py`** — the side-view/view-question block was hardcoded to Ex6; extracted it into `_side_view_report(rows, ex_id)` and ran it for **both** Ex5 and Ex6. Purely additive: a section-by-section comparison of the old and new output confirmed **all 8 pre-existing sections byte-identical**, 10 new ones added. Also added, for Ex5 only, the lead-leg tag's survival through the view filter (`ex5_side_view_by_subtype`, `..._subtype_x_correctness`) — Stage 4.4's Symmetry and Stage 5.3's lead-leg feature both depend on it. Black/isort clean.
+- [x] **`ml/scripts/make_view_figure.py`** (new) — squat's own view verification was done ad hoc and left no script behind; this one makes the answer reproducible (`--exercise`/`--video`, reads `config.yaml`, read-only, goes through `plotting.save_fig()`).
+- [x] **Ex5 raw numbers:** 174 reps, Good **78** / Poor **96** (Poor is the _majority_ — inverts Ex6's 134/61). `cam17_orientation`: front **88** / half-profile **86** / profile **0**. `mocap_erroneous` **0**. `lights_on` 154 on / 20 off. `exercise_subtype` (lead-leg tag): right **91** / left **83**. **Subjects: 8 (ids 2-9) — subject 1 is absent from Ex5 entirely**, where Ex6 has 9; every lunge LOSO fold count is 8, not 9. Subject **3** is single-class (21 Poor, 0 Good) **before** any filter — unlike Ex6, where the raw data was clean and the view filter created the problem.
+- [x] **View question verified for Ex5 specifically, not carried over from Ex6** — a lunge is a _directional_ movement (the subject steps along their facing axis), so squat's verification does not transfer on its own. Extracted real mid-rep frames from both cameras (`PM_021` rep 1 front / rep 11 half-profile): `cam17_orientation == "front"` → Camera17 sees the subject dead-on with the split stance foreshortened almost to overlap; **Camera18 shows a clean true sagittal view** (forward leg, dropped rear knee, hip/knee/ankle separated in the image plane). `half-profile` → both cameras diagonal, neither usable. **Confirmed on a second subject with the opposite lead leg** (`PM_028`, front-leg-right) — squat's audit checked only one video. Figure: `ml/reports/figures/view_verification_ex5.png`.
+- [x] **Usable side-view Ex5 rep count: 88** (all `front`, from Camera18) — **50.6%** of Ex5. Good **39** / Poor **49**. Lead-leg left **42** / right **46** (both cohorts survive). All 8 subjects still present; **the view filter creates no new single-class subject** (only subject 3, which already was) — 7 of 8 folds carry both classes, vs squat's 6 of 9. Dropping subject 3 would leave **77 reps, 39 Good / 38 Poor, 7 subjects**.
+- [x] **Real finding #1 — lead-leg is perfectly confounded with subject.** `exercise_subtype` is constant within every video **and within every subject**: all 8 subjects lunged with exactly one lead leg, **none performed both** (9 videos, verified in code). Not a view artifact — no gate option fixes it. Two consequences: (i) under LOSO, `lead_leg` is perfectly collinear with the held-out subject, so **Stage 5.3 (Lunge) must treat `lead_leg` as a leakage risk, not a free feature choice** — the apparent lead-leg/label association (left 21G/21P vs right 18G/28P) is **entirely subject 3**, and vanishes without it (right → 18G/17P); (ii) **Stage 4.4's cross-rep Symmetry sub-score has no ground truth in this dataset at all** and cannot be validated by any filtering of it. It is already report-only by HY's Stage 4.4 decision, so nothing shipped is wrong — but Phase 5B cannot produce evidence for it, and the write-up must not imply it was validated.
+- [x] **Real finding #2 — the generalisation note's premise is false, and it's good news.** REHAB24-6 is **not** the only public labelled lunge dataset. **EC3D** (already on disk — the same `data_3D.pickle` Stage 5.9 used for squat) has **127 lunge sequences, 4 subjects, 46 Correct / 81 faulty**, and its lunge partition is **larger than its squat one** (12,754 frames vs 11,109). Label ids confirmed against the EC3D paper's own Table 1 by **exact count match, not inference**: `1`=Correct (46), `4`="Not low enough" (40), `6`="Knee passes toe" (41). **Both lunge faults are sagittal-plane** — unlike EC3D squat, where 2 of 4 were frontal and invisible under Locked Assumption #3 — and "Knee passes toe" is **exactly** the signal Stage 4.2/4.7 already implemented. **UI-PRMD** also has inline/side lunge (10 subjects, correct/incorrect), Kinect+Vicon skeletons only. **The plan's practical consequence survives:** both alternatives ship skeletons, not RGB, and Stage 5.2's pipeline needs RGB video (X1/X3) — so the corrected statement is "the only public labelled lunge dataset **with RGB video**". **Caveat kept explicit:** EC3D's canonicalisation and its shallower-is-incorrect fault direction are the same two failure modes that sank squat's Stage 5.9; lunge has a _better-matched_ external cohort available, not a guaranteed-successful one.
+- [x] **Open question flagged, not answered:** because each subject has a fixed facing _and_ a fixed lead leg, whether the lead limb is the near or far limb from Camera18 may be fixed per subject — which would couple the known far-limb occlusion problem (chapter draft §3.2) to lead-leg and therefore to subject. The frames are _consistent_ with this but cannot establish it (near/far limb is not reliably readable by eye). Needs landmark-level visibility/`z`-ordering measurement at **Stage 5.4 (Lunge)**. Recorded as a risk to measure, not a finding.
+- [x] **Reports written:** `ml/reports/LUNGE_DATA_AUDIT.md` (every number above + the gate options; supersedes `DATA_AUDIT.md` §2's Ex5 forward-reference summary), and `ml/reports/PHASE5_CHAPTER_DRAFT.md` extended in place per rules.md with **§11 The Lunge Dataset** (§11.1 data availability, §11.2 view selection + Figure 16, §11.3 sample size + Table 7, §11.4 the lead-leg confound, §11.5 limitations **19-21** added to the running list). Chapter title/preamble widened from "Squat Model Development" to "Model Development" since §11 is no longer squat-only.
+- [ ] **Not done, correctly:** Stage 5.1/5.2 onward (scaffold reuse, landmark extraction, feature table, training) — gate is now resolved (option (a), above), but Stage 5.1 has not been started, per scope discipline (this stage stops at the gate decision).
 
 #### Stage 5.1 (Lunge) — `ml/` scaffold
 
 Mirrors squat's Stage 5.1 — `task.md:731-795`.
 
-- [ ] Apply squat's Stage 5.1 steps to the lunge `ml/` scaffold — no lunge-specific delta.
+- [x] Apply squat's Stage 5.1 steps to the lunge `ml/` scaffold — no lunge-specific delta.
+
+### Phase 5B — Stage 5.1 (Lunge): `ml/` scaffold (2026-07-17)
+
+**No lunge-specific delta, and none was needed:** `ml/`'s scaffold (`config.yaml`,
+`requirements.txt`, `scripts/plotting.py`, `data/`, `artifacts/`, `reports/`,
+`backend/pyproject.toml`'s editable install) is shared infrastructure, already built by
+squat's own Stage 5.1 (2026-07-16) and untouched by Phase 5B's plugin work so far. This
+stage's real job was verifying that shared scaffold actually extends to a second exercise,
+not rebuilding it.
+
+- [x] **Reconciliation check passed first:** confirmed every item squat's Stage 5.1 claims
+      built (`ml/data/`, `ml/artifacts/` with `.gitkeep`, `requirements.txt`,
+      `backend/pyproject.toml`, `scripts/plotting.py`, `ml/README.md`) is present and unchanged
+      on disk before touching anything.
+- [x] **X1 editable install re-verified live for the lunge plugin specifically, not
+      assumed from squat's own check:** `from app.module_b.lunge.exercise import
+LungeExercise` and `from app.module_b.lunge.features import LUNGE_FEATURE_NAMES,
+extract_lunge_features` both succeeded through the same `pip install -e ../backend`
+      squat's Stage 5.1 set up — real import inside `ml/.venv`, not a hypothetical path.
+      `LUNGE_FEATURE_NAMES` resolved to all 17 features Stage 4.2 (Lunge) defined.
+- [x] **Real finding:** `app.module_b.core.registry` imports FastAPI at module level, and
+      `ml/requirements.txt` does not install the backend's web-framework dependencies — only
+      `app`'s feature/exercise modules, which is all any Stage 5 script needs. Verified this is
+      not new to lunge (squat's own Stage 5.1 check also went through `squat.exercise`
+      directly, never `core.registry`) — recorded explicitly in `ml/README.md` so a later
+      script doesn't `import app.module_b.core.registry` by habit and hit a confusing
+      `ModuleNotFoundError: fastapi` in the `ml/` venv.
+- [x] `requirements.txt` needs no lunge-specific addition — the same
+      mediapipe/scikit-learn/pandas/numpy/joblib/matplotlib/seaborn/pyyaml stack serves both
+      exercises' Stage 5.2+ scripts.
+- [x] `ml/README.md` updated: title and opening line widened from "Squat model training
+      (Phase 5)" to cover both exercises (Phase 5 squat / Phase 5B lunge) explicitly, noting
+      per-exercise work lives in per-exercise scripts/subdirectories inside the same shared
+      tree, not a forked `ml/`; the verify snippet now imports both `SquatExercise` and
+      `LungeExercise`; added the FastAPI/registry note above.
+- [x] **Gate:** full backend suite still 192/192 (nothing in `backend/app` touched);
+      Prettier clean on `ml/README.md`.
+- [ ] **Deliberately not created (scope discipline, same as squat's own Stage 5.1):** any
+      lunge-specific `scripts/*.py` (`extract_landmarks`/`build_features`-equivalents for
+      lunge land in Stage 5.2/5.3), and no `ml/reports/PHASE5_CHAPTER_DRAFT.md` update — this
+      stage produced no measured metric or comparison, matching Stage 4.2 (Lunge)'s own
+      precedent for schema/scaffold-only stages.
 
 #### Stage 5.2 (Lunge) — Landmark extraction from RGB video
 
