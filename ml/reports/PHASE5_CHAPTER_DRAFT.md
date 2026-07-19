@@ -1524,7 +1524,7 @@ verification, which rested on a single recording, this one was repeated on a sec
 with the opposite lead leg, confirming the result is not specific to one subject's
 placement.
 
-![Lunge view verification: front vs half-profile orientation, both cameras](figures/view_verification_ex5.png)
+_[Figure 16 removed from `ml/reports/figures/` along with the rest of the lunge investigation's figures — see the editorial note at the start of this section.]_
 _Figure 16. Visual verification of the camera-orientation mapping for the lunge. Top row: `cam17_orientation == "front"`, Camera 18 (right) shows a true sagittal view of the split stance. Bottom row: `cam17_orientation == "half-profile"`, neither camera is a usable side view._
 
 ### 11.3 Usable sample size and class balance
@@ -1922,10 +1922,10 @@ training is the correct response, since it never pools across the subject bounda
 any pooled summary reported later — a single confusion matrix, an aggregate figure over
 all folds — inherits the same hazard.
 
-![Lunge feature distributions by class](figures/lunge_feature_validity_boxplots.png)
+_[Figure 17 removed — see the editorial note at the start of this section.]_
 _Figure 17. Distribution of each of the seventeen lunge features by class, across the 88 side-view repetitions._
 
-![Lunge feature correlation matrix](figures/lunge_feature_correlation_heatmap.png)
+_[Figure 18 removed — see the editorial note at the start of this section.]_
 _Figure 18. Pearson correlation across the candidate lunge features. One pair reaches the redundancy threshold: `front_ankle_df_proxy_deg` and `knee_passes_toe_norm` (r = 0.95). Neither was removed — a tree ensemble is not destabilised by correlated inputs, and altering the vector would require a schema version change._
 
 ### 11.10 Body-Scale Normalisation
@@ -1965,7 +1965,7 @@ length won on the variance ratio for every feature (mean 1.606 against 2.118), a
 coefficient of variation agrees on the two features where it remains valid — so the
 choice of statistic did not determine the outcome, only which number is honest to quote.
 
-![Lunge norm_ref comparison](figures/lunge_norm_ref_variance_comparison.png)
+_[Figure 19 removed — see the editorial note at the start of this section.]_
 _Figure 19. Per-subject means under each candidate body-scale reference. The first two panels scale each subject's mean by that candidate's own grand mean, so both centre on 1.0 and the visible spread is the quantity being compared; plotting raw values would have made the longer reference appear tighter through scale alone. `knee_passes_toe_norm` is shown raw against a zero line, for the same reason its coefficient of variation is omitted._
 
 ### 11.11 Agreement With Marker-Based Motion Capture
@@ -1983,7 +1983,7 @@ the squat, the gap between a high correlation and a much lower intraclass coeffi
 the whole story: the pipeline tracks the movement's shape faithfully and mis-states its
 magnitude.
 
-![Bland-Altman: peak front knee flexion vs motion capture](figures/lunge_mocap_agreement_bland_altman.png)
+_[Figure 20 removed — see the editorial note at the start of this section.]_
 _Figure 20. Bland-Altman comparison of peak front-knee flexion per repetition against OptiTrack, over the 88 side-view lunge repetitions._
 
 #### Limb identity: a question the squat could not answer and the lunge could not avoid
@@ -2247,13 +2247,13 @@ one standard deviation of the best. The search's value is establishing that the 
 insensitive to these parameters, not identifying an optimum. The negative result is not a
 tuning failure.
 
-![Lunge ROC curves](figures/lunge_roc_curves.png)
+_[Figure 21 removed — see the editorial note at the start of this section.]_
 _Figure 21. Out-of-fold ROC per strategy, subject-disjoint. The baseline and the cohort-centred variant fall on or below the diagonal; the two strategies that address the confound lift clearly above it._
 
-![Lunge hyperparameter search](figures/lunge_hyperparameter_search_results.png)
+_[Figure 22 removed — see the editorial note at the start of this section.]_
 _Figure 22. Inner-fold ROC AUC per swept value, other parameters held at their chosen value; bars are the standard deviation across inner folds. The vertical scale shows the plateau._
 
-![Lunge calibration reliability](figures/lunge_calibration_reliability_curve.png)
+_[Figure 23 removed — see the editorial note at the start of this section.]_
 _Figure 23. Predicted against observed frequency, before and after sigmoid calibration, with 95% Wilson intervals per quantile bin. Wilson rather than Wald, because Wald collapses to zero width at 0 and 1 and would assert perfect certainty from a handful of repetitions._
 
 ### 11.14 Further limitations established by lunge training
