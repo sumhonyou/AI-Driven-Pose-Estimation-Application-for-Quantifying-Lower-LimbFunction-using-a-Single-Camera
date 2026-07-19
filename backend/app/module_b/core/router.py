@@ -27,6 +27,7 @@ from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.core.quality import assess_capture_quality
 from app.module_b.core.registry import get_exercise
 from app.module_b.core.schemas import ModuleBAnalyzeRequest, ModuleBResultResponse
+from app.module_b.squat import trend as squat_trend
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,28 @@ def analyze_module_b_session(
     return ModuleBResultResponse(**summary)
 
 
+def _compute_trend(db: DbSession, session: SessionModel, result) -> dict | None:
+    """Stage 7.4: "vs last session" trend, mirroring Module A's Stage 7.2 helper."""
+    previous = crud.get_previous_result(
+        db, session.user_id, result.exercise_code, session.id, before=result.created_at
+    )
+    previous_data = (
+        {
+            "score": float(previous.score) if previous.score is not None else None,
+            "band": previous.band,
+            "rep_count": previous.session.rep_count if previous.session else None,
+        }
+        if previous is not None
+        else None
+    )
+    current_data = {
+        "score": float(result.score) if result.score is not None else None,
+        "band": result.band,
+        "rep_count": session.rep_count,
+    }
+    return squat_trend.compute_trend(current_data, previous_data)
+
+
 @router.get("/results/{session_id}")
 def get_module_b_result(
     session_id: UUID,
@@ -157,6 +180,7 @@ def get_module_b_result(
     summary["feedback"] = crud.feedback_summary(
         crud.get_feedback_by_session(db, session.id)
     )
+    summary["trend"] = _compute_trend(db, session, result)
     logger.info(
         "module-b result session=%s exercise=%s model=%s",
         session_id,

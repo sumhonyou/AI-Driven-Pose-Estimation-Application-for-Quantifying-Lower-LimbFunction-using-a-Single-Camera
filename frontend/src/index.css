@@ -579,6 +579,75 @@ html[data-theme="dark"] .band.poor {
   opacity: 1;
 }
 
+/* generic dropdown (exercise pickers on Progress / Session History) */
+.dropdown {
+  position: relative;
+}
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+  justify-content: space-between;
+}
+.dropdown-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dropdown-chevron {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--text-3);
+}
+.dropdown-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 60;
+  min-width: 100%;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.dropdown-menu button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-2);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.dropdown-menu button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.dropdown-menu button.on {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+.dropdown-menu .check {
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+}
+.dropdown-menu button.on .check {
+  opacity: 1;
+}
+
 .icon-btn {
   display: grid;
   place-items: center;
@@ -2370,6 +2439,82 @@ html[data-theme="dark"] .trend.down {
   background: var(--coral);
 }
 
+/* Phase 7 Stage 7.1: small-multiples score-trend grid (one card per exercise) */
+.mini-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+}
+.mini-trend-card {
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+}
+.mini-trend-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.mini-trend-head b {
+  font-size: 0.92rem;
+  color: var(--text);
+}
+.mini-trend-sub {
+  font-size: 0.75rem;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.mini-trend-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.mini-trend-score {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.mini-trend-score small {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-3);
+}
+
+/* Phase 7 Stage 7.1: single-bar 100%-stacked band distribution */
+.band-dist-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  gap: 2px;
+}
+.band-dist-seg {
+  height: 100%;
+  transition: flex-basis 0.4s var(--ease);
+}
+.band-dist-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+}
+.band-dist-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: var(--text-2);
+}
+.band-dist-legend-item b {
+  color: var(--text);
+}
+
 .rem-item {
   display: flex;
   align-items: center;
@@ -3409,6 +3554,33 @@ html[data-theme="dark"] .ex-card .ex-img {
   text-transform: uppercase;
   color: var(--accent-text);
   margin-bottom: 10px;
+}
+
+/* Merged Module A "coaching" panel: one card per flagged issue, pairing the
+   flag with its actionable tip so nothing is dropped behind a single "General
+   tip" pick (see Report.tsx warning_tags rendering). */
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.check-item {
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+}
+.check-item-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+.check-item-tip {
+  margin: 8px 0 0 18px;
+  font-size: 0.85rem;
+  line-height: 1.55;
 }
 
 /* history filters */

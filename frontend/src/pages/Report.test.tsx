@@ -125,8 +125,9 @@ describe("Report", () => {
     expect(screen.getAllByText("Moderate").length).toBeGreaterThan(0);
     expect(screen.queryByText("common.moderate")).not.toBeInTheDocument();
     expect(moduleAService.get).not.toHaveBeenCalled();
-    // Module A's coaching/"Things to check" panel must not render on the Module B branch.
-    expect(screen.queryByText(/things to check/i)).not.toBeInTheDocument();
+    // Module A's merged coaching panel (labelled "General tip" when no flags fired)
+    // must not render on the Module B branch.
+    expect(screen.queryByText(/general tip/i)).not.toBeInTheDocument();
   });
 
   it("renders the Module A panel (not Module B) for a sit-to-stand session", async () => {
@@ -140,10 +141,42 @@ describe("Report", () => {
 
     renderReport("s2");
 
-    // Module A's warnings panel is titled "Things to check" (report.warnings).
-    expect(await screen.findByText(/things to check/i)).toBeInTheDocument();
+    // Module A's merged coaching panel shows the "General tip" label when
+    // warning_tags is empty (moduleAResult mock has no flags).
+    expect(await screen.findByText(/general tip/i)).toBeInTheDocument();
     expect(moduleBService.get).not.toHaveBeenCalled();
     expect(screen.queryByText(/squat metrics/i)).not.toBeInTheDocument();
+  });
+
+  // Regression test for the "Coaching feedback" merge: previously it showed only
+  // warning_tags[0] while "Things to check" listed every fired tag, so a session
+  // flagged for two issues silently dropped one of them from any guidance. Now
+  // every flagged tag must render with its own label AND its own tip text.
+  it("shows every flagged warning tag with its own tip, not just the first one", async () => {
+    vi.mocked(sessionService.get).mockResolvedValue({
+      ...baseSession,
+      id: "s5",
+      exercise_code: "sit_to_stand",
+      exercise_type: "sit_to_stand",
+    });
+    vi.mocked(moduleAService.get).mockResolvedValue({
+      ...moduleAResult,
+      id: "s5",
+      warning_tags: ["very_slow_completion", "unstable_reps"],
+    });
+
+    renderReport("s5");
+
+    expect(
+      await screen.findByText(/reps took longer than expected to complete/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/some reps looked unsteady \(partial rise\/sit detected\)/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/try to keep a steadier, quicker rhythm/i)).toBeInTheDocument();
+    expect(screen.getByText(/focus on a smooth, controlled rise and sit/i)).toBeInTheDocument();
+    // The old single "General tip" label must not appear once there are flags.
+    expect(screen.queryByText(/general tip/i)).not.toBeInTheDocument();
   });
 
   // Leg Lunge was removed from the product (2026-07-19); this test now covers the
@@ -162,7 +195,7 @@ describe("Report", () => {
 
     renderReport("s4");
 
-    expect(await screen.findByText(/things to check/i)).toBeInTheDocument();
+    expect(await screen.findByText(/general tip/i)).toBeInTheDocument();
     expect(moduleBService.get).not.toHaveBeenCalled();
     expect(screen.queryByText(/leg lunge metrics/i)).not.toBeInTheDocument();
   });

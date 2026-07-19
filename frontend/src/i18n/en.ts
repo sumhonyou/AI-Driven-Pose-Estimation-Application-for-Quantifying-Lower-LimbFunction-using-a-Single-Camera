@@ -160,15 +160,16 @@ const en = {
   dash: {
     greeting: "Good morning, Sarah",
     greetingName: "Good morning, {{name}}",
-    dateline: "Friday, 5 June · Here's how your lower-limb function is trending.",
+    dateline: "{{date}} · Here's how your lower-limb function is trending.",
     avgScore: "Average score · last 14 days",
-    latestBand: "Latest band · Sit-to-Stand",
+    latestBand: "Latest band",
     sessionsDone: "Sessions completed",
     avgQuality: "Avg. capture quality",
     scoreTrend: "Score trend",
-    scoreTrendSub: "Final score across recent sessions",
+    scoreTrendSub: "Final score across recent sessions, by exercise",
+    sessionsCount: "{{count}} session(s)",
     bandDist: "Band distribution",
-    bandDistSub: "Last 18 sessions",
+    bandDistSub: "Across all your sessions",
     confidence: "Confidence",
     confidenceLvl: "Moderate–high",
     confidenceSub: "Reliable feedback",
@@ -211,8 +212,24 @@ const en = {
     remWeekly: "Weekly lunge test",
     remWeeklySub: "Every Sunday",
     emptySessions: "No saved sessions yet. Start a new session to see it here.",
-    placeholderScoring: "Scoring appears after Module A/B is implemented.",
+    noErrorTags: "No error tags yet — complete a rehab session to see this.",
     waitingForScores: "Waiting for scores",
+  },
+  progress: {
+    title: "Progress",
+    subtitle: "A closer look at one exercise's history over time.",
+    range14d: "14d",
+    range30d: "30d",
+    rangeAll: "All",
+    sessionsInRange: "{{count}} session(s) in this range",
+    captureQualityTrend: "Capture quality trend",
+    captureQualityTrendSub: "Did camera placement improve after being prompted?",
+    confidenceTrend: "Confidence trend",
+    confidenceTrendSub: "Model confidence over time",
+    noExercise: "No sessions in this range for this exercise.",
+    chooseExercise: "Choose an exercise",
+    noExerciseInCategory: "No sessions in this category yet.",
+    exercisePicker: "Choose exercise",
   },
   mode: {
     title: "Choose your session mode",
@@ -395,6 +412,36 @@ const en = {
     warn_landmarks_missing: "Body wasn't tracked reliably enough during this leg",
     warn_foot_dropped_below_line: "Foot dropped below the line before it could be scored",
     warn_unknown: "This leg's hold ended for an unspecified reason",
+    // Stage 6.x: actionable tip paired with each warn_ tag above, so the merged
+    // "Things to check" panel gives per-flag guidance instead of one arbitrary tip.
+    tip_incomplete_reps:
+      "Try to complete all reps in one steady session — pause and restart if you need a break.",
+    tip_poor_capture_quality:
+      "Improve lighting and make sure your whole body stays in frame before retrying.",
+    tip_moderate_capture_quality:
+      "Improve lighting or camera framing so your whole body is clearly visible.",
+    tip_very_slow_completion:
+      "Try to keep a steadier, quicker rhythm between reps without rushing your form.",
+    tip_unstable_reps:
+      "Focus on a smooth, controlled rise and sit — avoid stopping partway up or down.",
+    tip_excessive_trunk_lean: "Keep your chest up and avoid leaning forward as you stand.",
+    tip_incomplete_hold:
+      "Try to hold the position for the full target time before ending the attempt.",
+    tip_landmarks_missing:
+      "Stay fully in frame with good lighting so your whole leg can be tracked.",
+    tip_foot_dropped_below_line: "Keep your foot above the line until the attempt is scored.",
+    tip_unknown: "Review your setup (lighting, framing) and try the hold again.",
+    // Stage 7.2: STS/SLS "vs last session" trend row. No MDC claim, unlike WBLT's
+    // wblt.trend* keys -- always shows the plain delta, never a suppressed
+    // "no change" branch (no published measurement-error study exists for these).
+    trendVsLast: "Vs last session",
+    trendNoPrevious: "No previous session to compare yet.",
+    trendScoreChanged: "score {{sign}}{{value}}/10",
+    trendTimeChanged: "time {{sign}}{{value}}s",
+    trendHoldChanged: "hold {{sign}}{{value}}s",
+    trendRepsChanged: "reps {{sign}}{{value}}",
+    trendInfoLabel: "About this comparison",
+    trendInfoText: "Compared with your own most recent completed session of this exercise.",
   },
   history: {
     title: "Session history",
@@ -402,6 +449,7 @@ const en = {
     all: "All",
     functional: "Functional",
     rehab: "Rehab",
+    allExercises: "All exercises",
     thExercise: "Exercise",
     thMode: "Mode",
     thDate: "Date",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DashTopbar } from "../layouts/DashboardLayout";
@@ -15,8 +15,24 @@ import {
 } from "../components/Icons";
 import { dashboardService } from "../services/dashboardService";
 import { sessionService } from "../services/sessionService";
+import { exerciseService } from "../services/exerciseService";
 import { useAuth } from "../auth";
-import type { DashboardSummary, SessionDTO } from "../types/api";
+import type {
+  DashboardErrorTags,
+  DashboardSummary,
+  DashboardTrends,
+  Exercise,
+  SessionDTO,
+} from "../types/api";
+import BandDistributionBar from "../components/charts/BandDistributionBar";
+import MiniTrendCard from "../components/charts/MiniTrendCard";
+import {
+  averageScore,
+  humanizeExerciseType,
+  severityClass,
+} from "../components/charts/dashboardChartUtils";
+
+const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -27,27 +43,55 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+/** Today's date for the dashboard subheading, e.g. "Sunday, 19 July 2026". */
+function formatTodayDateline(language: string) {
+  const locale = language.startsWith("zh")
+    ? "zh-CN"
+    : language.startsWith("ms")
+      ? "ms-MY"
+      : "en-GB";
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+}
+
 function qualityLabel(value: number | null) {
   return value === null ? "—" : `${Math.round(value * 100)}%`;
 }
 
 export default function Dashboard() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const todayLabel = formatTodayDateline(i18n.language);
   const [done, setDone] = useState<Record<number, boolean>>({ 0: true });
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [sessions, setSessions] = useState<SessionDTO[]>([]);
+  const [trends, setTrends] = useState<DashboardTrends>({});
+  const [errorTags, setErrorTags] = useState<DashboardErrorTags>({});
+  const [activeExercises, setActiveExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const toggle = (i: number) => setDone((d) => ({ ...d, [i]: !d[i] }));
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([dashboardService.summary(), sessionService.list()])
-      .then(([nextSummary, nextSessions]) => {
+    Promise.all([
+      dashboardService.summary(),
+      sessionService.list(),
+      dashboardService.trends(),
+      dashboardService.errorTags(),
+      exerciseService.list(),
+    ])
+      .then(([nextSummary, nextSessions, nextTrends, nextErrorTags, nextExercises]) => {
         if (!cancelled) {
           setSummary(nextSummary);
           setSessions(nextSessions.slice(0, 5));
+          setTrends(nextTrends);
+          setErrorTags(nextErrorTags);
+          setActiveExercises(nextExercises);
         }
       })
       .catch((err) => {
@@ -68,12 +112,6 @@ export default function Dashboard() {
     return <Activity />;
   };
 
-  const tags = [
-    { sev: "low", label: t("dash.tagRom"), ct: 0 },
-    { sev: "med", label: t("dash.tagTempo"), ct: 0 },
-    { sev: "low", label: t("dash.tagTrunk"), ct: 0 },
-    { sev: "high", label: t("dash.tagQuality"), ct: 0 },
-  ];
   const reminders = [
     { b: t("dash.remMorning"), s: t("dash.remMorningSub"), time: "08:00" },
     { b: t("dash.remKnee"), s: t("dash.remKneeSub"), time: "18:30" },
@@ -81,13 +119,62 @@ export default function Dashboard() {
   ];
   const avgQuality = summary?.avg_capture_quality;
 
+  // All exercise types' trend points pooled together, for the account-wide
+  // panels (band distribution, confidence) -- deliberately unfiltered, so a
+  // retired exercise's historical sessions still count toward the account's
+  // overall numbers (same "gate the picker, not the history" principle as
+  // Session History). The small-multiples grid below uses each exercise's own
+  // points separately, and IS gated to active exercises -- it's a per-exercise
+  // picker/breakdown, not an aggregate history figure.
+  const allPoints = useMemo(() => Object.values(trends).flatMap((ex) => ex.points), [trends]);
+
+  const activeExerciseCodes = useMemo(
+    () => new Set(activeExercises.map((e) => e.code)),
+    [activeExercises],
+  );
+  const activeTrendEntries = useMemo(
+    () => Object.entries(trends).filter(([exerciseType]) => activeExerciseCodes.has(exerciseType)),
+    [trends, activeExerciseCodes],
+  );
+
+  const avgScoreLast14d = useMemo(() => {
+    const cutoff = Date.now() - FOURTEEN_DAYS_MS;
+    return averageScore(allPoints.filter((p) => new Date(p.date).getTime() >= cutoff));
+  }, [allPoints]);
+
+  // The most recently completed session with a score, across every exercise
+  // type -- the same session summary.latest_score/latest_band describe.
+  const latestScoredSession = sessions.find((s) => s.score != null);
+
+  // Module B only: confidence is null for every Module A point, so this stays
+  // empty (and the tile hides) for accounts with no rehab-graded exercises.
+  const confidencePoints = allPoints.filter((p) => p.confidence != null);
+  const avgConfidence =
+    confidencePoints.length > 0
+      ? confidencePoints.reduce((sum, p) => sum + (p.confidence ?? 0), 0) / confidencePoints.length
+      : null;
+
+  const rankedErrorTags = useMemo(() => {
+    const merged = new Map<string, { severity: string | null; count: number }>();
+    for (const tags of Object.values(errorTags)) {
+      for (const tag of tags) {
+        const existing = merged.get(tag.tag_code);
+        if (existing) existing.count += tag.count;
+        else merged.set(tag.tag_code, { severity: tag.severity, count: tag.count });
+      }
+    }
+    return [...merged.entries()]
+      .map(([tag_code, v]) => ({ tag_code, ...v }))
+      .sort((a, b) => b.count - a.count);
+  }, [errorTags]);
+
   return (
     <>
       <DashTopbar
         title={
           user?.full_name ? t("dash.greetingName", { name: user.full_name }) : t("dash.greeting")
         }
-        subtitle={t("dash.dateline")}
+        subtitle={t("dash.dateline", { date: todayLabel })}
         actions={
           <Link className="btn btn-primary" to="/mode">
             {t("common.newSession")}
@@ -113,10 +200,10 @@ export default function Dashboard() {
             <span className="mi">
               <Chart />
             </span>
-            <span className="trend up">—</span>
           </div>
           <div className="mv">
-            —<small>/10</small>
+            {avgScoreLast14d == null ? "—" : avgScoreLast14d.toFixed(1)}
+            <small>/10</small>
           </div>
           <div className="ml">{t("dash.avgScore")}</div>
         </div>
@@ -125,17 +212,23 @@ export default function Dashboard() {
             <span className="mi">
               <ShieldCheck />
             </span>
-            <span className="band good">—</span>
+            {latestScoredSession?.band && (
+              <span className={"band " + latestScoredSession.band.toLowerCase()}>
+                {t("common." + latestScoredSession.band.toLowerCase())}
+              </span>
+            )}
           </div>
-          <div className="mv">—</div>
-          <div className="ml">{t("dash.latestBand")}</div>
+          <div className="mv">{latestScoredSession?.score ?? "—"}</div>
+          <div className="ml">
+            {t("dash.latestBand")}
+            {latestScoredSession && ` · ${latestScoredSession.exercise_name}`}
+          </div>
         </div>
         <div className="metric reveal">
           <div className="mh">
             <span className="mi em">
               <Activity />
             </span>
-            <span className="trend up">DB</span>
           </div>
           <div className="mv">{summary?.total_sessions ?? 0}</div>
           <div className="ml">{t("dash.sessionsDone")}</div>
@@ -145,7 +238,6 @@ export default function Dashboard() {
             <span className="mi em">
               <Camera />
             </span>
-            <span className="trend down">DB</span>
           </div>
           <div className="mv">
             {avgQuality == null ? "—" : Math.round(avgQuality * 100)}
@@ -160,91 +252,53 @@ export default function Dashboard() {
           <div className="panel-head">
             <div>
               <h3>{t("dash.scoreTrend")}</h3>
-              <span className="sub">{t("dash.placeholderScoring")}</span>
-            </div>
-            <div className="seg">
-              <button className="on">14d</button>
-              <button>30d</button>
-              <button>All</button>
+              <span className="sub">{t("dash.scoreTrendSub")}</span>
             </div>
           </div>
-          <svg
-            className="chart"
-            viewBox="0 0 720 220"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <defs>
-              <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--chart-line)" stopOpacity="0.26" />
-                <stop offset="100%" stopColor="var(--chart-line)" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            {[40, 90, 140, 190].map((y) => (
-              <line key={y} className="grid-l" x1="0" y1={y} x2="720" y2={y} />
-            ))}
-            <path className="area" d="M0,180 L720,180 L720,220 L0,220 Z" />
-            <path className="line" d="M0,180 L720,180" />
-          </svg>
-          <div className="chart-x">
-            <span>{t("dash.waitingForScores")}</span>
-            <span>—</span>
-            <span>—</span>
-          </div>
+          {activeTrendEntries.length === 0 ? (
+            <p className="muted center" style={{ padding: "24px 0" }}>
+              {t("dash.emptySessions")}
+            </p>
+          ) : (
+            <div className="mini-trend-grid">
+              {activeTrendEntries.map(([exerciseType, trend]) => (
+                <MiniTrendCard
+                  key={exerciseType}
+                  exerciseName={humanizeExerciseType(exerciseType, sessions)}
+                  trend={trend}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="panel reveal">
           <div className="panel-head">
             <div>
               <h3>{t("dash.bandDist")}</h3>
-              <span className="sub">{t("dash.placeholderScoring")}</span>
+              <span className="sub">{t("dash.bandDistSub")}</span>
             </div>
           </div>
-          <div className="bands">
-            <div className="band-row">
-              <div className="bt">
-                <b>{t("common.good")}</b>
-                <span>—</span>
+          <BandDistributionBar points={allPoints} />
+          {avgConfidence != null && (
+            <div
+              style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--border-soft)" }}
+            >
+              <div className="panel-head" style={{ marginBottom: 14 }}>
+                <div>
+                  <h3 style={{ fontSize: "0.94rem" }}>{t("dash.confidence")}</h3>
+                </div>
               </div>
-              <div className="track">
-                <div className="fill good" style={{ width: "0%" }} />
-              </div>
-            </div>
-            <div className="band-row">
-              <div className="bt">
-                <b>{t("common.fair")}</b>
-                <span>—</span>
-              </div>
-              <div className="track">
-                <div className="fill fair" style={{ width: "0%" }} />
-              </div>
-            </div>
-            <div className="band-row">
-              <div className="bt">
-                <b>{t("common.poor")}</b>
-                <span>—</span>
-              </div>
-              <div className="track">
-                <div className="fill poor" style={{ width: "0%" }} />
+              <div className="band-row">
+                <div className="bt">
+                  <b>{Math.round(avgConfidence * 100)}%</b>
+                </div>
+                <div className="track">
+                  <div className="fill good" style={{ width: `${avgConfidence * 100}%` }} />
+                </div>
               </div>
             </div>
-          </div>
-          <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--border-soft)" }}>
-            <div className="panel-head" style={{ marginBottom: 14 }}>
-              <div>
-                <h3 style={{ fontSize: "0.94rem" }}>{t("dash.confidence")}</h3>
-              </div>
-            </div>
-            <div className="band-row">
-              <div className="bt">
-                <b>—</b>
-                <span>{t("dash.placeholderScoring")}</span>
-              </div>
-              <div className="track">
-                <div className="fill good" style={{ width: "0%" }} />
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -315,17 +369,24 @@ export default function Dashboard() {
           <div className="panel-head">
             <div>
               <h3>{t("dash.errorTags")}</h3>
-              <span className="sub">{t("dash.placeholderScoring")}</span>
+              <span className="sub">{t("dash.errorTagsSub")}</span>
             </div>
           </div>
-          <div className="tags">
-            {tags.map((tg) => (
-              <span className="tag" key={tg.label}>
-                <span className={"sev " + tg.sev} />
-                {tg.label} <span className="ct">{tg.ct}</span>
-              </span>
-            ))}
-          </div>
+          {rankedErrorTags.length === 0 ? (
+            <p className="muted center" style={{ padding: "24px 0" }}>
+              {t("dash.noErrorTags")}
+            </p>
+          ) : (
+            <div className="tags">
+              {rankedErrorTags.map((tag) => (
+                <span className="tag" key={tag.tag_code}>
+                  <span className={"sev " + severityClass(tag.severity)} />
+                  {t("moduleB.tag_" + tag.tag_code, { defaultValue: tag.tag_code })}{" "}
+                  <span className="ct">{tag.count}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="panel reveal">
           <div className="panel-head">

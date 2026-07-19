@@ -7,6 +7,7 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Progress from "./pages/Progress";
 import ModeSelection from "./pages/ModeSelection";
 import ExerciseSelection from "./pages/ExerciseSelection";
 import CameraSetup from "./pages/CameraSetup";
@@ -40,6 +41,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="progress" element={<Progress />} />
             <Route path="mode" element={<ModeSelection />} />
             <Route path="exercise" element={<ExerciseSelection />} />
             <Route path="camera" element={<CameraSetup />} />

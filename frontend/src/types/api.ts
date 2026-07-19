@@ -50,13 +50,49 @@ export type SessionDTO = {
   rep_count: number | null;
 };
 
+export type ExerciseLatest = {
+  score: number | null;
+  band: string | null;
+  capture_quality: number | null;
+};
+
 export type DashboardSummary = {
   total_sessions: number;
   avg_capture_quality: number | null;
   latest_score: number | null;
   latest_band: string | null;
   recent_sessions: SessionDTO[];
+  // Keyed by exercise_type, e.g. { sit_to_stand: {...}, squat: {...} }.
+  latest: Record<string, ExerciseLatest>;
 };
+
+export type TrendPoint = {
+  session_id: string;
+  date: string;
+  score: number | null;
+  band: string | null;
+  capture_quality: number | null;
+  // Module B only; always null for Module A exercise types.
+  confidence: number | null;
+};
+
+export type ExerciseTrend = {
+  points: TrendPoint[];
+  mdc: number | null;
+  mdc_source: "published" | "none";
+};
+
+// Keyed by exercise_type; only types the account has sessions for are present.
+export type DashboardTrends = Record<string, ExerciseTrend>;
+
+export type DashboardErrorTag = {
+  tag_code: string;
+  severity: string | null;
+  count: number;
+};
+
+// Keyed by exercise_type; Module B types only (Module A is absent, not empty).
+export type DashboardErrorTags = Record<string, DashboardErrorTag[]>;
 
 export type TokenResponse = {
   access_token: string;

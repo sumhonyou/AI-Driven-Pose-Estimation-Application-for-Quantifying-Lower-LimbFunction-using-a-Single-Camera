@@ -69,6 +69,22 @@ export type ModuleAMetrics = {
 
 export type SessionStatus = "complete" | "incomplete" | "low_confidence";
 
+// Stage 7.2: vs the account's previous completed session of the same exercise.
+// No MDC (minimal detectable change) study exists for STS/SLS the way it does
+// for WBLT, so deltas are plain numbers with no "meaningful change" claim --
+// there is deliberately no `*_meaningful` flag here (contrast WbltLegTrend).
+export type StsTrend = {
+  score_delta: number | null;
+  completion_time_delta_sec: number | null;
+  previous_band: string | null;
+};
+
+export type SlsLegTrend = {
+  hold_delta_sec: number | null;
+  score_delta: number | null;
+  previous_band: string | null;
+};
+
 export type ModuleAResult = {
   session_id: string;
   band: "good" | "fair" | "poor" | "invalid" | string;
@@ -82,6 +98,11 @@ export type ModuleAResult = {
   is_partial_score: boolean;
   /** True only when this specific call actually wrote the result to the database. */
   persisted: boolean;
+  /** Populated for sit_to_stand (StsTrend) and supported_single_leg_stance
+   * (per-leg SlsLegTrend map) only -- null/undefined for WBLT, which has its
+   * own dedicated trend via wbltApi.session(). Shape depends on exercise_type,
+   * same pattern as `metrics.legs`/`metrics.perLeg`. */
+  trend?: StsTrend | Partial<Record<SlsLeg, SlsLegTrend | null>> | null;
 };
 
 export const moduleAService = {

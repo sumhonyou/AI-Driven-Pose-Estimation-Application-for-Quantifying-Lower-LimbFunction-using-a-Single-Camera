@@ -1,16 +1,25 @@
 import { apiRequest } from "./apiClient";
-import type { DashboardSummary } from "../types/api";
+import type { DashboardErrorTags, DashboardSummary, DashboardTrends } from "../types/api";
+
+// Optional inclusive date window, forwarded as ISO strings to the backend.
+type DateRange = { from?: string; to?: string };
+
+function rangeQuery({ from, to }: DateRange): string {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
 
 export const dashboardService = {
   summary() {
     return apiRequest<DashboardSummary>("/api/dashboard/summary");
   },
-  trends() {
-    return apiRequest<Array<{ label: string; score: number | null }>>("/api/dashboard/trends");
+  trends(range: DateRange = {}) {
+    return apiRequest<DashboardTrends>(`/api/dashboard/trends${rangeQuery(range)}`);
   },
-  errorTags() {
-    return apiRequest<Array<{ tag_code: string; severity: string | null; count: number }>>(
-      "/api/dashboard/error-tags",
-    );
+  errorTags(range: DateRange = {}) {
+    return apiRequest<DashboardErrorTags>(`/api/dashboard/error-tags${rangeQuery(range)}`);
   },
 };

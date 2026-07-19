@@ -195,6 +195,12 @@ export const Pencil = (p: P) => (
   </svg>
 );
 
+export const ChevronDown = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+);
+
 export const LogoMark = (p: P) => (
   <svg viewBox="0 0 24 24" fill="none" {...p}>
     <path

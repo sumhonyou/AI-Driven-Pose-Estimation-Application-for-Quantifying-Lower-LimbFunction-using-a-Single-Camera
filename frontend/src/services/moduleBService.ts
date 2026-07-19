@@ -56,6 +56,14 @@ export type ModuleBFeedback = {
   disclaimer_version: string | null;
 };
 
+// Stage 7.4: "vs last session" trend, mirroring Module A's StsTrend/SlsLegTrend shape.
+// No MDC-style "meaningful" flag -- see backend app/module_b/squat/trend.py.
+export type SquatTrend = {
+  score_delta: number | null;
+  rep_count_delta: number | null;
+  previous_band: string | null;
+};
+
 export type ModuleBResult = {
   session_id: string;
   exercise_code: string;
@@ -69,6 +77,7 @@ export type ModuleBResult = {
   error_tags: ModuleBErrorTag[];
   feedback: ModuleBFeedback | null;
   created_at: string | null;
+  trend?: SquatTrend | null;
 };
 
 export const moduleBService = {

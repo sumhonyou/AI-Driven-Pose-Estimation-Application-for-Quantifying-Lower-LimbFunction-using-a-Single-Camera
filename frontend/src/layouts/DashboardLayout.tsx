@@ -77,7 +77,7 @@ export default function DashboardLayout() {
             <History />
             <span className="nav-label">{t("dash.navHistory")}</span>
           </NavLink>
-          <NavLink to="/dashboard" className={() => ""}>
+          <NavLink to="/progress" className={({ isActive }) => (isActive ? "active" : "")}>
             <Chart />
             <span className="nav-label">{t("dash.navProgress")}</span>
           </NavLink>

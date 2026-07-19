@@ -48,3 +48,7 @@ class ModuleBResultResponse(BaseModel):
     error_tags: list[ModuleBErrorTagResponse] = Field(default_factory=list)
     feedback: ModuleBFeedbackResponse | None = None
     created_at: str | None = None
+    # Stage 7.4: "vs last session" trend, populated only by GET /results/{id} (the
+    # report-read-back point, mirroring Module A's Stage 7.2 pattern). None for a
+    # session with no previous Module B result of the same exercise to compare against.
+    trend: dict | None = None

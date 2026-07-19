@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import (
@@ -149,17 +150,43 @@ class SessionRead(BaseModel):
     rep_count: int | None = None
 
 
+# Latest score/band/quality for a single exercise type (dashboard tile).
+class ExerciseLatest(BaseModel):
+    score: float | None = None
+    band: str | None = None
+    capture_quality: float | None = None
+
+
 class DashboardSummary(BaseModel):
     total_sessions: int
     avg_capture_quality: float | None = None
     latest_score: float | None = None
     latest_band: str | None = None
     recent_sessions: list[SessionRead]
+    # Per-exercise latest, keyed by exercise_type, so the dashboard can show a
+    # tile per exercise instead of one global "latest". Empty for new accounts.
+    latest: dict[str, ExerciseLatest] = Field(default_factory=dict)
 
 
-class DashboardTrendPoint(BaseModel):
-    label: str
+# One point on an exercise's score/quality/confidence trend.
+class TrendPoint(BaseModel):
+    session_id: str
+    date: datetime
     score: float | None = None
+    band: str | None = None
+    capture_quality: float | None = None
+    confidence: float | None = None  # Module B only; None for Module A
+
+
+class ExerciseTrend(BaseModel):
+    points: list[TrendPoint]
+    # No published MDC exists on the 0-10 composite score for ANY exercise, so
+    # the score trend never asserts a "meaningful change". WBLT's published MDC
+    # (Powden 2015) is on raw distance/angle and is applied per-session in the
+    # report, not on this score series. Kept explicit so the UI can render an
+    # honest "no meaningful-change threshold" caption uniformly.
+    mdc: float | None = None
+    mdc_source: Literal["published", "none"] = "none"
 
 
 class DashboardErrorTag(BaseModel):

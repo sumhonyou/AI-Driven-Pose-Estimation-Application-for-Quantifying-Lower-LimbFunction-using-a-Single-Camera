@@ -3,6 +3,7 @@
 SLS has its own incremental (per-leg) upsert — see app/module_a/sls/crud.py.
 """
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -85,6 +86,49 @@ def list_history(
     if exercise_type:
         stmt = stmt.where(SessionModel.exercise_type == exercise_type)
     return list(db.scalars(stmt))
+
+
+def _inferred_session_status(result: ModuleAResult) -> str:
+    """Same fallback used at response time for rows saved before session_status
+    existed (see core/router.py's _legacy_session_status) -- kept here too since
+    get_previous_completed_result needs it and crud.py must not import router.py.
+    """
+    if result.session_status:
+        return result.session_status
+    return "low_confidence" if result.final_band == "invalid" else "complete"
+
+
+def get_previous_completed_result(
+    db: DbSession,
+    user_id: UUID,
+    exercise_type: str,
+    exclude_session_id: UUID,
+    before: datetime,
+    limit: int = 10,
+) -> ModuleAResult | None:
+    """Stage 7.2: the account's most recent *completed* result for this
+    exercise that is chronologically BEFORE `before` (pass the current
+    session's `created_at`) -- the trend comparison target for STS/SLS.
+
+    The `before` bound matters: without it, viewing an *old* session's report
+    (e.g. via Session History) could pick a *later* session as the "previous"
+    one, printing a nonsensical trend (found live-testing this feature -- not
+    present when a report is viewed right after finishing the latest session,
+    only when browsing history, so easy to miss without an explicit check).
+    Mirrors WBLT's get_previous_wblt_legs, minus WBLT's captured_at-specific
+    completeness check (session_status is the shared signal STS/SLS write).
+    An incomplete/low-confidence prior session has nothing honest to compare
+    against, so it's skipped rather than compared.
+    """
+    for result in list_history(db, user_id, exercise_type, limit):
+        if result.session_id == exclude_session_id:
+            continue
+        if result.created_at >= before:
+            continue
+        if _inferred_session_status(result) != "complete":
+            continue
+        return result
+    return None
 
 
 def save_landmark_log(db: DbSession, session_id: UUID, frames: list[dict]) -> None:

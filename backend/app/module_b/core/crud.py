@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session as DbSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models import FeedbackText, ModuleBErrorTag, ModuleBResult
 from app.db.models import Session as SessionModel
@@ -144,6 +146,51 @@ def get_result_by_session(db: DbSession, session_id: UUID) -> ModuleBResult | No
     return db.scalar(
         select(ModuleBResult).where(ModuleBResult.session_id == session_id)
     )
+
+
+def list_history(
+    db: DbSession, user_id: UUID, exercise_code: str, limit: int
+) -> list[ModuleBResult]:
+    """Same shape as Module A's list_history -- newest-first, joined through the
+    owning session for the user filter, with the session eager-loaded so callers
+    can read rep_count without a second round trip."""
+    stmt = (
+        select(ModuleBResult)
+        .join(SessionModel, SessionModel.id == ModuleBResult.session_id)
+        .options(selectinload(ModuleBResult.session))
+        .where(
+            SessionModel.user_id == user_id,
+            ModuleBResult.exercise_code == exercise_code,
+        )
+        .order_by(ModuleBResult.created_at.desc())
+        .limit(limit)
+    )
+    return list(db.scalars(stmt))
+
+
+def get_previous_result(
+    db: DbSession,
+    user_id: UUID,
+    exercise_code: str,
+    exclude_session_id: UUID,
+    before: datetime,
+    limit: int = 10,
+) -> ModuleBResult | None:
+    """Stage 7.4: the account's most recent Module B result for this exercise that is
+    chronologically BEFORE `before` (pass the current result's `created_at`) -- the
+    trend comparison target, mirroring Module A's get_previous_completed_result.
+
+    Unlike Module A, Module B has no `session_status` column (a session's `status` is
+    unconditionally "completed" once any result is saved -- see save_result), so there
+    is no completeness filter to apply here: the most recent prior result is used as-is.
+    """
+    for result in list_history(db, user_id, exercise_code, limit):
+        if result.session_id == exclude_session_id:
+            continue
+        if result.created_at >= before:
+            continue
+        return result
+    return None
 
 
 def get_error_tags(db: DbSession, session_id: UUID) -> list[ModuleBErrorTag]:

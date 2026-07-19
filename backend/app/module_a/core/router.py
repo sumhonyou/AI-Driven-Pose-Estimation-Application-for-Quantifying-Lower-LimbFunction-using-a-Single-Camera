@@ -18,6 +18,8 @@ from app.db.models import Session as SessionModel
 from app.db.models import User
 from app.module_a.core import banding, crud
 from app.module_a.core.schemas import AnalyzeRequest, ModuleAResultResponse
+from app.module_a.sls import trend as sls_trend
+from app.module_a.sts import trend as sts_trend
 from app.module_a.sts.engine import run_sts
 
 logger = logging.getLogger(__name__)
@@ -150,6 +152,55 @@ def _legacy_session_status(result) -> str:
     return "low_confidence" if result.final_band == "invalid" else "complete"
 
 
+def _compute_trend(
+    db: DbSession, session: SessionModel, result, metrics: dict
+) -> dict | None:
+    """Stage 7.2: "vs last session" trend, populated only for STS/SLS -- WBLT
+    already has its own dedicated trend via /api/wblt/session/{id}.
+    """
+    if session.exercise_type == "sit_to_stand":
+        previous = crud.get_previous_completed_result(
+            db, session.user_id, "sit_to_stand", session.id, before=result.created_at
+        )
+        previous_data = (
+            {
+                "score": float(previous.score) if previous.score is not None else None,
+                "band": previous.final_band,
+                "completion_time_sec": (
+                    float(previous.completion_time_sec)
+                    if previous.completion_time_sec is not None
+                    else None
+                ),
+            }
+            if previous is not None
+            else None
+        )
+        current_data = {
+            "score": float(result.score) if result.score is not None else None,
+            "band": result.final_band,
+            "completion_time_sec": metrics.get("completion_time_sec"),
+        }
+        return sts_trend.compute_trend(current_data, previous_data)
+
+    if session.exercise_type == "supported_single_leg_stance":
+        previous = crud.get_previous_completed_result(
+            db,
+            session.user_id,
+            "supported_single_leg_stance",
+            session.id,
+            before=result.created_at,
+        )
+        previous_legs = (
+            dict(previous.metrics_json or {}).get("perLeg", {})
+            if previous is not None
+            else None
+        )
+        current_legs = metrics.get("perLeg", {})
+        return sls_trend.compute_trend(current_legs, previous_legs)
+
+    return None
+
+
 @router.get("/sessions/{session_id}", response_model=ModuleAResultResponse)
 def get_session_result(
     session_id: UUID,
@@ -178,6 +229,7 @@ def get_session_result(
         session_status=_legacy_session_status(result),
         is_partial_score=result.is_partial_score,
         persisted=True,
+        trend=_compute_trend(db, session, result, metrics),
     )
 
 

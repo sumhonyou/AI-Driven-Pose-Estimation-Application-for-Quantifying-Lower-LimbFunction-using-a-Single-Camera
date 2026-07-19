@@ -5,9 +5,15 @@ import { DashTopbar } from "../layouts/DashboardLayout";
 import { Lightbulb, ShieldCheck, History, Plus, Alert } from "../components/Icons";
 import InfoTooltip from "../components/InfoTooltip";
 import { sessionService } from "../services/sessionService";
-import { moduleAService, type ModuleAResult } from "../services/moduleAService";
-import { moduleBService, type ModuleBResult } from "../services/moduleBService";
+import {
+  moduleAService,
+  type ModuleAResult,
+  type SlsLegTrend,
+  type StsTrend,
+} from "../services/moduleAService";
+import { moduleBService, type ModuleBResult, type SquatTrend } from "../services/moduleBService";
 import { wbltApi, type WbltLegTrend } from "../services/wblt/wbltApi";
+import type { SlsLeg } from "../services/sls/slsApi";
 import type { SessionDTO } from "../types/api";
 import { useReveal } from "../useReveal";
 
@@ -54,22 +60,116 @@ function wbltTrendText(
     : t("wblt.trendNoPrevious");
 }
 
-// Rule-based coaching tip for Module A (STS/SLS/WBLT) -- deterministic, not LLM
-// (task.md Table 7 scopes the rewriting layer to Module B only). Reuses the same
-// `warning_tags` already computed for the "Things to check" panel, so the tip
-// reflects what actually happened this session instead of always showing the same
-// generic paragraph. Falls back to that generic paragraph only when nothing was
-// flagged -- a clean session genuinely has no session-specific issue to name.
-function moduleACoachingTip(
+// Stage 7.2: STS/SLS "vs last session" trend text. Unlike WBLT above, there is
+// no MDC (minimal detectable change) study for STS/SLS, so this never branches
+// on a "meaningful" flag -- the plain delta is shown whenever it's available,
+// with no suppressed "about the same" claim (task.md Stage 7.2: never invent a
+// clinical threshold that doesn't exist).
+function stsTrendText(
   t: (key: string, opts?: Record<string, unknown>) => string,
-  warningTags: string[],
-): string {
-  if (warningTags.length === 0) {
-    return t("report.coachingBody");
+  trend: StsTrend | null | undefined,
+) {
+  if (!trend) return t("report.trendNoPrevious");
+  const parts: string[] = [];
+  if (trend.score_delta != null) {
+    parts.push(
+      t("report.trendScoreChanged", {
+        sign: trend.score_delta >= 0 ? "+" : "",
+        value: trend.score_delta.toFixed(1),
+      }),
+    );
   }
-  return t(("report.warn_" + warningTags[0]) as never, {
-    defaultValue: warningTags[0],
-  });
+  if (trend.completion_time_delta_sec != null) {
+    parts.push(
+      t("report.trendTimeChanged", {
+        sign: trend.completion_time_delta_sec >= 0 ? "+" : "",
+        value: trend.completion_time_delta_sec.toFixed(1),
+      }),
+    );
+  }
+  return parts.length
+    ? `${t("report.trendVsLast")}: ${parts.join(" · ")}`
+    : t("report.trendNoPrevious");
+}
+
+function slsLegTrendText(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  trend: SlsLegTrend | null | undefined,
+) {
+  if (!trend) return t("report.trendNoPrevious");
+  const parts: string[] = [];
+  if (trend.hold_delta_sec != null) {
+    parts.push(
+      t("report.trendHoldChanged", {
+        sign: trend.hold_delta_sec >= 0 ? "+" : "",
+        value: trend.hold_delta_sec.toFixed(1),
+      }),
+    );
+  }
+  if (trend.score_delta != null) {
+    parts.push(
+      t("report.trendScoreChanged", {
+        sign: trend.score_delta >= 0 ? "+" : "",
+        value: trend.score_delta.toFixed(1),
+      }),
+    );
+  }
+  return parts.length
+    ? `${t("report.trendVsLast")}: ${parts.join(" · ")}`
+    : t("report.trendNoPrevious");
+}
+
+// Stage 7.4: squat "vs last session" trend text. Same no-MDC rule as STS/SLS
+// above; squat compares score and reps completed (Module B has no completion-time
+// field like STS does).
+function squatTrendText(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  trend: SquatTrend | null | undefined,
+) {
+  if (!trend) return t("report.trendNoPrevious");
+  const parts: string[] = [];
+  if (trend.score_delta != null) {
+    parts.push(
+      t("report.trendScoreChanged", {
+        sign: trend.score_delta >= 0 ? "+" : "",
+        value: trend.score_delta.toFixed(1),
+      }),
+    );
+  }
+  if (trend.rep_count_delta != null) {
+    parts.push(
+      t("report.trendRepsChanged", {
+        sign: trend.rep_count_delta >= 0 ? "+" : "",
+        value: trend.rep_count_delta.toFixed(0),
+      }),
+    );
+  }
+  return parts.length
+    ? `${t("report.trendVsLast")}: ${parts.join(" · ")}`
+    : t("report.trendNoPrevious");
+}
+
+// Stage 7.4: one trend line + an info tooltip explaining what "vs last session"
+// compares against. Shared by all four exercises (WBLT/STS/SLS/squat) so the
+// wording and affordance stay identical everywhere.
+function TrendLine({
+  t,
+  text,
+  style,
+}: {
+  t: (key: string, opts?: Record<string, unknown>) => string;
+  text: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <p
+      className="muted"
+      style={{ fontSize: "0.82rem", display: "flex", alignItems: "center", gap: 4, ...style }}
+    >
+      {text}
+      <InfoTooltip text={t("report.trendInfoText")} label={t("report.trendInfoLabel")} />
+    </p>
+  );
 }
 
 // Exercise codes graded by Module B's generic registry+plugin pipeline (task.md
@@ -181,6 +281,12 @@ export default function Report() {
   const wbltLegs = result?.metrics.legs;
   const hasWbltLegs = !!(wbltLegs && (wbltLegs.right || wbltLegs.left));
   const symmetry = result?.metrics.symmetry;
+  // Stage 7.2: shape of result.trend depends on exercise_type (StsTrend vs a
+  // per-leg SlsLegTrend map) -- guarded by isSls/isWblt at each render site so
+  // an SLS-shaped trend is never read as if it were STS's, or vice versa.
+  const slsTrend = hasPerLeg
+    ? (result?.trend as Partial<Record<SlsLeg, SlsLegTrend | null>> | undefined)
+    : undefined;
 
   // Module B: the three rule sub-scores broken out, plus the ML/confidence/capture
   // figures the checklist asks for — reuses the same "sub-score" row shape as
@@ -437,16 +543,23 @@ export default function Report() {
           </div>
 
           {isModuleB ? (
-            <div className="sub-scores" style={{ marginBottom: 18 }}>
-              {moduleBRows.map((row) => (
-                <div className="sub-score reveal" key={row.label}>
-                  <div className="ss-top">
-                    <b>{row.label}</b>
-                    <span>{row.value}</span>
+            <>
+              <div className="sub-scores" style={{ marginBottom: 8 }}>
+                {moduleBRows.map((row) => (
+                  <div className="sub-score reveal" key={row.label}>
+                    <div className="ss-top">
+                      <b>{row.label}</b>
+                      <span>{row.value}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              <TrendLine
+                t={t}
+                text={squatTrendText(t, moduleBResult?.trend)}
+                style={{ marginBottom: 18 }}
+              />
+            </>
           ) : hasWbltLegs ? (
             <>
               <div className="dash-grid-2" style={{ marginBottom: 18 }}>
@@ -479,9 +592,11 @@ export default function Report() {
                           {m.leg_angle_deg != null ? `${m.leg_angle_deg.toFixed(1)}°` : "—"}
                         </span>
                       </div>
-                      <p className="muted" style={{ fontSize: "0.82rem", marginTop: 10 }}>
-                        {wbltTrendText(t, wbltTrend[leg])}
-                      </p>
+                      <TrendLine
+                        t={t}
+                        text={wbltTrendText(t, wbltTrend[leg])}
+                        style={{ marginTop: 10 }}
+                      />
                     </div>
                   );
                 })}
@@ -580,6 +695,11 @@ export default function Report() {
                     <p className="muted" style={{ fontSize: "0.82rem", marginTop: 12 }}>
                       {t("sls.stopReasonLabel")}: {t("sls.stopReason_" + m.stopReason)}
                     </p>
+                    <TrendLine
+                      t={t}
+                      text={slsLegTrendText(t, slsTrend?.[leg])}
+                      style={{ marginTop: 6 }}
+                    />
                   </div>
                 );
               })}
@@ -617,16 +737,28 @@ export default function Report() {
               </div>
             </div>
           ) : (
-            <div className="sub-scores" style={{ marginBottom: 18 }}>
-              {metricRows.map((row) => (
-                <div className="sub-score reveal" key={row.label}>
-                  <div className="ss-top">
-                    <b>{row.label}</b>
-                    <span>{row.value}</span>
+            <>
+              <div className="sub-scores" style={{ marginBottom: !isSls && !isWblt ? 8 : 18 }}>
+                {metricRows.map((row) => (
+                  <div className="sub-score reveal" key={row.label}>
+                    <div className="ss-top">
+                      <b>{row.label}</b>
+                      <span>{row.value}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              {/* STS only -- SLS's legacy (pre-rebuild) metricRows fall through
+                  here too, but result.trend is SLS-shaped in that case, not
+                  StsTrend, so it's deliberately excluded. */}
+              {!isSls && !isWblt && result && (
+                <TrendLine
+                  t={t}
+                  text={stsTrendText(t, result.trend as StsTrend | null | undefined)}
+                  style={{ marginBottom: 18 }}
+                />
+              )}
+            </>
           )}
 
           {isModuleB ? (
@@ -682,53 +814,46 @@ export default function Report() {
             </div>
           ) : (
             result && (
-              <div className="dash-grid-2" style={{ marginBottom: 18 }}>
-                <div className="panel reveal">
-                  <div className="panel-head" style={{ marginBottom: 16 }}>
-                    <div>
-                      <h3>{t("report.coaching")}</h3>
-                    </div>
-                    <span
-                      className="mi"
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 10,
-                        display: "grid",
-                        placeItems: "center",
-                        background: "var(--good-bg)",
-                        color: "var(--accent-text)",
-                      }}
-                    >
-                      <Lightbulb width={19} height={19} />
-                    </span>
+              <div className="panel reveal" style={{ marginBottom: 18 }}>
+                <div className="panel-head" style={{ marginBottom: 16 }}>
+                  <div>
+                    <h3>{t("report.coaching")}</h3>
                   </div>
+                  <span
+                    className="mi"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      display: "grid",
+                      placeItems: "center",
+                      background: "var(--good-bg)",
+                      color: "var(--accent-text)",
+                    }}
+                  >
+                    <Lightbulb width={19} height={19} />
+                  </span>
+                </div>
+                {result.warning_tags.length === 0 ? (
                   <div className="feedback-box">
                     <div className="fb-label">{t("report.coachingTipLabel")}</div>
-                    {moduleACoachingTip(t, result.warning_tags)}
+                    {t("report.coachingBody")}
                   </div>
-                </div>
-                <div className="panel reveal">
-                  <div className="panel-head" style={{ marginBottom: 16 }}>
-                    <div>
-                      <h3>{t("report.warnings")}</h3>
-                    </div>
-                  </div>
-                  <div className="tags">
-                    {result.warning_tags.length === 0 && (
-                      <span className="tag">
-                        <span className="sev low" />
-                        {t("report.noWarnings")}
-                      </span>
-                    )}
+                ) : (
+                  <div className="check-list">
                     {result.warning_tags.map((tag) => (
-                      <span className="tag" key={tag}>
-                        <span className="sev med" />
-                        {t(("report.warn_" + tag) as never, { defaultValue: tag })}
-                      </span>
+                      <div className="check-item" key={tag}>
+                        <div className="check-item-head">
+                          <span className="sev med" />
+                          <b>{t(("report.warn_" + tag) as never, { defaultValue: tag })}</b>
+                        </div>
+                        <p className="muted check-item-tip">
+                          {t(("report.tip_" + tag) as never, { defaultValue: "" })}
+                        </p>
+                      </div>
                     ))}
                   </div>
-                </div>
+                )}
               </div>
             )
           )}
