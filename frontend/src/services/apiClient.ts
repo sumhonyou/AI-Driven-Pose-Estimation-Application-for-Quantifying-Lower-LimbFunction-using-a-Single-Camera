@@ -1,6 +1,9 @@
 export const TOKEN_KEY = "physiofit-token";
 
-const API_BASE_URL =
+// Exported for callers that need to fetch a non-JSON authenticated response
+// directly (e.g. reminderService's .ics download), bypassing apiRequest's
+// JSON-only assumption.
+export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000";
 
 export class ApiError extends Error {

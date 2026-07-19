@@ -201,6 +201,25 @@ export const ChevronDown = (p: P) => (
   </svg>
 );
 
+export const Calendar = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <path d="M16 2v4M8 2v4M3 10h18" />
+  </svg>
+);
+
+export const Download = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 3v12M7 10l5 5 5-5M4 21h16" />
+  </svg>
+);
+
+export const Trash = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16z" />
+  </svg>
+);
+
 export const LogoMark = (p: P) => (
   <svg viewBox="0 0 24 24" fill="none" {...p}>
     <path

@@ -172,6 +172,17 @@ class Reminder(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="true"
     )
+    # Stage 7.3: which exercise this reminder deep-links to when clicked (nullable --
+    # a reminder can be generic, e.g. "log how you're feeling"). Not a FK to
+    # exercise_catalog.code on purpose: a reminder must survive an exercise being
+    # retired (e.g. lunge) rather than cascade-delete or dangle a broken FK; the
+    # frontend gates the deep-link itself if the code is no longer active.
+    exercise_code: Mapped[str | None] = mapped_column(String(100))
+    # Stage 7.3: when the user last marked this reminder done. For a one-time
+    # reminder, any value means complete. For a recurring one, only "done for
+    # today's occurrence" if the date component matches today (see
+    # reminders_service.is_due) -- the column itself just stores the last tap.
+    last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -16,7 +16,10 @@ import {
 import { dashboardService } from "../services/dashboardService";
 import { sessionService } from "../services/sessionService";
 import { exerciseService } from "../services/exerciseService";
+import { reminderService } from "../services/reminderService";
+import { useReveal } from "../useReveal";
 import { useAuth } from "../auth";
+import { useReminders } from "../reminders";
 import type {
   DashboardErrorTags,
   DashboardSummary,
@@ -43,19 +46,26 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-/** Today's date for the dashboard subheading, e.g. "Sunday, 19 July 2026". */
+/** Today's date for the dashboard subheading, e.g. "Sunday, 19 July 2026".
+ *  Chinese uses weekday-first: "星期一，2026年7月20日". */
 function formatTodayDateline(language: string) {
-  const locale = language.startsWith("zh")
-    ? "zh-CN"
-    : language.startsWith("ms")
-      ? "ms-MY"
-      : "en-GB";
+  const now = new Date();
+  if (language.startsWith("zh")) {
+    const weekday = new Intl.DateTimeFormat("zh-CN", { weekday: "long" }).format(now);
+    const date = new Intl.DateTimeFormat("zh-CN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(now);
+    return `${weekday}，${date}`;
+  }
+  const locale = language.startsWith("ms") ? "ms-MY" : "en-GB";
   return new Intl.DateTimeFormat(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(new Date());
+  }).format(now);
 }
 
 function qualityLabel(value: number | null) {
@@ -65,16 +75,24 @@ function qualityLabel(value: number | null) {
 export default function Dashboard() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const { reminders: allReminders, refresh: refreshReminders } = useReminders();
   const todayLabel = formatTodayDateline(i18n.language);
-  const [done, setDone] = useState<Record<number, boolean>>({ 0: true });
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [sessions, setSessions] = useState<SessionDTO[]>([]);
   const [trends, setTrends] = useState<DashboardTrends>({});
   const [errorTags, setErrorTags] = useState<DashboardErrorTags>({});
   const [activeExercises, setActiveExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
+  // This page's real content only exists once `loading` flips false (and once
+  // reminders load, for the due-banner/panel) -- DashboardLayout's own
+  // useReveal([pathname]) fires on mount, before any of that async data has
+  // landed, so it never observes these elements. Found live-testing Stage 7.3
+  // (the reminders panel/banner stayed invisible); this was a pre-existing gap
+  // affecting the whole page, not something the reminders work introduced, so
+  // fixed here rather than worked around locally.
+  useReveal([loading, allReminders]);
   const [error, setError] = useState("");
-  const toggle = (i: number) => setDone((d) => ({ ...d, [i]: !d[i] }));
+  const completeReminder = (id: string) => reminderService.complete(id).then(refreshReminders);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,11 +130,9 @@ export default function Dashboard() {
     return <Activity />;
   };
 
-  const reminders = [
-    { b: t("dash.remMorning"), s: t("dash.remMorningSub"), time: "08:00" },
-    { b: t("dash.remKnee"), s: t("dash.remKneeSub"), time: "18:30" },
-    { b: t("dash.remWeekly"), s: t("dash.remWeeklySub"), time: "10:00" },
-  ];
+  // Stage 7.3: real reminders (shared via RemindersContext), soonest-first,
+  // capped to a small preview -- the full list lives on the Reminders page.
+  const upcomingReminders = allReminders.slice(0, 4);
   const avgQuality = summary?.avg_capture_quality;
 
   // All exercise types' trend points pooled together, for the account-wide
@@ -398,20 +414,25 @@ export default function Dashboard() {
               + {t("common.add")}
             </Link>
           </div>
-          {reminders.map((r, i) => (
+          {upcomingReminders.length === 0 && (
+            <p className="muted" style={{ fontSize: "0.85rem" }}>
+              {t("dash.remindersEmpty")}
+            </p>
+          )}
+          {upcomingReminders.map((r) => (
             <div
-              className={"rem-item" + (done[i] ? " is-done" : "")}
-              key={i}
-              onClick={() => toggle(i)}
+              className={"rem-item" + (r.last_completed_at ? " is-done" : "")}
+              key={r.id}
+              onClick={() => completeReminder(r.id)}
             >
-              <span className={"rem-check" + (done[i] ? " done" : "")}>
+              <span className={"rem-check" + (r.last_completed_at ? " done" : "")}>
                 <Check />
               </span>
               <div className="rem-body">
-                <b>{r.b}</b>
-                <span>{r.s}</span>
+                <b>{r.title}</b>
+                <span>{r.exercise_name ?? t("dash.remindersSub")}</span>
               </div>
-              <span className="rem-time">{r.time}</span>
+              <span className="rem-time">{formatDate(r.reminder_time)}</span>
             </div>
           ))}
         </div>

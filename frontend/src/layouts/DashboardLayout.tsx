@@ -1,10 +1,83 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Logo, ThemeToggle, FontSizeControl, LanguageSwitcher } from "../components/Controls";
 import { Grid, CirclePlus, History, Chart, Bell, User, Menu, Close } from "../components/Icons";
 import { useReveal } from "../useReveal";
 import { useAuth } from "../auth";
+import { RemindersProvider, useReminders } from "../reminders";
+
+const DISMISS_KEY = "physiofit-due-banner-dismissed";
+
+/** Hide the due banner on reminders itself and during live capture. */
+function shouldHideDueBanner(pathname: string) {
+  if (pathname.startsWith("/reminders")) return true;
+  return ["/sts/live", "/sls/live", "/wblt/live", "/squat/live"].some((p) =>
+    pathname.startsWith(p),
+  );
+}
+
+/** Floating coral due-alert; overlays pages without shifting layout. */
+function DueReminderBanner() {
+  const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const { soonestDue, loading } = useReminders();
+  const [dismissedId, setDismissedId] = useState<string | null>(() =>
+    sessionStorage.getItem(DISMISS_KEY),
+  );
+  const prevDueIdRef = useRef<string | null>(null);
+  const readyRef = useRef(false);
+
+  useEffect(() => {
+    if (loading) return;
+    const id = soonestDue?.id ?? null;
+    // First snapshot after load: keep any existing dismiss for this tab.
+    if (!readyRef.current) {
+      readyRef.current = true;
+      prevDueIdRef.current = id;
+      return;
+    }
+    // Live flip: nothing due → due, or a different reminder became the soonest.
+    if (id && (prevDueIdRef.current === null || id !== prevDueIdRef.current)) {
+      setDismissedId(null);
+      sessionStorage.removeItem(DISMISS_KEY);
+      console.log("[reminders] due banner shown for", id);
+    }
+    prevDueIdRef.current = id;
+  }, [soonestDue, loading]);
+
+  if (!soonestDue || shouldHideDueBanner(pathname) || dismissedId === soonestDue.id) {
+    return null;
+  }
+
+  const name = soonestDue.exercise_name ?? soonestDue.title;
+
+  const dismiss = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDismissedId(soonestDue.id);
+    sessionStorage.setItem(DISMISS_KEY, soonestDue.id);
+  };
+
+  return createPortal(
+    <div className="due-alert-banner" role="status">
+      <Link to="/reminders" className="due-alert-banner-link">
+        <Bell />
+        <span>{t("dash.dueExerciseBanner", { name })}</span>
+      </Link>
+      <button
+        type="button"
+        className="due-alert-banner-dismiss"
+        onClick={dismiss}
+        aria-label={t("dash.dismissDueBanner")}
+      >
+        <Close />
+      </button>
+    </div>,
+    document.body,
+  );
+}
 
 function TopbarAvatar() {
   const { user } = useAuth();
@@ -21,10 +94,21 @@ function TopbarAvatar() {
 }
 
 export default function DashboardLayout() {
+  // Stage 7.3: RemindersProvider wraps the whole authed shell so both the nav
+  // badge here and the Reminders/Dashboard pages (via Outlet) share one fetch.
+  return (
+    <RemindersProvider>
+      <DashboardLayoutInner />
+    </RemindersProvider>
+  );
+}
+
+function DashboardLayoutInner() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const nav = useNavigate();
   const { logout } = useAuth();
+  const { dueCount } = useReminders();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   useReveal([pathname]);
@@ -85,7 +169,15 @@ export default function DashboardLayout() {
         <div className="side-group">{t("dash.sideAccount")}</div>
         <nav className="side-nav" onClick={close}>
           <NavLink to="/reminders" className={({ isActive }) => (isActive ? "active" : "")}>
-            <Bell />
+            <span className="nav-icon-badge">
+              <Bell />
+              {dueCount > 0 && (
+                <span
+                  className="nav-badge-dot"
+                  aria-label={t("reminders.dueBadge", { count: dueCount })}
+                />
+              )}
+            </span>
             <span className="nav-label">{t("dash.navReminders")}</span>
           </NavLink>
           <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
@@ -126,6 +218,7 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+      <DueReminderBanner />
     </div>
   );
 }

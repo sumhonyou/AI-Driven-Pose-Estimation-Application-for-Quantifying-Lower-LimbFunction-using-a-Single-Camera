@@ -193,3 +193,50 @@ class DashboardErrorTag(BaseModel):
     tag_code: str
     severity: str | None = None
     count: int
+
+
+# Stage 7.3: reminders. Delivery is calendar-link based (Google Calendar URL +
+# downloadable .ics), not email/push -- there is no scheduler or email sender in
+# this project, per task.md's "keep it simple" note for this stage.
+ReminderFrequency = Literal["once", "daily", "mwf", "weekly"]
+
+
+class ReminderCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    reminder_time: datetime
+    frequency: ReminderFrequency | None = None
+    # Which exercise this reminder deep-links to when clicked; None for a
+    # generic reminder with no specific exercise attached.
+    exercise_code: str | None = None
+
+
+class ReminderUpdate(BaseModel):
+    """All optional -- also used to toggle `is_active` on its own."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    reminder_time: datetime | None = None
+    frequency: ReminderFrequency | None = None
+    exercise_code: str | None = None
+    is_active: bool | None = None
+
+
+class ReminderResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    reminder_time: datetime
+    frequency: str | None = None
+    is_active: bool
+    exercise_code: str | None = None
+    last_completed_at: datetime | None = None
+    created_at: datetime
+    # Computed, not stored: whether this reminder currently needs the user's
+    # attention (drives the nav red-dot + dashboard banner).
+    is_due: bool
+    # Resolved from the exercise catalog at request time (never persisted) so a
+    # retired exercise's name doesn't survive as stale text on an old reminder.
+    exercise_name: str | None = None
+    exercise_mode: str | None = None
+    google_calendar_url: str
+    ics_url: str

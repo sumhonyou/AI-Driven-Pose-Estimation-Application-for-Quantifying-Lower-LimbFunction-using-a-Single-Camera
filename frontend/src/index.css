@@ -417,7 +417,8 @@ html[data-theme="dark"] .band.poor {
 }
 .brand .logo {
   width: auto;
-  height: 110px;
+  /* Cropped asset fills this box; keep public nav compact */
+  height: 64px;
   flex: none;
   display: flex;
   align-items: center;
@@ -429,7 +430,7 @@ html[data-theme="dark"] .band.poor {
   display: block;
 }
 .brand--footer .logo {
-  height: 140px;
+  height: 88px;
 }
 
 .nav-links {
@@ -941,6 +942,118 @@ html[data-theme="dark"] .band.poor {
   height: 18px;
   color: var(--emerald);
   flex: none;
+}
+/* Stage 7.3: due-reminders login banner -- same shape as .dash-note, coral-toned
+   and clickable (it's a Link to /reminders, not just a static notice). */
+.dash-note-alert {
+  border: 1px solid color-mix(in srgb, var(--coral) 32%, var(--border));
+  background: color-mix(in srgb, var(--coral) 8%, var(--surface));
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.dash-note-alert:hover {
+  background: color-mix(in srgb, var(--coral) 14%, var(--surface));
+}
+.dash-note-alert svg {
+  color: var(--coral);
+}
+
+/* Floating due banner: frosted glass overlay — translucent but still readable
+   (ui-ux-pro-max: light-mode glass ≥ ~70–80% opacity + blur, keep 4.5:1 text). */
+.due-alert-banner {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(520px, calc(100vw - 32px));
+  padding: 12px 14px 12px 16px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--coral) 26%, transparent);
+  background: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--coral) 16%, var(--surface)) 78%,
+    transparent
+  );
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+  backdrop-filter: blur(14px) saturate(1.08);
+  color: var(--text);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--ink-dark) 12%, transparent);
+  pointer-events: auto;
+}
+.due-alert-banner-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 550;
+  cursor: pointer;
+}
+.due-alert-banner-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.due-alert-banner-link svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--coral);
+}
+.due-alert-banner:hover {
+  background: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--coral) 20%, var(--surface)) 86%,
+    transparent
+  );
+}
+.due-alert-banner-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  flex: none;
+}
+.due-alert-banner-dismiss:hover {
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+  color: var(--text);
+}
+.due-alert-banner-dismiss:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+.due-alert-banner-dismiss svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 980px) {
+  .due-alert-banner {
+    top: 72px; /* clear the sticky mobile top bar */
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .due-alert-banner {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: color-mix(in srgb, var(--coral) 14%, var(--surface));
+  }
 }
 
 /* ===========================================================
@@ -1575,15 +1688,35 @@ html[data-theme="dark"] .band.poor {
     padding 0.28s var(--ease);
 }
 .side-top {
+  /* Centre the logo in the full sidebar width; toggle sits on top-right */
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: center;
+  margin-bottom: 8px;
 }
 .side .brand {
-  padding: 16px 8px 32px;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.side .brand .logo {
+  height: 108px;
+  width: auto;
+  max-width: 100%;
+}
+.side .brand .logo img {
+  width: auto;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 .sidebar-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
   display: grid;
   place-items: center;
   width: 36px;
@@ -1593,6 +1726,7 @@ html[data-theme="dark"] .band.poor {
   background: var(--surface);
   color: var(--text-2);
   flex: none;
+  z-index: 1;
   transition:
     background 0.2s,
     color 0.2s,
@@ -1646,6 +1780,22 @@ html[data-theme="dark"] .band.poor {
 }
 .side-nav a.active svg {
   opacity: 1;
+}
+/* Stage 7.3: red-dot "something is due" badge on the Reminders nav icon. */
+.nav-icon-badge {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.nav-badge-dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--coral);
+  border: 1.5px solid var(--surface);
 }
 .nav-link {
   display: flex;
@@ -1706,6 +1856,11 @@ html[data-theme="dark"] .band.poor {
 .app.sidebar-collapsed .side-top {
   justify-content: center;
   width: 100%;
+  /* Give absolute toggle a centred box when the brand is hidden */
+  min-height: 48px;
+}
+.app.sidebar-collapsed .sidebar-toggle {
+  position: static;
 }
 .app.sidebar-collapsed .side .brand {
   display: none;
@@ -3616,6 +3771,26 @@ html[data-theme="dark"] .ex-card .ex-img {
   flex-direction: column;
   gap: 12px;
 }
+.rem-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 20px;
+  margin-bottom: 16px;
+}
+.rem-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+.rem-filter-label {
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
 .rem-card {
   display: flex;
   align-items: center;
@@ -3628,6 +3803,91 @@ html[data-theme="dark"] .ex-card .ex-img {
 }
 .rem-card:hover {
   border-color: var(--accent-text);
+}
+.rem-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.btn-icon {
+  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Visible hover tip for calendar / download / delete icons */
+.rem-tip {
+  position: relative;
+}
+.rem-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  width: max-content;
+  max-width: 220px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--ink-dark, #1a1f1c);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+.rem-tip:hover::after,
+.rem-tip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+.chip-due {
+  margin-left: 8px;
+  background: color-mix(in srgb, var(--coral) 16%, var(--surface-2));
+  color: var(--coral);
+  border-color: color-mix(in srgb, var(--coral) 32%, var(--border-soft));
+}
+.chip-completed {
+  margin-left: 8px;
+  background: color-mix(in srgb, var(--emerald) 14%, var(--surface-2));
+  color: var(--emerald);
+  border-color: color-mix(in srgb, var(--emerald) 30%, var(--border-soft));
+}
+
+/* Stage 7.3: reminder create/edit form, mirroring the SLS self-report modal
+   shell (.sls-modal-*) but generic to this feature. */
+.reminder-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--ink-dark) 55%, transparent);
+  padding: 24px;
+}
+.reminder-modal-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 28px;
+}
+.reminder-modal-card h3 {
+  margin-bottom: 18px;
+}
+.reminder-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .grid-2 {
@@ -3833,10 +4093,13 @@ html[data-theme="dark"] .ex-card .ex-img {
     height: 20px;
   }
   .brand .logo {
-    height: 90px;
+    height: 56px;
   }
   .dash-mobilebar .brand .logo {
-    height: 68px;
+    height: 52px;
+  }
+  .side .brand .logo {
+    height: 96px;
   }
   .hero {
     padding: 36px 0 40px;
@@ -4132,12 +4395,15 @@ html[data-theme="dark"] .ex-card .ex-img {
 /* Ultra-small screens (under 480px) */
 @media (max-width: 480px) {
   .brand .logo {
-    height: 76px;
+    height: 48px;
   }
   .brand--footer .logo {
-    height: 100px;
+    height: 72px;
   }
   .dash-mobilebar .brand .logo {
-    height: 56px;
+    height: 44px;
+  }
+  .side .brand .logo {
+    height: 84px;
   }
 }

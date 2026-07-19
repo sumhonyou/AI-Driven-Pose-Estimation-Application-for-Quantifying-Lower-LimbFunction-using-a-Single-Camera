@@ -5,6 +5,7 @@ from app.api import (
     auth_routes,
     dashboard_routes,
     exercise_routes,
+    reminders_routes,
     session_routes,
     user_routes,
 )
@@ -34,6 +35,7 @@ app.include_router(user_routes.router)
 app.include_router(exercise_routes.router)
 app.include_router(session_routes.router)
 app.include_router(dashboard_routes.router)
+app.include_router(reminders_routes.router)
 app.include_router(module_a_router)
 app.include_router(sls_router)
 app.include_router(wblt_router)

@@ -10,13 +10,19 @@ import PercentTrendChart from "../components/charts/PercentTrendChart";
 import ErrorTagBarChart from "../components/charts/ErrorTagBarChart";
 import Dropdown from "../components/Dropdown";
 
-type Range = "14d" | "30d" | "all";
+type Range = "7d" | "14d" | "30d" | "90d" | "all";
 type Category = "functional" | "rehab";
+
+const RANGE_DAYS: Record<Exclude<Range, "all">, number> = {
+  "7d": 7,
+  "14d": 14,
+  "30d": 30,
+  "90d": 90,
+};
 
 function rangeToFrom(range: Range): string | undefined {
   if (range === "all") return undefined;
-  const days = range === "14d" ? 14 : 30;
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  return new Date(Date.now() - RANGE_DAYS[range] * 24 * 60 * 60 * 1000).toISOString();
 }
 
 export default function Progress() {
@@ -128,11 +134,17 @@ export default function Progress() {
             )}
           </div>
           <div className="seg">
+            <button className={range === "7d" ? "on" : ""} onClick={() => setRange("7d")}>
+              {t("progress.range7d")}
+            </button>
             <button className={range === "14d" ? "on" : ""} onClick={() => setRange("14d")}>
               {t("progress.range14d")}
             </button>
             <button className={range === "30d" ? "on" : ""} onClick={() => setRange("30d")}>
               {t("progress.range30d")}
+            </button>
+            <button className={range === "90d" ? "on" : ""} onClick={() => setRange("90d")}>
+              {t("progress.range90d")}
             </button>
             <button className={range === "all" ? "on" : ""} onClick={() => setRange("all")}>
               {t("progress.rangeAll")}
