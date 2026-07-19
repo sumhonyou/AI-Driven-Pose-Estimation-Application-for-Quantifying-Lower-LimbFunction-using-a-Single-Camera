@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.exercise import ModuleBExercise
 from app.module_b.squat.config import SQUAT_CONFIG
+from app.module_b.squat.fault_gates import FaultGateResult, evaluate_fault_gates
 from app.module_b.squat.features import extract_squat_features
 from app.module_b.squat.rules import score_squat_rep, score_squat_set
 from app.module_b.squat.segmentation import segment_squat_frames
@@ -39,6 +40,23 @@ class SquatExercise(ModuleBExercise):
     @property
     def model_key(self) -> str:
         return SQUAT_CONFIG["model_key"]
+
+    @property
+    def band_policy(self) -> dict[str, Any] | None:
+        # Squat commits to a binary Good/Poor verdict (Stage 5.11); every other
+        # exercise leaves this None and keeps the 3-band abstention.
+        return SQUAT_CONFIG.get("band_policy")
+
+    def evaluate_fault_gates(
+        self, reps: list[Rep], feature_vectors: list[FeatureVector]
+    ) -> FaultGateResult | None:
+        # Stage 5.12: run the depth/lean/heel-rise gates across every rep. Returns
+        # None when no gate block is configured, so the router treats squat exactly
+        # like a gate-less exercise if the config is ever removed.
+        gate_config = SQUAT_CONFIG.get("fault_gates")
+        if not gate_config:
+            return None
+        return evaluate_fault_gates(reps, feature_vectors, gate_config)
 
     def segment(self, frames: list[dict[str, Any]]) -> list[Rep]:
         return segment_squat_frames(frames)

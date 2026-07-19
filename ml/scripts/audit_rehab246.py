@@ -1,8 +1,7 @@
 """Stage 5.0 data audit for REHAB24-6.
 
-Loads Segmentation.csv, filters to exercise_id in {5, 6} (Ex5 = Leg lunge,
-Ex6 = Squats), and reports every number the Stage 5.0 hard gate requires.
-Never mutates the dataset; read-only.
+Loads Segmentation.csv, filters to exercise_id == 6 (Squats), and reports every
+number the Stage 5.0 hard gate requires. Never mutates the dataset; read-only.
 
 Usage: python audit_rehab246.py [--config ../config.yaml]
 """
@@ -14,7 +13,7 @@ from pathlib import Path
 
 import yaml
 
-EXERCISE_NAMES = {5: "Leg lunge", 6: "Squats"}
+EXERCISE_NAMES = {6: "Squats"}
 
 
 def load_config(config_path: Path) -> dict:
@@ -32,7 +31,7 @@ def audit(rows: list[dict]) -> dict:
     """Compute every Stage 5.0 number. Returns a plain dict, printable and reusable."""
     report: dict = {}
 
-    for ex_id in (5, 6):
+    for ex_id in (6,):
         ex_rows = [r for r in rows if r["exercise_id"] == str(ex_id)]
         section: dict = {"total_reps": len(ex_rows)}
 
@@ -76,15 +75,12 @@ def audit(rows: list[dict]) -> dict:
 
         report[f"Ex{ex_id}_{EXERCISE_NAMES[ex_id]}"] = section
 
-    # The view question, per exercise: usable side-view rep count.
-    # Verified hypothesis (see DATA_AUDIT.md / LUNGE_DATA_AUDIT.md / rehab24_6_schema.md):
-    # cam17_orientation=='front' means camera18 sees a true profile/side view of the
-    # subject; 'half-profile' is neither camera's true sagittal view; 'profile' never
-    # occurs for Ex5 or Ex6 in this dataset.
-    # Verified visually per exercise, not carried over between them — a lunge is a
-    # directional movement, so Ex6's verification does not transfer to Ex5 on its own.
-    for ex_id in (5, 6):
-        report.update(_side_view_report(rows, ex_id))
+    # The view question: usable side-view rep count.
+    # Verified hypothesis (see DATA_AUDIT.md / rehab24_6_schema.md): cam17_orientation
+    # =='front' means camera18 sees a true profile/side view of the subject;
+    # 'half-profile' is neither camera's true sagittal view; 'profile' never occurs
+    # for Ex6 in this dataset.
+    report.update(_side_view_report(rows, 6))
 
     return report
 
@@ -124,18 +120,6 @@ def _side_view_report(rows: list[dict], ex_id: int) -> dict:
         - set(r["person_id"] for r in side_view_rows),
         key=int,
     )
-
-    # Lead-leg tag survival (Ex5 only — Ex6 has no subtype). Stage 4.4's cross-rep
-    # Symmetry and Stage 5.3's lead-leg feature both need both cohorts to survive.
-    subtypes = Counter(r["exercise_subtype"] for r in side_view_rows)
-    if any(s for s in subtypes):
-        out[f"{prefix}_side_view_by_subtype"] = dict(subtypes)
-        subtype_x_correctness: dict = defaultdict(lambda: Counter())
-        for r in side_view_rows:
-            subtype_x_correctness[r["exercise_subtype"]][r["correctness"]] += 1
-        out[f"{prefix}_side_view_subtype_x_correctness"] = {
-            st: dict(c) for st, c in sorted(subtype_x_correctness.items())
-        }
 
     return out
 

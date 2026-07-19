@@ -5,7 +5,7 @@ const ms: Dict = {
   common: {
     good: "Baik",
     fair: "Sederhana",
-    poor: "Lemah",
+    poor: "Perlu Penambahbaikan",
     moderate: "Sederhana",
     invalid: "Tidak sah",
     functional: "Fungsi",
@@ -360,11 +360,6 @@ const ms: Dict = {
     slsMetrics: "Metrik Pendirian Satu Kaki Disokong",
     wbltMetrics: "Metrik Ujian Lunge Menanggung Berat",
     squatMetrics: "Metrik Squat",
-    lungeMetrics: "Metrik Leg Lunge",
-    symmetryUnavailableSingleLeg:
-      "Belum cukup ulangan pada kedua-dua kaki untuk membandingkan kiri/kanan.",
-    symmetryCrossRep:
-      "{{left}} ulangan kaki kiri di hadapan, {{right}} ulangan kaki kanan di hadapan — perbezaan kedalaman puncak {{peak}}%, perbezaan julat gerakan {{rom}}%",
     moduleBPlaceholderNotice:
       "Skor ini menggunakan model ruang letak sementara ({{version}}) semasa model {{exercise}} terlatih sedang dibina — anggap ini pratonton, bukan gred akhir.",
     incompleteStatus: "Sesi tidak lengkap: {{valid}}/{{target}} ulangan sah selesai",
@@ -660,61 +655,16 @@ const ms: Dict = {
     getReadyEyebrow: "Squat",
     getReadyCaption: "Bersedia di posisi anda — set akan bermula secara automatik.",
   },
-  lunge: {
-    reportTitle: "Leg Lunge",
-    livePrompt: "Lunge mengikut rentak anda sendiri, kemudian tamatkan set apabila selesai.",
-    setupGuidanceSide:
-      "Berdiri sebelah kamera supaya pinggul, lutut, buku lali, dan kaki anda jelas.",
-    setupGuidanceStance:
-      "Berdiri dalam kedudukan lunge dengan kaki hadapan paling dekat dengan kamera — kaki yang lebih jauh separa terlindung dan kurang tepat diukur.",
-    setupGuidanceSwitch:
-      "Apabila menukar kaki, pusing menghadap arah bertentangan supaya kaki hadapan anda dekat dengan kamera semula.",
-    setupGuidanceDepth:
-      "Turun pada rentak terkawal, pastikan lutut hadapan tidak melepasi jari kaki hadapan.",
-    turnAroundTitle: "Sila pusing",
-    turnAroundBody:
-      "Kaki hadapan anda berada di sebelah jauh dari kamera. Pusing menghadap arah bertentangan supaya ia paling dekat dengan kamera — ukuran akan lebih tepat.",
-    setupTargetPrompt:
-      "Anda boleh menetapkan sasaran ulangan peribadi secara pilihan — ini tidak menjejaskan skor anda.",
-    noTarget: "Tiada sasaran",
-    targetOption: "Sasaran: {{n}} ulangan",
-    startSet: "Mula Set",
-    finishSet: "Tamatkan Set",
-    continueSet: "Teruskan",
-    repOfTarget: "Ulangan {{rep}} daripada {{target}}",
-    repCounted: "Ulangan {{rep}} dikira",
-    finishWhenReady: "Tamatkan set apabila anda bersedia — tiada bilangan ulangan yang ditetapkan.",
-    inactivityTitle: "Tiada pergerakan dikesan",
-    inactivityBody: "Tamatkan set sekarang, atau teruskan jika anda masih melakukan lunge.",
-    targetHitTitle: "Anda telah mencapai sasaran {{target}} ulangan!",
-    targetHitBody: "Teruskan untuk lebih banyak ulangan, atau tamatkan set sekarang.",
-    liveAnglesTitle: "Sudut masa nyata",
-    frontLeg_left: "Kaki kiri di hadapan",
-    frontLeg_right: "Kaki kanan di hadapan",
-    frontKneeDepthLabel: "Kedalaman lutut hadapan",
-    kneePassesToeWarning:
-      "Lutut hadapan anda melepasi jari kaki hadapan — alihkan berat badan anda sedikit ke belakang.",
-    repPeakSoFar: "Titik paling dalam ulangan ini setakat ini: {{deg}}°",
-    depthZone_minimal: "Kedalaman minimum",
-    depthZone_shallow: "Cetek",
-    depthZone_parallel: "Selari",
-    depthZone_deep: "Dalam",
-    trunkLeanLabel: "Sudut condong badan",
-    lastRepDepthLabel: "Kedalaman ulangan lepas",
-    lastRepKneePassedToe: "Lutut hadapan melepasi jari kaki pada ulangan itu",
-    liveAngleGuidanceNote:
-      "Panduan sahaja, berdasarkan anggaran pose webcam — bukan pengukuran klinikal.",
-    getReadyEyebrow: "Leg Lunge",
-    getReadyCaption: "Bersedia di posisi anda — set akan bermula secara automatik.",
-  },
   moduleB: {
     subscore_rom_completeness: "Kesempurnaan julat gerakan",
     subscore_tempo_consistency: "Konsistensi rentak",
     subscore_stability_control: "Kawalan kestabilan",
-    subscore_symmetry_cross_rep: "Simetri kiri/kanan",
     tag_low_confidence: "Keyakinan model adalah rendah untuk set ini",
     tag_low_capture_quality: "Kualiti tangkapan terlalu rendah untuk dipercayai sepenuhnya",
     tag_retry_camera_placement: "Cuba laraskan kedudukan kamera anda pada masa akan datang",
+    tag_insufficient_depth: "Kedalaman tidak mencukupi — sasarkan lebih hampir ke paras selari",
+    tag_excessive_forward_lean: "Terlalu condong ke hadapan — kekalkan dada lebih tegak",
+    tag_heel_lift: "Tumit terangkat dari lantai — kekalkan berat pada tumit anda",
   },
 };
 export default ms;

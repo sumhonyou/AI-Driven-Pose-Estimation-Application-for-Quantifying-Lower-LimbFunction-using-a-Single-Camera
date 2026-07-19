@@ -14,9 +14,9 @@ class FeatureVector:
     names: tuple[str, ...]
     values: tuple[float, ...]
     # Optional metadata, NOT a model input: which anatomical leg led the rep
-    # ("left"/"right"). Set by asymmetric exercises (lunge) for cross-rep symmetry
-    # and the report; left None by symmetric exercises (squat). Kept out of
-    # `values`/`names` so the numeric vector stays lead-leg-invariant.
+    # ("left"/"right"). For a future asymmetric exercise to set for cross-rep
+    # symmetry and the report; left None by symmetric exercises (squat). Kept out
+    # of `values`/`names` so the numeric vector stays lead-leg-invariant.
     lead_leg: str | None = None
 
     def __post_init__(self) -> None:

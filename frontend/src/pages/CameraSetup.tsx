@@ -5,7 +5,6 @@ import stsDemoSrc from "../assets/videos/sit to stand.mp4";
 import slsDemoSrc from "../assets/videos/Balance & Flexibility_ Single Leg Stance Test and Side Leg Raises.mp4";
 import wbltDemoSrc from "../assets/videos/(WBLT) Knee to Wall Dorsiflexion Lunge Test for the Ankle.mp4";
 import squatDemoSrc from "../assets/videos/Squat.mp4";
-import lungeDemoSrc from "../assets/videos/Leg Lunge.mp4";
 import { DashTopbar } from "../layouts/DashboardLayout";
 import PoseCanvas from "../components/PoseCanvas";
 import CaptureQualityBadge from "../components/CaptureQualityBadge";
@@ -72,12 +71,10 @@ export default function CameraSetup() {
 
   const viewGuidance = getViewGuidance(exerciseCode);
   const isSls = !!exerciseCode?.includes("single_leg");
-  // Exact match only: Module B's "lunge" code also contains the substring
-  // "lunge", so a loose `.includes("lunge")` check here would wrongly treat a
-  // real lunge session as WBLT (mirrors ExerciseSelection.tsx's own precedent).
+  // Exact match only: Module A's "weight_bearing_lunge_test" and Module B exercise
+  // codes could collide on a loose substring check, so this stays exact.
   const isWblt = exerciseCode === "weight_bearing_lunge_test";
   const isSquat = exerciseCode === "squat";
-  const isLunge = exerciseCode === "lunge";
 
   const guidanceSteps = isSls
     ? [
@@ -94,14 +91,7 @@ export default function CameraSetup() {
             t("squat.setupGuidanceSpace"),
             t("squat.setupGuidancePace"),
           ]
-        : isLunge
-          ? [
-              t("lunge.setupGuidanceSide"),
-              t("lunge.setupGuidanceStance"),
-              t("lunge.setupGuidanceSwitch"),
-              t("lunge.setupGuidanceDepth"),
-            ]
-          : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
+        : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
 
   // Pick the tutorial clip per exercise; null hides the demo panel.
   const demoSrc = isSls
@@ -110,11 +100,9 @@ export default function CameraSetup() {
       ? wbltDemoSrc
       : isSquat
         ? squatDemoSrc
-        : isLunge
-          ? lungeDemoSrc
-          : exerciseCode === "sit_to_stand"
-            ? stsDemoSrc
-            : null;
+        : exerciseCode === "sit_to_stand"
+          ? stsDemoSrc
+          : null;
 
   // Log FPS once pose model is ready
   useEffect(() => {
@@ -146,17 +134,7 @@ export default function CameraSetup() {
         device_info: navigator.userAgent,
       });
       setSessionId(response.session_id);
-      nav(
-        isSls
-          ? "/sls/live"
-          : isWblt
-            ? "/wblt/live"
-            : isSquat
-              ? "/squat/live"
-              : isLunge
-                ? "/lunge/live"
-                : "/sts/live",
-      );
+      nav(isSls ? "/sls/live" : isWblt ? "/wblt/live" : isSquat ? "/squat/live" : "/sts/live");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("camera.startError"));
       startedRef.current = false;

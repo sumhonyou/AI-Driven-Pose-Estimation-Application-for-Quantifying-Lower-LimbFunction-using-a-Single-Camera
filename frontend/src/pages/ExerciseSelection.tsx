@@ -11,7 +11,6 @@ import slsImage from "../assets/exercise type/Single Leg Stance pic.png";
 import stsImage from "../assets/exercise type/sit to stand.png";
 import wbltImage from "../assets/exercise type/WBLT.png";
 import squatImage from "../assets/exercise type/Squat.png";
-import lungeImage from "../assets/exercise type/Leg Lunge.png";
 
 export default function ExerciseSelection() {
   const { t } = useTranslation();
@@ -47,24 +46,21 @@ export default function ExerciseSelection() {
     if (code.includes("single_leg")) return slsImage;
     if (code.includes("sit_to_stand") || code.includes("sit-to-stand")) return stsImage;
     if (code === "squat") return squatImage;
-    // Exact "lunge" is the Module B placeholder card; the WBLT functional check
-    // ("weight_bearing_lunge_test") also contains "lunge", so it must be checked first.
     if (code.includes("wblt") || code === "weight_bearing_lunge_test") return wbltImage;
-    if (code.includes("lunge")) return lungeImage;
     return null;
   };
 
   const iconFor = (code: string) => {
     if (mode === "rehab") return <Stretch width={24} height={24} />;
     if (code.includes("single_leg")) return <Balance width={24} height={24} />;
-    if (code.includes("lunge")) return <Check width={24} height={24} />;
+    if (code === "weight_bearing_lunge_test") return <Check width={24} height={24} />;
     return <Activity width={24} height={24} />;
   };
 
   const repInfoFor = (code: string) => {
     if (code.includes("single_leg")) return t("exercise.hold");
-    if (code === "squat" || code === "lunge") return t("exercise.repsUnlimited");
-    if (code.includes("lunge")) return t("exercise.trials");
+    if (code === "squat") return t("exercise.repsUnlimited");
+    if (code === "weight_bearing_lunge_test") return t("exercise.trials");
     return t("exercise.reps");
   };
 

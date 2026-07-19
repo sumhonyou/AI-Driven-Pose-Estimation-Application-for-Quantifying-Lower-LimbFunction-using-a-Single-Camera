@@ -9,9 +9,8 @@ export type ModuleBSubScore = {
   score: number | null;
   notes: string[];
   // Report-only numeric measurements that never contribute to the sub-score's
-  // own `score` (e.g. lunge's cross-rep symmetry index — Stage 4.4 (Lunge)'s
-  // decision; see backend core/rules.py's SubScore docstring). Optional: older
-  // persisted rows and every squat sub-score simply have no entries here.
+  // own `score` (see backend core/rules.py's SubScore docstring). Optional:
+  // every squat sub-score currently has no entries here.
   metrics?: Record<string, number>;
 };
 

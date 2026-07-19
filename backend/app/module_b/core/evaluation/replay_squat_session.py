@@ -45,6 +45,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 from pathlib import Path
 from typing import Any
@@ -91,7 +92,15 @@ def analyse_frames(frames: list[dict[str, Any]]) -> dict[str, Any]:
         model=get_model_bundle(exercise.model_key),
         features=feature_vectors[0],
         q=float(quality["q"]),
+        # Faithful to the endpoint: squat's committed binary band policy (Stage 5.11).
+        band_policy=exercise.band_policy,
     )
+    # Faithful to the endpoint (Stage 5.12): fault gates run across every rep and
+    # override the band to Poor if any fails. Without this the replay would diverge
+    # from router.py the same way the pre-Stage-5.11 harness diverged on band_policy.
+    gate_result = exercise.evaluate_fault_gates(reps, feature_vectors)
+    if gate_result is not None and not gate_result.all_passed:
+        fusion = dataclasses.replace(fusion, band="Poor")
     return {
         "n_reps": len(reps),
         "score": fusion.score,
@@ -132,6 +141,7 @@ def replay_rules_and_fusion(
         q=q,
         model_version=model.model_version,
         is_placeholder_model=model.is_placeholder,
+        band_policy=get_exercise(EXERCISE_CODE).band_policy,
     )
     return {
         "score": fusion.score,

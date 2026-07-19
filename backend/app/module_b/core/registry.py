@@ -34,8 +34,6 @@ def registered_exercise_codes() -> tuple[str, ...]:
 
 
 # Built-in plugins are registered here so importing the registry is sufficient.
-from app.module_b.lunge.exercise import LungeExercise  # noqa: E402
 from app.module_b.squat.exercise import SquatExercise  # noqa: E402
 
 register_exercise(SquatExercise())
-register_exercise(LungeExercise())

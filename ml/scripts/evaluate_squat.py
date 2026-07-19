@@ -75,32 +75,21 @@ from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.squat.features import extract_squat_features
 from build_features import _preprocessed_stream
 from plotting import save_fig
-
 # Stage 5.6's helpers are imported, not re-derived: `_fuse_all` calls the real
 # `fuse_scores()`, `_raw_capture_quality` reproduces `router.py`'s raw-buffer
 # semantics, and `_confusion`/`_metrics` already encode the "no ground-truth Fair
 # label" position this stage inherits unchanged.
-from sweep_fusion_weights import (
-    PREDICTED_BANDS,
-    TRUE_LABELS,
-    _confusion,
-    _fuse_all,
-    _metrics,
-    _raw_capture_quality,
-    _rule_score,
-    _segmentation_bounds,
-)
-from train_squat import (
-    _build_xy,
-    _choose_cv,
-    _load_config,
-    _read_rows,
-    build_final_model,
-    nested_cv,
-)
+from sweep_fusion_weights import (PREDICTED_BANDS, TRUE_LABELS, _confusion,
+                                  _fuse_all, _metrics, _raw_capture_quality,
+                                  _rule_score, _segmentation_bounds)
+from train_squat import (_build_xy, _choose_cv, _load_config, _read_rows,
+                         build_final_model, nested_cv)
 
 ML_ROOT = Path(__file__).resolve().parent.parent
-REPORT_MD = ML_ROOT / "reports" / "SQUAT_EVALUATION_REPORT.md"
+# Renamed in Stage 5.11: this is the historical 3-band abstention evaluation. Squat now
+# ships a committed binary Good/Poor policy, evaluated in SQUAT_EVALUATION_REPORT_2BAND.md.
+# This report still documents the 3-band fusion that Module A uses.
+REPORT_MD = ML_ROOT / "reports" / "SQUAT_EVALUATION_REPORT_3BAND.md"
 
 # Per-repetition timing is dominated by process noise at single-run granularity;
 # the median of this many repeats is what the distribution is built from.
@@ -193,28 +182,36 @@ def _macro_precision_recall(metrics: dict) -> tuple[float, float]:
     return precision, recall
 
 
+_3BAND_CAPTION = (
+    "Shading = row-normalised recall. 'Fair' is an abstention, not a third "
+    "ground-truth class:\nno rep is labelled Fair, so that column is neither "
+    "correct nor incorrect."
+)
+
+
 def plot_confusion_matrix_3band(
     metrics: dict,
     *,
     dataset_label: str = "REHAB24-6",
     subtitle: str | None = None,
     name: str = "confusion_matrix_3band",
+    predicted_bands: tuple[str, ...] = PREDICTED_BANDS,
+    true_labels: tuple[str, ...] = TRUE_LABELS,
+    title_prefix: str = "Fused 3-band output vs ground truth",
+    caption: str = _3BAND_CAPTION,
 ) -> Path:
-    """2x3 heatmap: true Good/Poor (rows) vs predicted Good/Fair/Poor (columns).
+    """Row-normalised heatmap: true labels (rows) vs predicted bands (columns).
 
-    Non-square on purpose — Fair is a column with no matching row, which is exactly
-    the point. Ground truth has no Fair class, so the Fair column can never be
-    "correct" or "incorrect"; it is where the system declines to answer. A forced
-    square matrix would have to invent a diagonal cell for it.
-
-    Parameterised over the dataset only so Stage 5.9's EC3D matrix is drawn by *this*
-    function rather than a copy of it: the checklist requires the two figures to be
-    comparable side by side, which a forked plotter cannot guarantee over time. The
-    defaults reproduce the Stage 5.7 figure byte-for-byte.
+    Defaults render the Stage 5.7 2x3 Good/Fair/Poor matrix byte-for-byte; the 3-band
+    version is deliberately non-square because Fair is a column with no matching row (an
+    abstention, not a scoreable class). Parameterised over dataset, bands, title and
+    caption so Stage 5.9's EC3D matrix and Stage 5.11's committed 2x2 Good/Poor matrix
+    are drawn by *this* function rather than forks of it — the "parameterise, don't fork"
+    convention that keeps comparable figures actually comparable.
     """
     counts = metrics["counts"]
     grid = np.array(
-        [[counts[(t, p)] for p in PREDICTED_BANDS] for t in TRUE_LABELS], dtype=float
+        [[counts[(t, p)] for p in predicted_bands] for t in true_labels], dtype=float
     )
     row_totals = grid.sum(axis=1, keepdims=True)
     row_pct = np.divide(grid, row_totals, out=np.zeros_like(grid), where=row_totals > 0)
@@ -222,8 +219,8 @@ def plot_confusion_matrix_3band(
     fig, ax = plt.subplots()
     ax.imshow(row_pct, cmap="Blues", vmin=0.0, vmax=1.0, aspect="auto")
 
-    for i in range(len(TRUE_LABELS)):
-        for j in range(len(PREDICTED_BANDS)):
+    for i in range(len(true_labels)):
+        for j in range(len(predicted_bands)):
             ax.text(
                 j,
                 i,
@@ -234,12 +231,13 @@ def plot_confusion_matrix_3band(
                 fontsize=11,
             )
 
-    ax.set_xticks(range(len(PREDICTED_BANDS)), PREDICTED_BANDS)
-    ax.set_yticks(range(len(TRUE_LABELS)), TRUE_LABELS)
+    ax.set_xticks(range(len(predicted_bands)), predicted_bands)
+    ax.set_yticks(range(len(true_labels)), true_labels)
     ax.set_xlabel("Predicted band (what the user is shown)")
     ax.set_ylabel(f"True label ({dataset_label})")
     ax.set_title(
-        "Fused 3-band output vs ground truth\n"
+        title_prefix
+        + "\n"
         + (
             subtitle
             if subtitle is not None
@@ -251,9 +249,7 @@ def plot_confusion_matrix_3band(
     ax.text(
         0.5,
         -0.28,
-        "Shading = row-normalised recall. 'Fair' is an abstention, not a third "
-        "ground-truth class:\nno rep is labelled Fair, so that column is neither "
-        "correct nor incorrect.",
+        caption,
         transform=ax.transAxes,
         ha="center",
         va="top",
@@ -440,7 +436,8 @@ def _visibility_breakdown(rows: list[dict], config: dict) -> dict:
     The sampled repetition is the first in sorted order — an arbitrary but *fixed* and
     stated choice (X8), not one picked because it made the point best.
     """
-    from app.module_b.core.quality import REQUIRED_LANDMARKS, assess_capture_quality
+    from app.module_b.core.quality import (REQUIRED_LANDMARKS,
+                                           assess_capture_quality)
     from build_features import _raw_full_stream
 
     landmark_names = {
@@ -682,7 +679,13 @@ def write_report(
         for t in TRUE_LABELS
     )
 
-    report = f"""# Squat Evaluation Report (Stage 5.7)
+    report = f"""# Squat Evaluation Report — 3-band abstention (Stage 5.7)
+
+> **Superseded as the deployed squat policy (Stage 5.11).** Squat now commits to a
+> binary Good/Poor verdict — see
+> [SQUAT_EVALUATION_REPORT_2BAND.md](SQUAT_EVALUATION_REPORT_2BAND.md). This report is
+> kept as the historical record of the 3-band abstaining design, which is still the
+> behaviour used by Module A.
 
 Generated by `ml/scripts/evaluate_squat.py`. Every number below is measured on the
 **shipped configuration**, read live from `backend/app/module_b/core/config.py` at run

@@ -7,10 +7,10 @@ makes `replay_squat_session.py` a meaningful proof rather than a demo.
 Runs against the **committed** corpus (`app/module_b/replay_corpus/squat/`), not
 fixtures built inside this file, for two reasons. It is the same data the harness and
 `labels.json` use, so the three cannot drift apart; and the corpus spans every band the
-shipped model has been found to actually reach (Good and Fair — see
-`test_corpus_spans_every_reachable_band_plus_a_low_quality_reject` for why Poor is not
-currently one of them) plus a low-capture-quality reject, so determinism is checked on
-every band the pipeline can currently produce rather than on one happy path.
+committed binary policy actually reaches (Good and Poor — Stage 5.11 made Poor reachable
+by replacing the Fair abstention with a score-threshold cut) plus a low-capture-quality
+sample, so determinism is checked on every band the pipeline can currently produce
+rather than on one happy path.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from app.module_b.core.evaluation.replay_squat_session import (
     replay_rules_and_fusion,
 )
 from app.module_b.core.features import FeatureVector
+from app.module_b.squat.config import SQUAT_CONFIG
 
 MANIFEST = json.loads((CORPUS_DIR / "labels.json").read_text())
 SAMPLES = MANIFEST["samples"]
@@ -40,34 +41,50 @@ class SquatReplayCorpusTests(unittest.TestCase):
                 path = CORPUS_DIR / sample["frames_file"]
                 self.assertTrue(path.is_file(), f"missing corpus file {path}")
 
-    def test_corpus_spans_every_reachable_band_plus_a_low_quality_reject(self):
-        """The Stage 5.7 checklist asked for Good/Fair/Poor + a low-Q reject.
+    def test_corpus_spans_both_reachable_bands_plus_a_low_quality_sample(self):
+        """Stage 5.11: squat commits to a binary Good/Poor band, and both are reachable.
 
-        Stage 5.8 swapped in the real trained model and found Poor is not currently
-        reachable at all: `export_squat_model.py`'s `_deployed_confidence_check()`
-        shows the shipped model never reaches confidence>=0.85 toward Poor on any of
-        its own 98 training rows (max confidence toward Poor: 1-0.244=0.756), and a
-        deliberate geometry sweep while rebuilding this corpus could not reach it
-        synthetically either (closest: P(Good)~0.50). Asserting `{"Good","Fair","Poor"}`
-        here would therefore assert something the shipped model cannot currently do —
-        this checks the bands that are actually reachable instead, so it fails loudly
-        if a future retrain ever makes Poor reachable and this test is not updated to
-        match (see model_card.md's limitations section for the same finding)."""
+        The 3-band era (Stage 5.7/5.8) could not reach Poor at all — the confidence
+        abstention routed every uncertain rep to Fair, and the shipped model never
+        reached confidence>=0.85 toward Poor. The committed binary policy
+        (`SQUAT_CONFIG["band_policy"]`) replaces that abstention with a single
+        score-threshold cut, so real synthetic samples now land in Poor. This asserts
+        the corpus spans exactly the two bands the deployed pipeline can now emit, and
+        fails loudly if a future policy change makes that untrue."""
         bands = {sample["measured"]["band"] for sample in SAMPLES}
-        self.assertEqual(bands, {"Good", "Fair"})
+        self.assertEqual(bands, {"Good", "Poor"})
 
         low_quality = [
             sample
             for sample in SAMPLES
             if "low_capture_quality" in sample["measured"]["flags"]
         ]
-        self.assertTrue(low_quality, "corpus has no low-capture-quality reject sample")
+        self.assertTrue(low_quality, "corpus has no low-capture-quality sample")
         for sample in low_quality:
             with self.subTest(sample=sample["sample_id"]):
-                # The reject must be rejected for the *quality* reason, not because it
-                # happened to score badly -- otherwise it would not test the q_min gate.
-                self.assertEqual(sample["measured"]["band"], "Fair")
+                # Binary policy: a low-quality capture still commits to a Good/Poor band
+                # (no Fair abstention), but must raise the retry flag so the UI can warn.
+                self.assertIn(sample["measured"]["band"], {"Good", "Poor"})
                 self.assertIn("retry_camera_placement", sample["measured"]["flags"])
+
+    def test_corpus_exercises_the_stage_5_12_fault_gate_override(self):
+        """At least one corpus sample bands Poor because a fault gate fired.
+
+        The gates run across every rep and override the fused band to Poor with a
+        named reason (Stage 5.12). The corpus records each sample's failed gates in
+        `measured.fault_gate_tags`; this asserts the override path is actually
+        exercised by the committed corpus, not just by the unit tests, and that every
+        recorded tag is one the config defines."""
+        allowed = {gate["tag"] for gate in SQUAT_CONFIG["fault_gates"].values()}
+        gated = [
+            sample for sample in SAMPLES if sample["measured"].get("fault_gate_tags")
+        ]
+        self.assertTrue(gated, "corpus never exercises a fault-gate override")
+        for sample in gated:
+            with self.subTest(sample=sample["sample_id"]):
+                self.assertEqual(sample["measured"]["band"], "Poor")
+                for tag in sample["measured"]["fault_gate_tags"]:
+                    self.assertIn(tag, allowed)
 
     def test_measured_bands_still_match_the_manifest(self):
         """Guards against the corpus and the pipeline drifting apart silently.
@@ -99,10 +116,11 @@ class SquatDeterminismTests(unittest.TestCase):
                 second = analyse_frames(frames)
                 self.assertEqual(first, second)
 
-    def test_determinism_holds_for_the_low_quality_reject(self):
-        """A rejected capture takes a different branch in `fuse_scores()` (flags force
-        Fair before banding), so it needs its own determinism check rather than being
-        assumed covered by the loop above."""
+    def test_determinism_holds_for_the_low_quality_sample(self):
+        """A low-capture-quality sample raises the retry/quality flags, so it takes a
+        slightly different path through `fuse_scores()` than a clean capture and gets
+        its own determinism check. Under the binary policy it commits a Good/Poor band
+        (Stage 5.11) rather than abstaining to Fair."""
         sample = next(
             s for s in SAMPLES if "low_capture_quality" in s["measured"]["flags"]
         )
@@ -111,7 +129,7 @@ class SquatDeterminismTests(unittest.TestCase):
         second = analyse_frames(frames)
 
         self.assertEqual(first, second)
-        self.assertEqual(first["band"], "Fair")
+        self.assertIn(first["band"], {"Good", "Poor"})
         self.assertIn("low_capture_quality", first["flags"])
 
     def test_feature_extraction_is_stable_across_runs(self):

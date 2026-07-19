@@ -1,7 +1,7 @@
 # FYP Development Tasks
 
 **Project:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
-**Status:** Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied — **Phase 4 (Lunge) is now fully complete**, Stages 4.1-4.8, verified live end-to-end against the real backend + Postgres (2026-07-17): Module B works for lunge with an announced `stub-0` placeholder model, using the same registry with zero router changes. **Phase 5B Stage 5.0 (Lunge) data audit is complete and its gate is resolved (2026-07-17): HY chose option (a), accept the smaller N** — side-view Ex5 = **88 reps, 39 Good / 49 Poor** (small but balanced, the opposite shape to squat's 72/26); the audit also found that **lead-leg is perfectly confounded with subject** (no subject performs both legs — so `lead_leg` is a LOSO leakage risk and cross-rep Symmetry has no ground truth here), and that **REHAB24-6 is _not_ the only labelled lunge dataset** — EC3D's lunge partition (127 sequences, both faults sagittal, incl. "Knee passes toe") is already on disk. See [`ml/reports/LUNGE_DATA_AUDIT.md`](./ml/reports/LUNGE_DATA_AUDIT.md). **Stage 5.1 (Lunge) `ml/` scaffold is complete (2026-07-17)** — no lunge-specific delta; verified the shared scaffold (editable install, `plotting.py`, `requirements.txt`) extends to the `LungeExercise` plugin live, not assumed. **Stage 5.2 (Lunge) landmark extraction is complete (2026-07-17):** all 9 side-view Ex5 videos extracted, **26,087 frames, 0 missing pose (0.00%)**; the toe-joint delta closed with real data (foot-index landmarks present in 100% of frames); and a real finding — **near/far-limb visibility asymmetry is a camera-orientation artifact, not lead-leg-linked** (left is the higher-visibility limb in all 9 videos regardless of lead leg), milder than squat's but flagged for Stage 5.4 to confirm empirically. **Stage 5.3 (Lunge) is complete (2026-07-17):** `ml/data/lunge_features.csv` built — **88 reps, 39 Good / 49 Poor, 8 subjects, 17 features**, byte-identical across runs (X8); `knee_passes_toe` **kept** as a real measured feature (no ankle proxy needed); `lead_leg` emitted as **metadata only**, outside the feature block (Stage 5.5 must not train on it). Two real findings: a dataset annotation overruns its video by 2 frames on one rep (`PM_117a` rep 9 — clamped, tabled, guard tightened rather than loosened), and — significant — **the lunge rep detector merged reps, 56.8% recall vs squat's 94.9%**, because the bilateral-mean signal never falls back under the 20° exit threshold at the top of each cycle (reps are annotated back-to-back, median 1-frame gap — a set is continuous, not rest-separated). **That is now fixed** (cross-cutting entry, HY chose cycle detection after all three proposed options were measured and rejected as unworkable): front-rep agreement **50/88 → 88/88 (100%)**, overall 173/174, and the feature table is provably unchanged (byte-identical CSV). Backend suite 195/195. **Stage 5.4 (Lunge) is complete and its GATE PASSES (2026-07-17):** `front_knee_flex_peak_deg` separates the classes (**AUC 0.639**, Good 77.2° vs Poor 83.8°, direction holding in 5/7 subjects and in _both_ lead-leg cohorts) — weaker than squat's 0.837 but unambiguous, and **in the same "Poor reps are deeper" direction**, now found independently in two exercises. The `norm_ref` bake-off picked **`trunk_length`** (variance ratio 1.606 vs 2.118, unanimous across all three normalised features) and the backend config was changed to match; feature table regenerated (md5 → `54f98787…`), X8 determinism re-verified, backend **195/195** after fixing one genuine fixture breakage (a zero-length trunk). **Five significant findings, four of them about method rather than results:** (1) **⚠⚠ squat's pooled-AUC rule does not transfer — pooling inverts the truth for 9 of 17 features**; `back_knee_rom_deg` pools to AUC 0.564 (DROP) while **0/7 subjects agree with the pooled direction** and its within-subject AUC is **0.860** — a textbook Simpson's paradox caused by **one** single-class subject (P3: 0 Good/11 Poor, lowest ROM of anyone), mechanism measured at corr(level, %Poor) = −0.505. Pre-declared verdicts were **deliberately not rewritten**; **Stage 5.5 must train on all 17 features** and treat DROP as advisory (squat's 5.5 already did, so nothing is lost). (2) squat's **CV statistic is invalid** for the signed, zero-crossing `knee_passes_toe_norm` (18/88 reps negative) — a **variance ratio** was used instead, and CV agrees where valid. (3) **⚠⚠ leg identity is SETTLED for lunge, where squat's was not** — squat's leg-difference test failed here too (r=+0.28, mixed signs, and the prediction that lunge's asymmetry would rescue it was **wrong**), so identity was established from **foot position** instead: mocap 9/9 and MediaPipe 9/9 against the annotated lead leg ⇒ **mapping CONFIRMED**. (4) **⚠⚠ occlusion inverts the anatomy** — mocap says right knee deeper in 9/9, MediaPipe says left in 9/9; with identity confirmed this is not a swap but a far-limb under-read of **18.2° vs 2.5° near**, i.e. the artefact is **larger than the signal**; it follows near/far (15.7° gap) not front/back (0.3°), and is **confident** error (0.938 visibility, −15.1° bias) that no confidence threshold can catch. Stage 5.3's deferred far-leg question is answered: **"merely plausible."** (5) **⚠⚠ the gate feature carries an 8.9° cohort-dependent bias** (−6.19° left-lead vs −15.13° right-lead), closing Stage 5.2's open question — the lead limb IS near/far fixed per subject — and upgrading Stage 5.0's leakage warning to a measured fact: the confound is encoded in the feature _values_, so dropping the `lead_leg` column is necessary but **not sufficient**. Stage 5.2's other flagged question also answered: the far limb **does** dip below `MIN_VISIBILITY` at depth in **10/88** reps (the mean masked it), but that is the _smaller_ part of the problem. See [`LUNGE_FEATURE_VALIDITY.md`](./ml/reports/LUNGE_FEATURE_VALIDITY.md), [`LUNGE_NORM_REF_BAKEOFF.md`](./ml/reports/LUNGE_NORM_REF_BAKEOFF.md), [`LUNGE_MOCAP_AGREEMENT.md`](./ml/reports/LUNGE_MOCAP_AGREEMENT.md), [`LUNGE_OCCLUSION_CHECK.md`](./ml/reports/LUNGE_OCCLUSION_CHECK.md). **Stage 5.5 (Lunge) is complete (2026-07-17) and returned a ⚠⚠⚠ DOCUMENTED NEGATIVE RESULT: the lunge classifier trained the plan's way DOES NOT WORK** — out-of-fold AUC **0.344**, **indistinguishable from chance** under a 200-shuffle permutation test (**p=0.657**, null 0.487±0.085), against squat's 0.832 from the _same code, grid and CV_. It is **not** "predicting backwards" (the null refutes that reading) and **not** a tuning failure (grid is a plateau: 180 combos span 0.077 AUC vs 0.068 median fold-noise; in-sample AUC **0.982**). The model learns _who the subject is_, which does not transfer — that gap **is** the Stage 5.4 confound. **But two interventions recover real signal, and both attack the confound rather than the model:** `S1_session_centred` **0.670 (p=0.005)** and `S2_lead_near_only` **0.696 (p=0.005)**, vs `S0_baseline` 0.344 (p=0.657) and `S3_cohort_centred` 0.355 (p=0.423). **S2 empirically vindicates HY's turn-around protocol** — it is the train/serve match that protocol produces and the **only subset where true LOSO works** (LOSO folds 0.960/1.000/0.760/0.750). **S3's failure is a finding in itself:** correcting only the cohort-level 8.9° offset recovers _nothing_, so the variation burying the signal is mostly **not** the camera artefact but individual build/movement differences — which is why turn-around is a **capture** fix, not a modelling one. S1 **cannot ship** despite its score (centring redefines the question to "better than your other reps" — a uniformly-poor set would read as average). "Subtract the measured 8.9° bias" was ruled out on **principle**: X3 forbids mocap as a model input. Also found: **a real bug in squat's calibration assertion** — its premise _"a sigmoid cannot reorder predictions"_ is **false** (Platt with a positive slope reverses the ranking exactly); it fired on lunge fold 3 (a=+2.70, 0.554→0.446), was corrected to the true invariant, and squat's own script was left untouched (its slopes are all negative, so its results stand). A **deployment-critical** check was added — the exported model's Platt slope must be negative or every live verdict is inverted with nothing downstream noticing; verified **−1.31 (OK)**, and **Stage 5.8 must re-run it**. New `ml/scripts/train_lunge.py`, [`LUNGE_TRAINING_REPORT.md`](./ml/reports/LUNGE_TRAINING_REPORT.md), and **`lunge_roc_curves.png` — the project's first model ROC figure** (there was no AUC chart anywhere; only per-_feature_ tables). **Frontend turn-around protocol shipped (2026-07-17):** `lunge/config.py` gained a `capture` block (advisory, outside `rules`, never scores) with `lead_leg_near_margin_vis=0.05` [dataset-derived — front-minus-back knee visibility separates the two geometries with **zero overlap** over 88 reps: near-lead +0.129..+0.319, far-lead −0.106..−0.027, so 0.05 is the midpoint of an empty gap]; `lungeLiveEstimate.ts` detects the wrong facing and the live page prompts a turn-around; CameraSetup + all 3 locales updated; 7 new frontend tests (11/11 total). **⚠ Stage 5.6 (Lunge) is next, but a DECISION IS REQUIRED FIRST (HY's call, see Stage 5.5's entry): Stage 5.8 is scheduled to export a chance-level model.**  
+**Status:** ⚠️⚠️⚠️ **Leg Lunge (Phase 4 + Phase 5B, the entire Module B lunge exercise) was REMOVED from the product on 2026-07-19 (HY's decision).** All lunge backend/frontend/ML source code has been deleted; the registry no longer registers it and its API endpoints 404. Everything below about Phase 4 (Lunge)/Phase 5B in this Status line and in the Phase 5B section further down is **historical record only** — see the removal banner at the top of the Phase 5B section for the full detail. Phases 0-3E complete (full-stack skeleton, camera/MediaPipe, Module A: STS/SLS/WBLT all verified live) · Phase 5 (squat ML) Stages 5.0-5.9 complete — trained, calibrated, LOSO-evaluated Extra Trees squat model exported and wired into the real backend, verified live end-to-end (2026-07-16); EC3D external validation run (2026-07-17) and returned a **documented negative result** — see Stage 5.9. **Stage 5.11 (deployed squat output → committed binary Good/Poor) is complete (2026-07-19, HY's call):** the Fair abstention was removed for squat; the decision is a single cut on the fused score (`decision_threshold=8.447974`, `w_rule=0` → the calibrated classifier alone), chosen for **max macro-F1** on the out-of-fold predictions (the aggressive/safety-first point). "Poor" is now reachable — out-of-fold recall **0.077→1.000** — at the cost of flagging **22/72 (31%) of Good reps** as Poor (0 Poor→Good, so no poor-form rep is ever told it is fine). The **model artifact is unchanged** (decision-policy change only, verified byte-identical). Implemented as a per-exercise `band_policy` in `SQUAT_CONFIG` threaded through `fuse_model`/`fuse_scores` (lunge placeholder + Module A keep 3-band); replay corpus regenerated (now spans Good+Poor); "Poor" is displayed as **"Needs Improvement"** in the UI (i18n only, band value stays `"poor"`). New `ml/scripts/tune_squat_binary_band.py`, `ml/reports/SQUAT_EVALUATION_REPORT_2BAND.md` + `confusion_matrix_2band.png`; the old evaluation report renamed to `SQUAT_EVALUATION_REPORT_3BAND.md`; chapter §8.5 + limitation 19. Backend 200/200, tsc clean. **Stage 5.10 (Option B: documented, not built) is next and unblocked.** Phase 5B (lunge) gate is satisfied — **Phase 4 (Lunge) is now fully complete**, Stages 4.1-4.8, verified live end-to-end against the real backend + Postgres (2026-07-17): Module B works for lunge with an announced `stub-0` placeholder model, using the same registry with zero router changes. **Phase 5B Stage 5.0 (Lunge) data audit is complete and its gate is resolved (2026-07-17): HY chose option (a), accept the smaller N** — side-view Ex5 = **88 reps, 39 Good / 49 Poor** (small but balanced, the opposite shape to squat's 72/26); the audit also found that **lead-leg is perfectly confounded with subject** (no subject performs both legs — so `lead_leg` is a LOSO leakage risk and cross-rep Symmetry has no ground truth here), and that **REHAB24-6 is _not_ the only labelled lunge dataset** — EC3D's lunge partition (127 sequences, both faults sagittal, incl. "Knee passes toe") is already on disk. See [`ml/reports/LUNGE_DATA_AUDIT.md`](./ml/reports/LUNGE_DATA_AUDIT.md). **Stage 5.1 (Lunge) `ml/` scaffold is complete (2026-07-17)** — no lunge-specific delta; verified the shared scaffold (editable install, `plotting.py`, `requirements.txt`) extends to the `LungeExercise` plugin live, not assumed. **Stage 5.2 (Lunge) landmark extraction is complete (2026-07-17):** all 9 side-view Ex5 videos extracted, **26,087 frames, 0 missing pose (0.00%)**; the toe-joint delta closed with real data (foot-index landmarks present in 100% of frames); and a real finding — **near/far-limb visibility asymmetry is a camera-orientation artifact, not lead-leg-linked** (left is the higher-visibility limb in all 9 videos regardless of lead leg), milder than squat's but flagged for Stage 5.4 to confirm empirically. **Stage 5.3 (Lunge) is complete (2026-07-17):** `ml/data/lunge_features.csv` built — **88 reps, 39 Good / 49 Poor, 8 subjects, 17 features**, byte-identical across runs (X8); `knee_passes_toe` **kept** as a real measured feature (no ankle proxy needed); `lead_leg` emitted as **metadata only**, outside the feature block (Stage 5.5 must not train on it). Two real findings: a dataset annotation overruns its video by 2 frames on one rep (`PM_117a` rep 9 — clamped, tabled, guard tightened rather than loosened), and — significant — **the lunge rep detector merged reps, 56.8% recall vs squat's 94.9%**, because the bilateral-mean signal never falls back under the 20° exit threshold at the top of each cycle (reps are annotated back-to-back, median 1-frame gap — a set is continuous, not rest-separated). **That is now fixed** (cross-cutting entry, HY chose cycle detection after all three proposed options were measured and rejected as unworkable): front-rep agreement **50/88 → 88/88 (100%)**, overall 173/174, and the feature table is provably unchanged (byte-identical CSV). Backend suite 195/195. **Stage 5.4 (Lunge) is complete and its GATE PASSES (2026-07-17):** `front_knee_flex_peak_deg` separates the classes (**AUC 0.639**, Good 77.2° vs Poor 83.8°, direction holding in 5/7 subjects and in _both_ lead-leg cohorts) — weaker than squat's 0.837 but unambiguous, and **in the same "Poor reps are deeper" direction**, now found independently in two exercises. The `norm_ref` bake-off picked **`trunk_length`** (variance ratio 1.606 vs 2.118, unanimous across all three normalised features) and the backend config was changed to match; feature table regenerated (md5 → `54f98787…`), X8 determinism re-verified, backend **195/195** after fixing one genuine fixture breakage (a zero-length trunk). **Five significant findings, four of them about method rather than results:** (1) **⚠⚠ squat's pooled-AUC rule does not transfer — pooling inverts the truth for 9 of 17 features**; `back_knee_rom_deg` pools to AUC 0.564 (DROP) while **0/7 subjects agree with the pooled direction** and its within-subject AUC is **0.860** — a textbook Simpson's paradox caused by **one** single-class subject (P3: 0 Good/11 Poor, lowest ROM of anyone), mechanism measured at corr(level, %Poor) = −0.505. Pre-declared verdicts were **deliberately not rewritten**; **Stage 5.5 must train on all 17 features** and treat DROP as advisory (squat's 5.5 already did, so nothing is lost). (2) squat's **CV statistic is invalid** for the signed, zero-crossing `knee_passes_toe_norm` (18/88 reps negative) — a **variance ratio** was used instead, and CV agrees where valid. (3) **⚠⚠ leg identity is SETTLED for lunge, where squat's was not** — squat's leg-difference test failed here too (r=+0.28, mixed signs, and the prediction that lunge's asymmetry would rescue it was **wrong**), so identity was established from **foot position** instead: mocap 9/9 and MediaPipe 9/9 against the annotated lead leg ⇒ **mapping CONFIRMED**. (4) **⚠⚠ occlusion inverts the anatomy** — mocap says right knee deeper in 9/9, MediaPipe says left in 9/9; with identity confirmed this is not a swap but a far-limb under-read of **18.2° vs 2.5° near**, i.e. the artefact is **larger than the signal**; it follows near/far (15.7° gap) not front/back (0.3°), and is **confident** error (0.938 visibility, −15.1° bias) that no confidence threshold can catch. Stage 5.3's deferred far-leg question is answered: **"merely plausible."** (5) **⚠⚠ the gate feature carries an 8.9° cohort-dependent bias** (−6.19° left-lead vs −15.13° right-lead), closing Stage 5.2's open question — the lead limb IS near/far fixed per subject — and upgrading Stage 5.0's leakage warning to a measured fact: the confound is encoded in the feature _values_, so dropping the `lead_leg` column is necessary but **not sufficient**. Stage 5.2's other flagged question also answered: the far limb **does** dip below `MIN_VISIBILITY` at depth in **10/88** reps (the mean masked it), but that is the _smaller_ part of the problem. See [`LUNGE_FEATURE_VALIDITY.md`](./ml/reports/LUNGE_FEATURE_VALIDITY.md), [`LUNGE_NORM_REF_BAKEOFF.md`](./ml/reports/LUNGE_NORM_REF_BAKEOFF.md), [`LUNGE_MOCAP_AGREEMENT.md`](./ml/reports/LUNGE_MOCAP_AGREEMENT.md), [`LUNGE_OCCLUSION_CHECK.md`](./ml/reports/LUNGE_OCCLUSION_CHECK.md). **Stage 5.5 (Lunge) is complete (2026-07-17) and returned a ⚠⚠⚠ DOCUMENTED NEGATIVE RESULT: the lunge classifier trained the plan's way DOES NOT WORK** — out-of-fold AUC **0.344**, **indistinguishable from chance** under a 200-shuffle permutation test (**p=0.657**, null 0.487±0.085), against squat's 0.832 from the _same code, grid and CV_. It is **not** "predicting backwards" (the null refutes that reading) and **not** a tuning failure (grid is a plateau: 180 combos span 0.077 AUC vs 0.068 median fold-noise; in-sample AUC **0.982**). The model learns _who the subject is_, which does not transfer — that gap **is** the Stage 5.4 confound. **But two interventions recover real signal, and both attack the confound rather than the model:** `S1_session_centred` **0.670 (p=0.005)** and `S2_lead_near_only` **0.696 (p=0.005)**, vs `S0_baseline` 0.344 (p=0.657) and `S3_cohort_centred` 0.355 (p=0.423). **S2 empirically vindicates HY's turn-around protocol** — it is the train/serve match that protocol produces and the **only subset where true LOSO works** (LOSO folds 0.960/1.000/0.760/0.750). **S3's failure is a finding in itself:** correcting only the cohort-level 8.9° offset recovers _nothing_, so the variation burying the signal is mostly **not** the camera artefact but individual build/movement differences — which is why turn-around is a **capture** fix, not a modelling one. S1 **cannot ship** despite its score (centring redefines the question to "better than your other reps" — a uniformly-poor set would read as average). "Subtract the measured 8.9° bias" was ruled out on **principle**: X3 forbids mocap as a model input. Also found: **a real bug in squat's calibration assertion** — its premise _"a sigmoid cannot reorder predictions"_ is **false** (Platt with a positive slope reverses the ranking exactly); it fired on lunge fold 3 (a=+2.70, 0.554→0.446), was corrected to the true invariant, and squat's own script was left untouched (its slopes are all negative, so its results stand). A **deployment-critical** check was added — the exported model's Platt slope must be negative or every live verdict is inverted with nothing downstream noticing; verified **−1.31 (OK)**, and **Stage 5.8 must re-run it**. New `ml/scripts/train_lunge.py`, [`LUNGE_TRAINING_REPORT.md`](./ml/reports/LUNGE_TRAINING_REPORT.md), and **`lunge_roc_curves.png` — the project's first model ROC figure** (there was no AUC chart anywhere; only per-_feature_ tables). **Frontend turn-around protocol shipped (2026-07-17):** `lunge/config.py` gained a `capture` block (advisory, outside `rules`, never scores) with `lead_leg_near_margin_vis=0.05` [dataset-derived — front-minus-back knee visibility separates the two geometries with **zero overlap** over 88 reps: near-lead +0.129..+0.319, far-lead −0.106..−0.027, so 0.05 is the midpoint of an empty gap]; `lungeLiveEstimate.ts` detects the wrong facing and the live page prompts a turn-around; CameraSetup + all 3 locales updated; 7 new frontend tests (11/11 total). **That decision was superseded (2026-07-19): HY chose to remove Leg Lunge from the product entirely rather than resolve it — see the removal banner at the top of the Phase 5B section.** Phase 5B, Stages 5.6 onward, never happened.  
 **Related docs:** [FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md](./FYP_PROJECT_DESCRIPTION_AND_IMPLEMENTATION_PLAN.md) (architecture & design), [rules.md](./rules.md) (coding agent rules)
 
 ---
@@ -1684,13 +1684,13 @@ untouched (out of scope).
 
 ### Stage 5.7 — Evaluation
 
-**Completed 2026-07-16.** `ml/scripts/evaluate_squat.py` → `ml/reports/SQUAT_EVALUATION_REPORT.md`
-(4 figures); `backend/app/module_b/core/evaluation/replay_squat_session.py` +
+**Completed 2026-07-16.** `ml/scripts/evaluate_squat.py` → `ml/reports/SQUAT_EVALUATION_REPORT_3BAND.md`
+(renamed in Stage 5.11; 4 figures); `backend/app/module_b/core/evaluation/replay_squat_session.py` +
 `ml/scripts/generate_squat_replay_corpus.py` → 7-sample corpus committed to
 `backend/app/module_b/replay_corpus/squat/`; `backend/tests/test_module_b_replay.py`
 (9 tests, incl. `SquatDeterminismTests`).
 
-- [x] `evaluate_squat.py` → `ml/reports/SQUAT_EVALUATION_REPORT.md`:
+- [x] `evaluate_squat.py` → `ml/reports/SQUAT_EVALUATION_REPORT_3BAND.md`:
   - [x] Accuracy, **Precision (emphasised)**, Recall, **Macro-F1**, per-class + macro.
     ```
     **Accuracy is reported twice under two named definitions, and neither is
@@ -2029,7 +2029,7 @@ byte-identical across consecutive runs.
   whose defaults reproduce the 5.7 figure — verified **byte-identical**
   (`c2f89f7c…`) after the refactor. The checklist requires the two figures to be
   comparable side by side; a copied plotter cannot guarantee that over time. (Only
-  `SQUAT_EVALUATION_REPORT.md`'s latency lines differ between runs, which 5.7
+  `SQUAT_EVALUATION_REPORT_3BAND.md`'s latency lines differ between runs, which 5.7
   already documents as its one non-reproducible output — confirmed by diffing two
   consecutive runs: 12 lines, all latency.)
   ```
@@ -2126,6 +2126,116 @@ direction):** `accuracy_strict` **0.053**, `accuracy_confident` **0.184**, `macr
   touched. Phase 5B's scope, not this stage's.
   ```
 
+### Phase 5 — Stage 5.11: Committed binary Good/Poor squat output (2026-07-19)
+
+**HY's call (2026-07-19) — a decision/product change, not a retrain.** The squat model was
+already binary (Option A: `correctness` → Good/Poor); the three visible bands came entirely
+from the backend fusion layer, where **Fair is an abstention** forced whenever model
+confidence < 0.85. Because the shipped model's confidence never exceeds ~0.76 (Stage 5.8),
+that override fired on almost every rep and "Poor" was effectively never shown (3-band
+recall(Poor) ≈ 0.077). HY chose to make squat **commit** to Good/Poor so the app can flag
+poor form, accepting the loss of the zero-severe-error guarantee.
+
+- [x] **No retrain.** `model.joblib`/`calibrator.joblib`/`feature_schema.json` unchanged and
+      byte-identical; `model_version` unchanged. The forest+sigmoid reproduce identically (X8),
+      so re-fitting was deliberately skipped — this stage chose a _decision policy_, not a model.
+- [x] **Operating point tuned** — `ml/scripts/tune_squat_binary_band.py` (new): imports Stage
+      5.5's seeded `nested_cv()` OOF calibrated P(Good) (X1) and the real `fuse_scores`, sweeps
+      `(w_rule, score_threshold)` for **max macro-F1** (HY's "Balanced" pick; on this data it
+      coincides with the max-Youden / balanced-accuracy point). Winner: **w_rule=0.0, w_ml=1.0,
+      decision_threshold=8.447974** (median of the winning plateau; since w_rule=0 the score is
+      `10·P(Good)`, so the cut is P(Good) ≥ 0.8448 → Good). Sanity-asserted: recall(Poor) > 0,
+      and Poor-banded reps have lower mean P(Good) than Good-banded (guards the lunge-derived
+      inverted-verdict hazard at the band level). Deterministic — two runs identical.
+- [x] **The tradeoff, chosen with real numbers in front of HY** (the AUC-0.83 overlap means
+      you cannot get both high poor-recall and few false alarms): at the chosen point
+      **recall(Poor)=1.000, recall(Good)=0.694, macro-F1=0.761, severe=22 (Poor→Good 0, Good→Poor 22)**. No poor-form rep is ever called Good; 22/72 (31%) of Good reps are flagged Poor. HY
+      picked the aggressive/safety-first point over Moderate (thr 7.0) and Conservative (thr 5.0).
+- [x] **Backend** — per-exercise `band_policy` in `SQUAT_CONFIG` threaded through
+      `fuse_model`/`fuse_scores` (`backend/app/module_b/core/fusion.py`); `band_policy=None`
+      (default) preserves the 3-band abstention byte-for-byte for Module A + lunge, and a
+      placeholder model always keeps abstaining even under a binary policy. `router.py` passes
+      `exercise.band_policy`; base `ModuleBExercise.band_policy` defaults to None, `SquatExercise`
+      returns the binary dict. No DB change (`band` is already unconstrained `String(50)`).
+- [x] **Reports** — new `ml/reports/SQUAT_EVALUATION_REPORT_2BAND.md` +
+      `figures/confusion_matrix_2band.png` (via a parameterised
+      `evaluate_squat.plot_confusion_matrix_3band`, 3-band default byte-identical); the old
+      `SQUAT_EVALUATION_REPORT.md` **renamed** to `SQUAT_EVALUATION_REPORT_3BAND.md` (superseded
+      header added; references repointed in task.md / model_card.md / export_squat_model.py).
+      Chapter §8.5 + limitation 19; model_card deployed-banding note.
+- [x] **Replay corpus regenerated** under the binary policy (harness + generator now pass
+      `band_policy`, faithful to the endpoint): now spans **Good + Poor** (Poor reachable at last),
+      low-Q sample commits a band + raises retry flags. `test_module_b_replay.py` updated to assert
+      `{Good, Poor}`; `test_module_b_fusion.py` gained `BinaryBandPolicyTests`. Backend **200/200**.
+- [x] **Frontend** — squat live estimate (`squatLiveEstimate.ts`) now binary (a rough ROM
+      hint, single cut at ROM score 7.0; authoritative verdict is the backend's). i18n
+      `common.poor` display relabelled **"Needs Improvement"** (en/zh/ms) — internal band value
+      stays `"poor"` so CSS/DB/model are untouched; this also relabels the bottom band of the
+      3-band exercises. `tsc --noEmit` clean.
+- [x] **Live E2E re-verified (2026-07-19):** real Postgres + uvicorn + the recorded
+      `attempted_poor_deep_unstable_1` sample POSTed through `/api/module-b/analyze` →
+      `band="Poor"` score 5.03 persisted in `sessions` (a Good sample → `band="Good"` 9.42);
+      **"Poor" reachable live for the first time, no "Fair" for squat.** Frontend (dev
+      server, logged in): Session History shows **"Needs Improvement"** + "Good" (layout
+      clean), Report shows band "Needs Improvement", score 5.0, Reps 3, low-confidence flag
+      surfaced as an error tag while the band still commits (not abstains). Test data cleaned up.
+- [ ] **Deliberately not done:** no forest retrain; the ROM rule was **not** realigned to
+      penalise excessive depth (HY chose "lean on the ML"); lunge + Module A untouched;
+      landing-page marketing copy still enumerates "Good / Fair / Poor" (low priority, flagged).
+
+### Phase 5 — Stage 5.12: Interpretable fault gates (depth / lean / heel-rise) (2026-07-19)
+
+**HY's call (2026-07-19) — add a "why" to the verdict.** Stage 5.11 made squat commit to a
+binary Good/Poor number, but that number is opaque (can't say _why_ a rep was bad) and the ML
+only ever scores the first rep of a set. HY reviewed the REHAB24-6 videos directly and observed
+the real faults are **forward lean** and **heels lifting off the floor** — not simply "too
+shallow". The chosen design: interpretable **rule gates + ML as a secondary opinion**. If any
+gate fails on any rep the band is forced to Poor **with a specific reason**; only when every gate
+passes does the ML's holistic verdict decide. Gates are a separate override layer, not blended
+into any score.
+
+- [x] **Phase A — measurement** (`ml/scripts/analyze_fault_gate_thresholds.py`, new; report
+      `ml/reports/SQUAT_FAULT_GATE_ANALYSIS.md`). Heel-visibility go/no-go census on the **raw**
+      stream (X1 reuse of `build_features` helpers): far heel (landmark 30) reps-weighted mean
+      visibility **0.784**, only 17/98 reps dip below `MIN_VISIBILITY` at depth → **GO** (behaves
+      like the far ankle, not the far knee). New `heel_rise_peak_norm` (peak bilateral toe−heel
+      lift / trunk length) run through the identical `check_feature_validity.analyse_feature()`
+      KEEP/DROP method → **KEEP** (AUC 0.728, Poor higher, 4/5 subjects). Thresholds: **lean**
+      Youden-J on `trunk_lean_peak_deg` = **41.42°** (data-driven, KEEP feature AUC 0.762);
+      **depth** = **78.04°** = clinical parallel norm (90°) − the pipeline's measured −11.96°
+      under-read (`MOCAP_AGREEMENT.md`), **NOT** data-driven since REHAB24-6's own depth signal
+      is _inverted_ (Poor reps are deeper) — the report says so explicitly; **heel-rise** Youden-J
+      = **0.084** (OOF sensitivity 0.81). Deterministic — two runs byte-identical.
+- [x] **Phase B — backend.** New `backend/app/module_b/squat/fault_gates.py`: pure
+      `depth_gate`/`lean_gate`/`heel_rise_gate` + `evaluate_fault_gates(reps, feature_vectors,
+config)` running every enabled gate across **every** rep (the concrete fix for the ML's
+      rep-0-only blind spot, for faults). `FaultGateResult`/`GateCheck` frozen dataclasses. New
+      `SQUAT_CONFIG["fault_gates"]` block, each threshold provenance-tagged and traced to the
+      Phase A report. New `ModuleBExercise.evaluate_fault_gates()` hook defaulting **None**
+      (mirrors `band_policy` — lunge + Module A unaffected by construction); `SquatExercise`
+      implements it. `router.py` wires it right after `fuse_model`: `dataclasses.replace(fusion,
+band="Poor")` on any failure + new `_fault_gate_tags()` helper (duck-typed, `source="rule"`,
+      severity `high`, one tag per fault kind with its human message). `heel_rise_gate` is
+      rule-only — **not** in `SQUAT_FEATURE_NAMES`, so no `feature_schema_version` bump / retrain.
+- [x] **Tests** — new `backend/tests/test_module_b_squat_fault_gates.py` (21 tests): each gate at
+      its Phase A threshold, the multi-rep aggregator (the direct regression: a clean rep 0 + a
+      bad rep 1 is still caught), the router `_fault_gate_tags`/override composition, and lunge
+      staying `None`. Full backend suite **222/222**.
+- [x] **Replay corpus regenerated** (harness `replay_squat_session.py` + generator now apply the
+      gate override, faithful to the endpoint — same discipline as Stage 5.11's `band_policy`). Two
+      samples legitimately shifted Good→Poor (peak ~73.7° < the 78.04° parallel floor):
+      `good_moderate_depth_1` is now the **depth-gate override fixture** (ML score 9.42 Good, gate →
+      Poor), `good_moderate_depth_2` stays the clean all-gates-pass Good fixture. `labels.json`
+      records per-sample `fault_gate_tags`; new `test_module_b_replay` assertion proves the corpus
+      exercises the override. Corpus regeneration deterministic (byte-identical on re-run).
+- [x] **Frontend** — i18n only (`tag_insufficient_depth`, `tag_excessive_forward_lean`,
+      `tag_heel_lift` in en/zh/ms). **Zero `Report.tsx` change** — tag rendering is already generic
+      (`t("moduleB.tag_"+tag.tag)`). `tsc --noEmit` clean.
+- [ ] **Deliberately not done (explicitly deferred):** the ML's **single-rep scoring** is _not_
+      fixed here (still scores only `feature_vectors[0]`) — a separate, flagged finding; the gates
+      fix it for _fault detection_ only. No **live per-rep push** (HY chose "keep at end"). No ML
+      retrain / no new ML feature. Lunge + Module A untouched (hook returns None).
+
 ### Stage 5.10 — Option B: documented, not built _(for Chapter 3)_
 
 - [ ] `docs/module_b_option_b_alternative.md` — the methodology alternative, written to be examiner-facing:
@@ -2139,6 +2249,30 @@ direction):** `accuracy_strict` **0.053**, `accuracy_confident` **0.184**, `macr
 ---
 
 ### Phase 5B: Lunge **[GATE — do not start until Phase 5 Stage 5.8 is verified live]**
+
+> ## ⚠️⚠️⚠️ REMOVED FROM THE PRODUCT (2026-07-19, HY's decision)
+>
+> **Leg Lunge (the entire Module B lunge exercise) was removed from the shipped
+> application on 2026-07-19.** All backend, frontend, and ML source code for it —
+> `backend/app/module_b/lunge/`, `frontend/src/pages/lunge/`,
+> `frontend/src/utils/lunge/`, `frontend/src/components/lunge/`, the seven
+> `ml/scripts/*_lunge.py` scripts, `ml/data/lunge_features.csv` +
+> `ml/data/landmarks_lunge/`, and the seven standalone `ml/reports/LUNGE_*.md`
+> engineering reports — has been **deleted**. The registry no longer registers a
+> `LungeExercise`; `GET /api/module-b/lunge/config` now 404s like any unregistered
+> exercise; `backend/app/seed.py`'s catalog seeder deactivates any pre-existing
+> `lunge` row on its next run.
+>
+> **Everything below this banner, through the end of Phase 5B, is retained as a
+> historical record of the completed investigation — it no longer describes the
+> shipped system.** Numbers, findings, and code references in it (file paths,
+> function names) may no longer exist in the current codebase. The dissertation
+> chapter draft (`ml/reports/PHASE5_CHAPTER_DRAFT.md` §11) is kept for the same
+> reason and carries the same notice. The eight report figures that
+> `PHASE5_CHAPTER_DRAFT.md` §11 embeds inline were kept on disk specifically so
+> that chapter still renders; nothing else lunge-related survives on disk.
+>
+> Reason for removal: HY's product decision — not further elaborated in this log.
 
 > **Frontend placeholder already exists (Stage 4.7, 2026-07-16, HY decision).** Ahead of this phase, `backend/app/seed.py` already seeds a `lunge` exercise catalog row (`mode: "rehab"`), and the frontend already shows its real thumbnail (`ExerciseSelection.tsx`) and tutorial video (`CameraSetup.tsx`, `assets/videos/Leg Lunge.mp4`). **Nothing else exists yet** — no `backend/app/module_b/lunge/` plugin, no `LungeExercise` registration, no `/lunge/live` page, no `POST`/analyze wiring. `CameraSetup.tsx`'s Start Session button is intentionally replaced with a "coming soon" message (`isLungePlaceholder`) and auto-start is disabled for this code, so no one can reach a broken session. When this phase builds the real plugin + live page, remove that gate and wire `beginSession`'s navigation the same way squat's `isSquat` branch does.
 

@@ -1028,6 +1028,108 @@ physical camera was not available for this verification; the sequence used was
 constructed to exercise every stage a live capture would, and is considered the
 strongest verification available without one.
 
+### 8.5 Revising the deployed output: a committed binary correct/incorrect verdict
+
+The abstention behaviour described above (Sections 6 and 8.2) had a consequence that
+undermined the system's stated purpose. Because the shipped model's confidence never
+reached the threshold required to commit to an "incorrect" verdict, almost every
+repetition of genuinely poor technique was routed to the non-committal middle band
+rather than flagged. A system intended to help a user achieve correct form, yet which
+can almost never state that a repetition was incorrect, provides little of the feedback
+it exists to provide.
+
+The deployed banding policy for the squat exercise was therefore revised to **commit to
+a binary correct/incorrect verdict on every repetition**, removing the confidence-based
+abstention. The single decision threshold separating the two verdicts was selected on
+the same out-of-fold predictions used throughout this chapter, by maximising the
+unweighted mean of the two per-class F1 scores (macro-F1) — the criterion that rewards
+detecting incorrect repetitions without collapsing to a trivial rule that labels every
+repetition incorrect. The fusion weight was re-selected jointly under the same
+objective; because the rule-based component is inversely related to the ground truth for
+this population (Section 5.4), the selection assigned it zero weight, leaving the
+committed verdict a function of the calibrated classifier alone.
+
+At the selected operating point the recall of the incorrect class, measured out of fold,
+rose from the 0.077 reported in Section 7.1 to 1.000: every incorrect repetition in the
+evaluation set was flagged. This was not obtained without cost, and the cost is the
+central honest finding of this revision. The two classes are not linearly separable at
+the discrimination the model achieves (Section 7); reaching complete recall of the
+incorrect class required a threshold at which 22 of 72 correct repetitions (31%) are
+also labelled incorrect, giving the incorrect class a precision of 0.542 and a macro-F1
+of 0.761. The confusion matrix over the committed binary output makes the trade explicit.
+
+![Committed binary correct/incorrect output against ground truth, out of fold. Every incorrect repetition is flagged (lower row), at the cost of 31% of correct repetitions also being flagged (upper row). With no abstention band, both off-diagonal cells are genuine misclassifications.](figures/confusion_matrix_2band.png)
+
+The property this deliberately relinquishes should be stated as plainly as it was earned.
+The three-band design had achieved zero _severe_ misclassifications — no correct
+repetition labelled incorrect and, more consequentially, no incorrect repetition
+labelled correct — by declining to commit whenever uncertain. Committing to a verdict
+removes that guarantee. The operating point was chosen so that the residual severe errors
+fall entirely on the less harmful side: at this threshold no incorrect repetition is
+labelled correct — the failure mode identified throughout this work as the most damaging
+in a rehabilitation setting — and all 22 severe errors are correct repetitions labelled
+incorrect, making the system over-cautious rather than falsely reassuring. Whether that
+false-alarm rate is acceptable is a deployment judgement rather than a modelling result,
+and it is recorded here as such.
+
+The deterministic test corpus (Section 8.3) was regenerated once more under this policy;
+with abstention removed it now spans the correct and incorrect verdicts directly,
+superseding the correct/uncertain span described there, and confirming that the incorrect
+verdict is reachable by real synthetic repetitions rather than only in principle. In the
+user interface the incorrect verdict is presented with the label "Needs Improvement".
+
+### 8.6 Naming the fault: interpretable rule gates alongside the classifier
+
+The committed verdict of Section 8.5 answers whether a repetition was correct, but not
+why. Two further observations motivated supplementing it. First, the classifier scores
+only the first detected repetition of a set, so a fault occurring later in the set does
+not influence its verdict at all. Second, and more fundamentally, the classifier cannot
+name a fault even when it flags one, because — as Section 5.4 established — the feature it
+learned to lean on is depth, and depth is inversely related to correctness in this
+population: the labelled incorrect repetitions are systematically the _deeper_ ones. A
+direct review of the source recordings clarified what the deeper incorrect repetitions
+actually contain. The visible faults are a forward-leaning trunk and heels rising off the
+floor; a performer who leans forward and lifts the heels is able to sink lower, which is
+why depth correlates with the fault without being the fault. The classifier had latched
+onto the shadow the fault casts rather than the fault itself.
+
+Three interpretable rule checks were therefore introduced as a layer that runs across
+every repetition and can override the verdict to incorrect, each accompanied by a
+specific, human-readable reason. The three targets — insufficient depth, excessive
+forward lean, and heel lift — were chosen because they are nameable, biomechanically
+meaningful, and, for two of the three, measurable from this same single side view with
+signal the data supports. The forward-lean check is data-driven: peak trunk lean is one
+of the features that separated the classes honestly (Section 5.4), and its threshold was
+fixed by the same out-of-fold procedure used for every other cut-point in this chapter.
+The heel-lift check required a new measurement, a normalised toe-relative heel elevation,
+and was admitted only after two gates were cleared in order: a visibility census
+confirmed that the far heel — unlike the far knee, which the occlusion analysis of
+Section 5.3 showed to be unreliable for whole repetitions — remains adequately tracked
+through the depth of the movement, and the new measurement then passed the same
+class-separation validity test applied to every candidate feature.
+
+The depth check is deliberately different, and the distinction is the honest core of this
+addition. A "too shallow" rule cannot be learned from this dataset, because the dataset's
+own depth signal points the other way; deriving a shallowness threshold from these labels
+would encode the confound rather than correct it. The depth gate is instead a fixed
+clinical floor — the parallel-squat convention — expressed on this pipeline's own
+measurement scale by subtracting the systematic under-read that the motion-capture
+comparison of Section 5.3 quantified. Applied to this dataset it flags none of the
+labelled incorrect repetitions and a minority of the correct ones, exactly as the
+inverted-depth finding predicts, since the dataset contains no genuinely shallow fault to
+detect. That the check is a stated clinical assumption rather than a result read from
+these labels is recorded here so it is not later mistaken for the latter.
+
+Architecturally the gates are kept separate from both the rule score and the fused
+verdict rather than blended into either, because an averaging combination would let a
+single decisive fault be diluted by otherwise competent execution. The classifier's
+holistic verdict continues to decide the band whenever every gate passes; a failed gate
+overrides it to incorrect and supplies the reason. The result is a verdict that is both
+committed and explainable, and a demonstration that the appropriate response to a
+classifier which learned a confounded proxy is not to retrain it against labels that
+carry the same confound, but to add interpretable checks whose provenance can be stated
+exactly.
+
 ---
 
 ## 9. External Validation Against an Independent Dataset
@@ -1318,17 +1420,45 @@ rather than assumed, and should inform the discussion of this system's validity:
     and medial knee collapse together accounted for 46 of 91 faulty repetitions in an
     independently constructed squat-fault taxonomy. Roughly half of the faults an
     external source considered worth labelling lie outside this system's scope.
+19. **The deployed squat verdict trades the zero-severe-error guarantee for coverage
+    (Section 8.5).** Limitations 15 and 16 describe the three-band abstaining model; the
+    deployed squat output was subsequently revised to commit to a binary
+    correct/incorrect verdict on every repetition. This makes the incorrect verdict
+    reachable — its out-of-fold recall rises from 0.077 to 1.000 — but removes the
+    abstention that previously guaranteed no severe misclassification. At the chosen
+    operating point no incorrect repetition is labelled correct, yet 31% of correct
+    repetitions are labelled incorrect. Whether that false-alarm rate is acceptable is a
+    deployment judgement, and the discrimination it rests on is still bounded by
+    limitations 15 and 16.
+20. **The interpretable fault gates carry three stated caveats (Section 8.6).** The depth
+    gate is a clinical assumption expressed on this pipeline's scale, not a threshold
+    learned from these labels — it could not be, because the dataset's depth signal is
+    inverted (limitation 3) — and it detects no fault this dataset actually contains. The
+    heel-lift gate rests on a new measurement validated on the same nine subjects as
+    everything else in this phase, so its threshold inherits the small-sample and
+    single-cohort limits already stated. And the gates only compensate for the
+    classifier's first-repetition-only scoring in respect of the faults they name; the
+    classifier's own verdict continues to be formed from the first repetition alone.
 
 These limitations do not undermine the validity of the trained classifier for its stated
 purpose, but they define the boundary of what can honestly be claimed from this dataset and
-should be stated explicitly rather than discovered by an examiner. Limitations 15–17 in
-particular should be read together: the deployed model abstains rather than warns, its
-learned notion of correctness did not transfer to the one cohort available to test it,
-and no evidence exists either way as to whether it would transfer to a comparable one.
+should be stated explicitly rather than discovered by an examiner. Limitations 15–17 and 19
+in particular should be read together: the deployed squat model now warns rather than
+abstains, at the false-alarm cost quantified in limitation 19; its learned notion of
+correctness did not transfer to the one cohort available to test it; and no evidence exists
+either way as to whether it would transfer to a comparable one.
 
 ---
 
 ## 11. The Lunge Dataset
+
+> **Editorial note (2026-07-19).** The leg lunge exercise described in this section
+> was subsequently withdrawn from the deployed application; the system now grades
+> the squat only. The investigation below is retained as a complete record of the
+> work undertaken and the findings it produced, several of which — the pooling
+> instability described in Section 11.9 and the calibration defect described in
+> Section 11.13 — proved relevant beyond the lunge exercise itself. No claim in
+> this section should be read as describing the current, shipped system.
 
 The second graded exercise, the leg lunge, draws on the same source as the squat —
 REHAB24-6, using exercise Ex5 — and was audited under the same constraints before any

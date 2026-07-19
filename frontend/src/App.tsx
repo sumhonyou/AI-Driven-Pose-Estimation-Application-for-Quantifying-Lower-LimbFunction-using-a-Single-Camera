@@ -14,7 +14,6 @@ import StsLiveSessionPage from "./pages/sts/StsLiveSessionPage";
 import SlsLiveSessionPage from "./pages/sls/SlsLiveSessionPage";
 import WbltLiveSessionPage from "./pages/wblt/WbltLiveSessionPage";
 import SquatLiveSessionPage from "./pages/squat/SquatLiveSessionPage";
-import LungeLiveSessionPage from "./pages/lunge/LungeLiveSessionPage";
 import Report from "./pages/Report";
 import SessionHistory from "./pages/SessionHistory";
 import Reminders from "./pages/Reminders";
@@ -48,7 +47,6 @@ export default function App() {
             <Route path="sls/live" element={<SlsLiveSessionPage />} />
             <Route path="wblt/live" element={<WbltLiveSessionPage />} />
             <Route path="squat/live" element={<SquatLiveSessionPage />} />
-            <Route path="lunge/live" element={<LungeLiveSessionPage />} />
             <Route path="report" element={<Report />} />
             <Route path="history" element={<SessionHistory />} />
             <Route path="reminders" element={<Reminders />} />

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.module_b.core.features import FeatureVector
     from app.module_b.core.fsm import Rep
     from app.module_b.core.rules import RuleScores
+    from app.module_b.squat.fault_gates import FaultGateResult
 
 
 class ModuleBExercise(ABC):
@@ -33,6 +34,23 @@ class ModuleBExercise(ABC):
     @abstractmethod
     def model_key(self) -> str:
         """Stable key used to resolve the exercise's model bundle."""
+
+    @property
+    def band_policy(self) -> dict[str, Any] | None:
+        """Optional banding override for fusion. None keeps the 3-band abstention."""
+        return None
+
+    def evaluate_fault_gates(
+        self, reps: list[Rep], feature_vectors: list[FeatureVector]
+    ) -> FaultGateResult | None:
+        """Optional interpretable fault gates run across every rep of a set.
+
+        Returns None by default: an exercise that defines no gates is unaffected, so
+        Module A keeps its exact behaviour. An exercise that opts in returns a
+        FaultGateResult; if it is not ``all_passed``, the router overrides the fused
+        band to Poor with a specific reason (Stage 5.12, squat).
+        """
+        return None
 
     @abstractmethod
     def segment(self, frames: list[dict[str, Any]]) -> list[Rep]:

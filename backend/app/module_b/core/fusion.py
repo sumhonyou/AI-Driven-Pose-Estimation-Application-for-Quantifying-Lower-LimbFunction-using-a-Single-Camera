@@ -46,9 +46,19 @@ def project_ml_score(probabilities: dict[str, float]) -> tuple[float, float]:
 
 
 def fuse_model(
-    *, rule_scores: RuleScores, model: ModelBundle, features: FeatureVector, q: float
+    *,
+    rule_scores: RuleScores,
+    model: ModelBundle,
+    features: FeatureVector,
+    q: float,
+    band_policy: dict | None = None,
 ) -> FusionResult:
-    """Run one versioned model and fuse it with the available rule score."""
+    """Run one versioned model and fuse it with the available rule score.
+
+    `band_policy` is the exercise's optional banding override (None -> the default
+    3-band Good/Fair/Poor abstention behaviour). Squat passes a binary policy; every
+    other exercise leaves it None and keeps the abstaining 3-band output.
+    """
     if rule_scores.score is None:
         raise ValueError("Cannot fuse Module B scores without an available rule score")
     return fuse_scores(
@@ -57,6 +67,7 @@ def fuse_model(
         q=q,
         model_version=model.model_version,
         is_placeholder_model=model.is_placeholder,
+        band_policy=band_policy,
     )
 
 
@@ -67,8 +78,21 @@ def fuse_scores(
     q: float,
     model_version: str,
     is_placeholder_model: bool,
+    band_policy: dict | None = None,
 ) -> FusionResult:
-    """Fuse known 0–10 inputs and force Fair when confidence or capture is low."""
+    """Fuse known 0–10 inputs into a score and a band.
+
+    Two banding schemes, selected by `band_policy`:
+
+    - **Default (triband, `band_policy=None`):** force Fair when confidence or capture
+      is low — the abstaining Good/Fair/Poor output every exercise shipped with.
+    - **Binary (`band_policy={"scheme": "binary", ...}`):** commit to Good/Poor on every
+      rep. Fair is never emitted, the low-confidence rule-heavy weight switch is skipped
+      (that switch lets the ROM rule — inverted for the squat population — dominate every
+      rep), and the band comes from a single decision threshold on the fused score. The
+      low-confidence / low-capture-quality flags are still recorded, they just no longer
+      change the band. Placeholder models always keep abstaining, whatever the policy.
+    """
     _assert_0_to_10(rule_score, "rule_score")
     _assert_unit_interval(q, "q")
     ml_score, confidence = project_ml_score(probabilities)
@@ -77,22 +101,39 @@ def fuse_scores(
     config = MODULE_B_CORE_CONFIG
     low_confidence = confidence < config["confidence_low_threshold"]
     low_capture_quality = q < config["q_min"]
-    if low_confidence or low_capture_quality:
-        w_rule = config["w_rule_low_confidence"]
-        w_ml = round(1.0 - w_rule, 10)
-    else:
-        w_rule = config["w_rule_default"]
-        w_ml = config["w_ml_default"]
-    if abs((w_rule + w_ml) - 1.0) > 1e-9:
-        raise ValueError("Fusion weights must sum to 1")
 
-    final_score = w_rule * rule_score + w_ml * ml_score
+    # Flags are recorded under both schemes; only the triband scheme lets them force
+    # a band or change the fusion weights.
     flags: list[str] = []
     if low_confidence:
         flags.append("low_confidence")
     if low_capture_quality:
         flags.extend(("low_capture_quality", "retry_camera_placement"))
-    band = "Fair" if flags else score_to_band(final_score)
+
+    binary = (
+        band_policy is not None
+        and band_policy.get("scheme") == "binary"
+        and not is_placeholder_model
+    )
+    if binary:
+        w_rule = band_policy["w_rule"]
+        w_ml = band_policy["w_ml"]
+        _assert_weights_sum_to_one(w_rule, w_ml)
+        final_score = w_rule * rule_score + w_ml * ml_score
+        threshold = band_policy["decision_threshold"]
+        _assert_0_to_10(threshold, "decision_threshold")
+        band = "Good" if final_score >= threshold else "Poor"
+    else:
+        if low_confidence or low_capture_quality:
+            w_rule = config["w_rule_low_confidence"]
+            w_ml = round(1.0 - w_rule, 10)
+        else:
+            w_rule = config["w_rule_default"]
+            w_ml = config["w_ml_default"]
+        _assert_weights_sum_to_one(w_rule, w_ml)
+        final_score = w_rule * rule_score + w_ml * ml_score
+        band = "Fair" if flags else score_to_band(final_score)
+
     return FusionResult(
         score=final_score,
         band=band,
@@ -107,6 +148,11 @@ def fuse_scores(
         is_placeholder_model=is_placeholder_model,
         placeholder_model_notice=is_placeholder_model,
     )
+
+
+def _assert_weights_sum_to_one(w_rule: float, w_ml: float) -> None:
+    if abs((w_rule + w_ml) - 1.0) > 1e-9:
+        raise ValueError("Fusion weights must sum to 1")
 
 
 def _validate_option_a_probabilities(probabilities: dict[str, float]) -> None:

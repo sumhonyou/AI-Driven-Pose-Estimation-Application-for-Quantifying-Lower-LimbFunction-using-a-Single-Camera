@@ -4,7 +4,7 @@ The Phase 4 `StubModel` placeholder was deleted in Stage 5.8 (rules.md #20 — n
 unnecessary code once its replacement exists) once `get_model_bundle()` below could
 load the real trained artifact for every exercise that has one exported.
 
-Phase 5B (Stage 4.5, Lunge) reintroduced a placeholder path -- `PlaceholderModelBundle`
+Phase 5B (Stage 4.5) reintroduced a placeholder path -- `PlaceholderModelBundle`
 below -- because `get_model_bundle()` is now the ONLY place `router.py` resolves a
 model (no per-exercise branching is allowed there, per Stage 4.1's registry
 invariant), so an exercise without an exported artifact needs a graceful fallback
@@ -13,10 +13,10 @@ here rather than a crash. It is deliberately NOT the old `StubModel`: that one t
 router calling it directly -- incompatible with today's cached, `model_key`-only
 `get_model_bundle()` accessor, which has no access to any request's `RuleScores`.
 `PlaceholderModelBundle` instead returns a constant, feature-independent 50/50 --
-honest given it has no real signal, and it existing at all is transitional: once
-Stage 5.8 (Lunge) exports a real artifact, `get_model_bundle("lunge")` picks it up
-automatically and this path stops being reached for lunge, the same way it already
-stopped being reached for squat.
+honest given it has no real signal. Any future exercise added to the registry
+without an exported artifact yet falls back to it automatically; the path stops
+being reached for that exercise's `model_key` the moment its artifact is exported,
+the same way it already stopped being reached for squat.
 """
 
 from __future__ import annotations
@@ -223,8 +223,8 @@ def get_model_bundle(model_key: str) -> ModelBundle:
     measurable latency on top of Stage 5.7's ~8 ms feature+predict budget.
 
     Falls back to `PlaceholderModelBundle` when `model_key` has no exported artifact
-    yet (Stage 4.5, Lunge) -- caching that constant, feature-independent bundle is
-    safe (no per-request state to go stale), unlike the old per-request `StubModel`.
+    yet (Stage 4.5) -- caching that constant, feature-independent bundle is safe (no
+    per-request state to go stale), unlike the old per-request `StubModel`.
     """
     artifacts_dir = _ARTIFACTS_ROOT / model_key
     if not (artifacts_dir / "model.joblib").exists():

@@ -190,7 +190,7 @@ def _deployed_confidence_check(calibrated, x: np.ndarray, y: np.ndarray) -> dict
 def _recomputed_metrics(x, y, groups, outer_cv, seed: int) -> dict:
     """Re-run Stage 5.5's own nested_cv() rather than transcribe its reported numbers
     (ml/ convention: a transcribed constant in this project has already been wrong 7 of
-    13 times). Byte-identical to what SQUAT_TRAINING_REPORT.md/SQUAT_EVALUATION_REPORT.md
+    13 times). Byte-identical to what SQUAT_TRAINING_REPORT.md/SQUAT_EVALUATION_REPORT_3BAND.md
     already quote, since it is the same seeded call."""
     _prob_uncal, prob_cal, _folds = nested_cv(x, y, groups, outer_cv, seed)
     return _metrics(y, prob_cal)
@@ -315,7 +315,7 @@ here in full; the ones most relevant to *using this artifact* specifically:
   the far limb was tracked.
 - **The fused system trades a large abstention rate for safety**: at the shipped
   operating point, roughly half of repetitions receive no confident verdict. See
-  [SQUAT_EVALUATION_REPORT.md](../../reports/SQUAT_EVALUATION_REPORT.md) §7.1.
+  [SQUAT_EVALUATION_REPORT_3BAND.md](../../reports/SQUAT_EVALUATION_REPORT_3BAND.md) §7.1.
 - **Evaluated on REHAB24-6 only.** Stage 5.9's EC3D check is the first independent
   (never-trained-on) generalisation signal; treat this model as unvalidated outside
   REHAB24-6 until that report exists.

@@ -64,7 +64,7 @@ export default function Dashboard() {
   const iconFor = (session: SessionDTO) => {
     if (session.mode === "rehab") return <Stretch />;
     if (session.exercise_code.includes("single_leg")) return <Balance />;
-    if (session.exercise_code.includes("lunge")) return <Check />;
+    if (session.exercise_code === "weight_bearing_lunge_test") return <Check />;
     return <Activity />;
   };
 

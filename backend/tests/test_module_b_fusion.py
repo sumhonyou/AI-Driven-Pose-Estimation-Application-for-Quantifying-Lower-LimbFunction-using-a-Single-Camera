@@ -9,7 +9,9 @@ from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.features import FeatureVector
 from app.module_b.core.fusion import fuse_model, fuse_scores, score_to_band
 from app.module_b.core.model_registry import JoblibModelBundle, get_model_bundle
+from app.module_b.core.registry import get_exercise
 from app.module_b.core.rules import SubScore, assemble_rule_scores
+from app.module_b.squat.config import SQUAT_CONFIG
 from app.module_b.squat.features import SQUAT_FEATURE_NAMES
 
 
@@ -198,6 +200,75 @@ class RealSquatModelBundleTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "names/order"):
             model.predict_proba(reordered_features)
+
+
+class BinaryBandPolicyTests(unittest.TestCase):
+    """Stage 5.11: squat commits to a binary Good/Poor band via SQUAT_CONFIG.band_policy.
+
+    The 3-band abstention path stays the default (covered by FusionTests above); these
+    check the opt-in binary branch and the placeholder safeguard.
+    """
+
+    def setUp(self) -> None:
+        self.policy = SQUAT_CONFIG["band_policy"]
+
+    def test_squat_exercise_exposes_the_binary_policy(self) -> None:
+        policy = get_exercise("squat").band_policy
+        self.assertEqual(policy["scheme"], "binary")
+        self.assertEqual((policy["w_rule"], policy["w_ml"]), (0.0, 1.0))
+
+    def test_high_confidence_good_commits_to_good(self) -> None:
+        result = fuse_scores(
+            rule_score=2.0,
+            probabilities={"Poor": 0.05, "Good": 0.95},
+            q=1.0,
+            model_version="squat-test-1",
+            is_placeholder_model=False,
+            band_policy=self.policy,
+        )
+        self.assertEqual(result.band, "Good")
+        self.assertEqual((result.w_rule, result.w_ml), (0.0, 1.0))
+
+    def test_low_pgood_commits_to_poor_and_never_fair(self) -> None:
+        # score = 10*P(Good) = 6.0, below the 8.448 cut -> Poor. Confidence 0.6 < 0.85
+        # records low_confidence, but under the binary policy that no longer forces Fair.
+        # A high rule_score would prop the score above the cut under the old triband
+        # weights; w_rule=0 makes that irrelevant here.
+        result = fuse_scores(
+            rule_score=9.0,
+            probabilities={"Poor": 0.4, "Good": 0.6},
+            q=1.0,
+            model_version="squat-test-1",
+            is_placeholder_model=False,
+            band_policy=self.policy,
+        )
+        self.assertEqual(result.band, "Poor")
+        self.assertIn("low_confidence", result.flags)
+
+    def test_low_capture_quality_still_commits_a_band_but_flags_retry(self) -> None:
+        result = fuse_scores(
+            rule_score=2.0,
+            probabilities={"Poor": 0.05, "Good": 0.95},
+            q=0.4,
+            model_version="squat-test-1",
+            is_placeholder_model=False,
+            band_policy=self.policy,
+        )
+        self.assertIn(result.band, {"Good", "Poor"})
+        self.assertNotEqual(result.band, "Fair")
+        self.assertIn("retry_camera_placement", result.flags)
+
+    def test_placeholder_model_keeps_abstaining_even_with_a_binary_policy(self) -> None:
+        # A constant-0.5 placeholder must not be forced into a hard Good/Poor verdict.
+        result = fuse_scores(
+            rule_score=8.0,
+            probabilities={"Poor": 0.5, "Good": 0.5},
+            q=1.0,
+            model_version="stub-0",
+            is_placeholder_model=True,
+            band_policy=self.policy,
+        )
+        self.assertEqual(result.band, "Fair")
 
 
 if __name__ == "__main__":

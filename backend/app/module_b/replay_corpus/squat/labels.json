@@ -10,21 +10,50 @@
     "q_min": 0.6,
     "feature_schema_version": "1.0.0"
   },
+  "squat_band_policy": {
+    "scheme": "binary",
+    "decision_threshold": 8.447974,
+    "w_rule": 0.0,
+    "w_ml": 1.0
+  },
+  "squat_fault_gates": {
+    "depth": {
+      "enabled": true,
+      "min_knee_flex_peak_deg": 78.04,
+      "tag": "insufficient_depth",
+      "message": "Didn't reach enough depth \u2014 aim for closer to parallel."
+    },
+    "lean": {
+      "enabled": true,
+      "fault_trunk_lean_peak_deg": 41.42411876009375,
+      "tag": "excessive_forward_lean",
+      "message": "Leaning too far forward \u2014 keep your chest more upright."
+    },
+    "heel_rise": {
+      "enabled": true,
+      "fault_heel_rise_peak_norm": 0.08399336939375095,
+      "tag": "heel_lift",
+      "message": "Heels lifting off the floor \u2014 keep your weight through your heels."
+    }
+  },
   "note": "`measured` is what the real pipeline produced at build time, not a hand-written expectation. Stage 5.8 swapped in the trained model (`model_version` above): unlike the Phase 4 StubModel placeholder, there is no closed-form rule mapping a rule_score to a reachable band any more \u2014 the forest's decision boundary and its calibration are learned, not analytic, so which band a given synthetic sample lands in can only be discovered by running it through the real pipeline, which is what this manifest records. Regenerate this file after any retraining rather than editing it.",
   "samples": [
     {
       "sample_id": "good_moderate_depth_1",
       "frames_file": "good_moderate_depth_1.json",
       "n_frames": 342,
-      "target_band_hint": "Good",
+      "target_band_hint": "Poor",
       "measured": {
         "n_reps": 3,
-        "band": "Good",
-        "score": 9.0211,
+        "band": "Poor",
+        "score": 9.4212,
         "rule_score": 7.4203,
         "confidence": 0.9421,
         "q": 0.98,
         "flags": [],
+        "fault_gate_tags": [
+          "insufficient_depth"
+        ],
         "peak_knee_flexion_deg": 73.69
       },
       "hint_matched": true,
@@ -48,11 +77,12 @@
       "measured": {
         "n_reps": 3,
         "band": "Good",
-        "score": 8.9966,
+        "score": 9.2563,
         "rule_score": 7.9582,
         "confidence": 0.9256,
         "q": 0.95,
         "flags": [],
+        "fault_gate_tags": [],
         "peak_knee_flexion_deg": 93.75
       },
       "hint_matched": true,
@@ -72,17 +102,18 @@
       "sample_id": "fair_uncertain_good_leaning_1",
       "frames_file": "fair_uncertain_good_leaning_1.json",
       "n_frames": 342,
-      "target_band_hint": "Fair",
+      "target_band_hint": "Poor",
       "measured": {
         "n_reps": 3,
-        "band": "Fair",
-        "score": 8.4474,
+        "band": "Poor",
+        "score": 8.0806,
         "rule_score": 8.6046,
         "confidence": 0.8081,
         "q": 0.92,
         "flags": [
           "low_confidence"
         ],
+        "fault_gate_tags": [],
         "peak_knee_flexion_deg": 118.5
       },
       "hint_matched": true,
@@ -102,16 +133,19 @@
       "sample_id": "fair_uncertain_poor_leaning_1",
       "frames_file": "fair_uncertain_poor_leaning_1.json",
       "n_frames": 342,
-      "target_band_hint": "Fair",
+      "target_band_hint": "Poor",
       "measured": {
         "n_reps": 3,
-        "band": "Fair",
-        "score": 8.1429,
+        "band": "Poor",
+        "score": 6.7873,
         "rule_score": 8.7238,
         "confidence": 0.6787,
         "q": 0.9,
         "flags": [
           "low_confidence"
+        ],
+        "fault_gate_tags": [
+          "excessive_forward_lean"
         ],
         "peak_knee_flexion_deg": 123.48
       },
@@ -132,16 +166,19 @@
       "sample_id": "attempted_poor_deep_unstable_1",
       "frames_file": "attempted_poor_deep_unstable_1.json",
       "n_frames": 153,
-      "target_band_hint": "Fair",
+      "target_band_hint": "Poor",
       "measured": {
         "n_reps": 3,
-        "band": "Fair",
-        "score": 6.1759,
+        "band": "Poor",
+        "score": 5.0309,
         "rule_score": 6.6667,
         "confidence": 0.5031,
         "q": 0.88,
         "flags": [
           "low_confidence"
+        ],
+        "fault_gate_tags": [
+          "excessive_forward_lean"
         ],
         "peak_knee_flexion_deg": 145.33
       },
@@ -162,16 +199,19 @@
       "sample_id": "attempted_poor_deep_unstable_2",
       "frames_file": "attempted_poor_deep_unstable_2.json",
       "n_frames": 180,
-      "target_band_hint": "Fair",
+      "target_band_hint": "Poor",
       "measured": {
         "n_reps": 4,
-        "band": "Fair",
-        "score": 5.9512,
+        "band": "Poor",
+        "score": 5.768,
         "rule_score": 6.0296,
         "confidence": 0.5768,
         "q": 0.86,
         "flags": [
           "low_confidence"
+        ],
+        "fault_gate_tags": [
+          "excessive_forward_lean"
         ],
         "peak_knee_flexion_deg": 143.32
       },
@@ -192,17 +232,20 @@
       "sample_id": "lowq_reject_occluded_1",
       "frames_file": "lowq_reject_occluded_1.json",
       "n_frames": 342,
-      "target_band_hint": "Fair",
+      "target_band_hint": "Poor",
       "measured": {
         "n_reps": 3,
-        "band": "Fair",
-        "score": 8.0203,
+        "band": "Poor",
+        "score": 9.4212,
         "rule_score": 7.4199,
         "confidence": 0.9421,
         "q": 0.45,
         "flags": [
           "low_capture_quality",
           "retry_camera_placement"
+        ],
+        "fault_gate_tags": [
+          "insufficient_depth"
         ],
         "peak_knee_flexion_deg": 73.69
       },

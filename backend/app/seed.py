@@ -35,16 +35,13 @@ EXERCISES = [
         "description": "Side-view rehabilitation movement-quality grading for squats.",
         "view_guidance": "side_view",
     },
-    {
-        "code": "lunge",
-        "name": "Leg Lunge",
-        "mode": "rehab",
-        "description": "Side-view rehabilitation movement-quality grading for lunges.",
-        "view_guidance": "side_view",
-    },
 ]
 
 LEGACY_MODULE_B_CODE = "module_b_placeholder_exercise"
+# Leg Lunge was removed from the product (2026-07-19). Deactivated rather than
+# deleted, same precedent as LEGACY_MODULE_B_CODE below -- preserves old session
+# foreign keys for any account that already completed a lunge session.
+RETIRED_EXERCISE_CODES = ("lunge",)
 
 
 def seed_exercises() -> int:
@@ -56,6 +53,13 @@ def seed_exercises() -> int:
         )
         if legacy_module_b is not None:
             legacy_module_b.is_active = False
+
+        for code in RETIRED_EXERCISE_CODES:
+            retired = db.scalar(
+                select(ExerciseCatalog).where(ExerciseCatalog.code == code)
+            )
+            if retired is not None:
+                retired.is_active = False
 
         for item in EXERCISES:
             exists = db.scalar(

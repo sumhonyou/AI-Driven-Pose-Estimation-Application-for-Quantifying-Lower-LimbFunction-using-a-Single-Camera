@@ -32,13 +32,15 @@ export const FALLBACK_SQUAT_LIVE_CONFIG: SquatLiveConfig = {
   romDeepFullScoreDeg: 130.0,
 };
 
-/** D6 band thresholds (0-10 score -> Poor/Fair/Good) — same split as the backend's
- * MODULE_B_CORE_CONFIG.band_thresholds, used only to label the live ROM estimate. */
-const BAND_POOR_MAX = 4.0;
-const BAND_FAIR_MAX = 7.0;
+/** Binary band cut for the live ROM estimate (Stage 5.11). The authoritative
+ * Good/Needs-Improvement verdict comes from the backend's committed binary ML decision
+ * after the set; this rough client-side hint only reflects whether the rep reached the
+ * "Good" depth-completion boundary (the old Fair/Good cut on the 0-10 ROM score), and
+ * never runs the ML model. "Poor" is displayed as "Needs Improvement" via i18n. */
+const BAND_GOOD_MIN_SCORE = 7.0;
 
 export type SquatPhase = "standing" | "descending" | "ascending";
-export type SquatBandEstimate = "Poor" | "Fair" | "Good" | null;
+export type SquatBandEstimate = "Poor" | "Good" | null;
 /** Named ROM zones, using the exact same boundary names as squat/config.py's
  * `rules.rom` thresholds — never an invented cutoff (X2). */
 export type SquatDepthZone = "minimal" | "shallow" | "parallel" | "deep";
@@ -166,9 +168,7 @@ function romScoreEstimate(peakFlexionDeg: number, config: SquatLiveConfig): numb
 }
 
 function scoreToBandEstimate(score: number): SquatBandEstimate {
-  if (score < BAND_POOR_MAX) return "Poor";
-  if (score < BAND_FAIR_MAX) return "Fair";
-  return "Good";
+  return score >= BAND_GOOD_MIN_SCORE ? "Good" : "Poor";
 }
 
 /** Stateful per-set live tracker: hysteresis rep counter + per-rep ROM band estimate. */

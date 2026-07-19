@@ -1,9 +1,15 @@
 """Generates the committed squat replay corpus (Stage 5.7, respecced under the real
-model in Stage 5.8 — see point 2 below).
+model in Stage 5.8, then under the committed binary policy in Stage 5.11 — see below).
 
-Synthetic side-view squat sets spanning every band the shipped model has been found to
-actually reach (Good and Fair — **not Poor**; see point 2), plus a low-capture-quality
-reject, committed to `backend/app/module_b/replay_corpus/squat/` so the determinism
+**Stage 5.11 update: squat now commits to a binary Good/Poor band** (no Fair
+abstention — `SQUAT_CONFIG["band_policy"]`). Under that policy the corpus spans **Good
+and Poor** (Poor is now reachable — the score-threshold cut replaces the confidence
+abstention that made it unreachable in the 3-band era described in point 2 below, which
+is retained for context). The low-capture-quality sample no longer bands Fair; it
+commits a band and raises `retry_camera_placement`/`low_capture_quality` flags instead.
+
+Synthetic side-view squat sets spanning every reachable band, plus a low-capture-quality
+sample, committed to `backend/app/module_b/replay_corpus/squat/` so the determinism
 tests and the replay harness run from fixed data without needing the REHAB24-6 dataset
 (which lives outside the repo and cannot be committed).
 
@@ -73,6 +79,8 @@ from app.module_b.core.fusion import fuse_model
 from app.module_b.core.model_registry import get_model_bundle
 from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.core.quality import assess_capture_quality
+from app.module_b.squat.config import SQUAT_CONFIG
+from app.module_b.squat.fault_gates import evaluate_fault_gates
 from app.module_b.squat.features import extract_squat_features
 from app.module_b.squat.rules import score_squat_set
 from app.module_b.squat.segmentation import mean_knee_flexion_deg, segment_squat_frames
@@ -260,6 +268,13 @@ def _build_frames(spec: dict, rng: random.Random) -> list[dict]:
 # to transfer from the old, StubModel-era intent.
 SAMPLE_SPECS = [
     {
+        # Stage 5.12 depth-gate override fixture. Peak flexion ~73.6° (measured) is
+        # below the 78.04° clinical parallel floor, so the depth gate flags it as
+        # insufficient depth and the band commits to Poor -- even though the ML alone
+        # rates it confidently Good (score ~9.42). This is exactly the ML-depth-
+        # blindness the gate corrects (the forest learned deeper=worse for this
+        # population, so it never penalises a too-shallow rep). `target_band_hint` is
+        # "Poor" to match; `_2` below is the clean all-gates-pass Good fixture.
         "sample_id": "good_moderate_depth_1",
         "peak_flexion_deg": 75.0,
         "n_reps": 3,
@@ -270,7 +285,7 @@ SAMPLE_SPECS = [
         "sway_amplitude": 0.0,
         "sway_hz": 0.0,
         "visibility": 0.98,
-        "target_band_hint": "Good",
+        "target_band_hint": "Poor",
     },
     {
         "sample_id": "good_moderate_depth_2",
@@ -299,7 +314,7 @@ SAMPLE_SPECS = [
         "sway_amplitude": 0.0,
         "sway_hz": 0.0,
         "visibility": 0.92,
-        "target_band_hint": "Fair",
+        "target_band_hint": "Poor",
     },
     {
         # Uncertain from further along the same direction: P(Good) ~0.68, closer to
@@ -314,7 +329,7 @@ SAMPLE_SPECS = [
         "sway_amplitude": 0.0,
         "sway_hz": 0.0,
         "visibility": 0.90,
-        "target_band_hint": "Fair",
+        "target_band_hint": "Poor",
     },
     # The two samples below deliberately probe the SAME question Stage 5.8's export
     # script asks of the model itself (see export_squat_model.py's
@@ -338,7 +353,7 @@ SAMPLE_SPECS = [
         "sway_amplitude": 0.15,
         "sway_hz": 3.0,
         "visibility": 0.88,
-        "target_band_hint": "Fair",
+        "target_band_hint": "Poor",
     },
     {
         "sample_id": "attempted_poor_deep_unstable_2",
@@ -351,13 +366,16 @@ SAMPLE_SPECS = [
         "sway_amplitude": 0.10,
         "sway_hz": 3.0,
         "visibility": 0.86,
-        "target_band_hint": "Fair",
+        "target_band_hint": "Poor",
     },
     {
-        # Geometry identical to a Good sample; only visibility is degraded, so this
-        # isolates the capture-quality gate from the movement itself. Robust to the
-        # StubModel->real-model swap by construction: low_capture_quality forces Fair
-        # before the model's prediction is ever consulted.
+        # Capture-quality probe: geometry identical to `good_moderate_depth_1`, only
+        # visibility is degraded, so it exercises the low-capture-quality flags
+        # (low_capture_quality/retry_camera_placement still fire and are recorded).
+        # Since Stage 5.11 the low-q flags no longer force a band, so its band now
+        # comes from the same depth gate as its twin (peak ~73.6° < 78.04° parallel
+        # floor) -> Poor. `target_band_hint` is "Poor" to match; the flags in the
+        # measured block are what make this sample distinct from its twin.
         "sample_id": "lowq_reject_occluded_1",
         "peak_flexion_deg": 75.0,
         "n_reps": 3,
@@ -368,7 +386,7 @@ SAMPLE_SPECS = [
         "sway_amplitude": 0.0,
         "sway_hz": 0.0,
         "visibility": 0.45,
-        "target_band_hint": "Fair",
+        "target_band_hint": "Poor",
     },
 ]
 
@@ -397,15 +415,28 @@ def analyse(frames: list[dict]) -> dict:
         model=get_model_bundle("squat"),
         features=feature_vectors[0],
         q=float(quality["q"]),
+        # Stage 5.11: squat commits to a binary Good/Poor band. Passing the policy keeps
+        # the corpus's measured bands identical to what the live endpoint now returns.
+        band_policy=SQUAT_CONFIG.get("band_policy"),
     )
+    # Stage 5.12: fault gates run across every rep and override the band to Poor if any
+    # fails. Applied here for the same reason as band_policy above — the measured band
+    # must equal what router.py returns, gates included. Called directly (not via the
+    # exercise/registry) so this generator keeps running in the fastapi-free ml venv.
+    gate_result = evaluate_fault_gates(
+        reps, feature_vectors, SQUAT_CONFIG["fault_gates"]
+    )
+    fault_gate_tags = sorted({check.tag for check in gate_result.failed})
+    band = "Poor" if not gate_result.all_passed else fusion.band
     return {
         "n_reps": len(reps),
-        "band": fusion.band,
+        "band": band,
         "score": round(fusion.score, 4),
         "rule_score": round(rule_scores.score, 4),
         "confidence": round(fusion.confidence, 4),
         "q": round(float(quality["q"]), 4),
         "flags": list(fusion.flags),
+        "fault_gate_tags": fault_gate_tags,
         "peak_knee_flexion_deg": round(
             max(mean_knee_flexion_deg(f) for f in preprocessed), 2
         ),
@@ -483,6 +514,12 @@ def main() -> None:
                         "feature_schema_version",
                     )
                 },
+                # Stage 5.11: squat's committed binary Good/Poor policy that produced
+                # the measured bands below.
+                "squat_band_policy": SQUAT_CONFIG.get("band_policy"),
+                # Stage 5.12: the fault gates that can override a measured band to Poor;
+                # each sample's failed gates are in its `measured.fault_gate_tags`.
+                "squat_fault_gates": SQUAT_CONFIG.get("fault_gates"),
                 "note": (
                     "`measured` is what the real pipeline produced at build time, not "
                     "a hand-written expectation. Stage 5.8 swapped in the trained "

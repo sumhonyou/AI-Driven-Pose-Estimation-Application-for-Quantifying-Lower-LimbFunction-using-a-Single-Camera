@@ -1,5 +1,6 @@
 """Thin generic HTTP router for all Module B exercise plugins."""
 
+import dataclasses
 import logging
 from uuid import UUID
 
@@ -93,7 +94,14 @@ def analyze_module_b_session(
         model=model,
         features=feature_vectors[0],
         q=float(quality["q"]),
+        band_policy=exercise.band_policy,
     )
+    # Stage 5.12: interpretable fault gates run across EVERY rep (the ML above only
+    # scores rep 0). Any failed gate overrides the fused band to Poor with a specific,
+    # human-readable reason. Gate-less exercises return None here and are untouched.
+    gate_result = exercise.evaluate_fault_gates(reps, feature_vectors)
+    if gate_result is not None and not gate_result.all_passed:
+        fusion = dataclasses.replace(fusion, band="Poor")
     result = crud.save_result(
         db,
         session=session,
@@ -103,7 +111,7 @@ def analyze_module_b_session(
         feature_vectors=feature_vectors,
         reps=reps,
         quality=quality,
-        error_tags=_system_error_tags(fusion.flags),
+        error_tags=(_system_error_tags(fusion.flags) + _fault_gate_tags(gate_result)),
     )
     summary = crud.result_summary(result, crud.get_error_tags(db, session.id))
     logger.info(
@@ -156,4 +164,29 @@ def _system_error_tags(flags: tuple[str, ...]) -> list[crud.ErrorTagWrite]:
             source="system",
         )
         for flag in flags
+    ]
+
+
+def _fault_gate_tags(gate_result) -> list[crud.ErrorTagWrite]:
+    """Persist Stage 5.12 fault-gate failures as source="rule" tags with reasons.
+
+    Duck-typed (``all_passed``/``failed`` with per-check ``tag``/``message``) so the
+    generic core router stays decoupled from any exercise's gate module. Gate-less
+    exercises pass None and contribute no tags. One tag per failed gate kind — a fault
+    tripped on several reps is surfaced once, not once per rep — kept in a stable order
+    so repeated payloads stay byte-identical (X8).
+    """
+    if gate_result is None or gate_result.all_passed:
+        return []
+    seen: dict[str, str] = {}
+    for check in gate_result.failed:
+        seen.setdefault(check.tag, check.message)
+    return [
+        crud.ErrorTagWrite(
+            tag=tag,
+            severity="high",
+            source="rule",
+            message=message,
+        )
+        for tag, message in sorted(seen.items())
     ]

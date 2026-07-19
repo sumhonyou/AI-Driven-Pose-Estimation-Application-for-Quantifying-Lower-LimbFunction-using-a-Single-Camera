@@ -62,25 +62,10 @@ class ModuleBRegistryTests(unittest.TestCase):
         self.assertEqual(exercise.required_view, "side_view")
         self.assertEqual(exercise.model_key, "squat")
 
-    def test_lunge_plugin_implements_contract(self):
-        """Phase 5B Stage 4.1 (Lunge): registry check — zero core/router.py changes."""
-        exercise = get_exercise("lunge")
-
-        self.assertIsInstance(exercise, ModuleBExercise)
-        self.assertEqual(exercise.code, "lunge")
-        self.assertEqual(exercise.required_view, "side_view")
-        self.assertEqual(exercise.model_key, "lunge")
-
-    def test_registered_exercise_codes_lists_both_plugins(self):
-        self.assertEqual(registered_exercise_codes(), ("lunge", "squat"))
-
-    def test_lunge_error_tags_are_not_yet_implemented(self):
-        """Stage 6.1 fills this in; segmentation (4.3), features (4.2), and rule
-        scoring (4.4) are already wired, so only error_tags remains unimplemented."""
-        exercise = get_exercise("lunge")
-
-        with self.assertRaises(NotImplementedError):
-            exercise.error_tags(None, None, None)
+    def test_registered_exercise_codes_lists_registered_plugins(self):
+        # Leg Lunge was removed from the product (2026-07-19); squat is the only
+        # registered Module B plugin.
+        self.assertEqual(registered_exercise_codes(), ("squat",))
 
     def test_registry_never_defaults_an_unknown_code(self):
         with self.assertRaises(HTTPException) as raised:
@@ -92,8 +77,9 @@ class ModuleBRegistryTests(unittest.TestCase):
         codes = {item["code"] for item in EXERCISES}
 
         self.assertIn("squat", codes)
-        self.assertIn("lunge", codes)
         self.assertNotIn(LEGACY_MODULE_B_CODE, codes)
+        # Leg Lunge was removed from the product (2026-07-19).
+        self.assertNotIn("lunge", codes)
 
 
 class ModuleBRouterTests(unittest.TestCase):
@@ -160,20 +146,19 @@ class ModuleBRouterTests(unittest.TestCase):
         self.assertEqual(payload["exercise"]["required_view"], "side_view")
         self.assertEqual(payload["core"]["feature_schema_version"], "1.0.0")
 
-    def test_lunge_config_endpoint_returns_registered_config(self):
-        """Phase 5B Stage 4.1 (Lunge): gate — GET /api/module-b/lunge/config works."""
-        status_code, payload = self._asgi_get("/api/module-b/lunge/config")
-
-        self.assertEqual(status_code, 200)
-        self.assertEqual(payload["exercise"]["exercise_code"], "lunge")
-        self.assertEqual(payload["exercise"]["required_view"], "side_view")
-        self.assertEqual(payload["core"]["feature_schema_version"], "1.0.0")
-
     def test_unknown_config_endpoint_returns_404(self):
         status_code, payload = self._asgi_get("/api/module-b/bogus/config")
 
         self.assertEqual(status_code, 404)
         self.assertIn("bogus", payload["detail"])
+
+    def test_retired_lunge_config_endpoint_returns_404(self):
+        """Leg Lunge was removed from the product (2026-07-19); the code must 404
+        like any other unregistered exercise, not silently resolve to something else."""
+        status_code, payload = self._asgi_get("/api/module-b/lunge/config")
+
+        self.assertEqual(status_code, 404)
+        self.assertIn("lunge", payload["detail"])
 
 
 if __name__ == "__main__":

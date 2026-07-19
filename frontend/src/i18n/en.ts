@@ -3,7 +3,7 @@ const en = {
   common: {
     good: "Good",
     fair: "Fair",
-    poor: "Poor",
+    poor: "Needs Improvement",
     moderate: "Moderate",
     invalid: "Invalid",
     functional: "Functional",
@@ -355,10 +355,6 @@ const en = {
     slsMetrics: "Single-Leg Stance metrics",
     wbltMetrics: "Weight-Bearing Lunge Test metrics",
     squatMetrics: "Squat metrics",
-    lungeMetrics: "Leg Lunge metrics",
-    symmetryUnavailableSingleLeg: "Not enough reps on both legs yet to compare left/right.",
-    symmetryCrossRep:
-      "{{left}} left-lead reps, {{right}} right-lead reps — {{peak}}% peak-depth difference, {{rom}}% ROM difference",
     moduleBPlaceholderNotice:
       "This score uses a placeholder model ({{version}}) while the trained {{exercise}} model is being built — treat it as a preview, not a final grade.",
     incompleteStatus: "Session incomplete: {{valid}}/{{target}} valid reps completed",
@@ -644,60 +640,16 @@ const en = {
     getReadyEyebrow: "Squat",
     getReadyCaption: "Get into position — the set starts automatically.",
   },
-  lunge: {
-    reportTitle: "Leg Lunge",
-    livePrompt: "Lunge at your own pace, then finish the set when you're done.",
-    setupGuidanceSide:
-      "Stand side-on to the camera so your hip, knee, ankle, and foot are visible.",
-    setupGuidanceStance:
-      "Step into a split stance with your leading leg closest to the camera — the leg further away is partly hidden and measures less accurately.",
-    setupGuidanceSwitch:
-      "When you switch legs, turn around to face the other way so your leading leg is closest to the camera again.",
-    setupGuidanceDepth:
-      "Lower at a controlled pace, keeping your front knee behind your front toe.",
-    turnAroundTitle: "Turn around",
-    turnAroundBody:
-      "Your leading leg is on the far side of the camera. Turn to face the other way so it's closest to the camera — this leg is measured more accurately that way.",
-    setupTargetPrompt: "Optionally set a personal rep goal — this never affects your score.",
-    noTarget: "No target",
-    targetOption: "Goal: {{n}} reps",
-    startSet: "Start Set",
-    finishSet: "Finish Set",
-    continueSet: "Keep going",
-    repOfTarget: "Rep {{rep}} of {{target}}",
-    repCounted: "Rep {{rep}} counted",
-    finishWhenReady: "Finish the set whenever you're ready — there's no fixed rep count.",
-    inactivityTitle: "No movement detected",
-    inactivityBody: "Finish the set now, or keep going if you're still lunging.",
-    targetHitTitle: "Hit your goal of {{target}} reps!",
-    targetHitBody: "Keep going for more reps, or finish the set now.",
-    liveAnglesTitle: "Live angles",
-    frontLeg_left: "Left leg forward",
-    frontLeg_right: "Right leg forward",
-    frontKneeDepthLabel: "Front knee depth",
-    kneePassesToeWarning:
-      "Your front knee is passing your front toe — shift your weight back slightly.",
-    repPeakSoFar: "This rep's deepest point so far: {{deg}}°",
-    depthZone_minimal: "Minimal depth",
-    depthZone_shallow: "Shallow",
-    depthZone_parallel: "Parallel",
-    depthZone_deep: "Deep",
-    trunkLeanLabel: "Trunk lean",
-    lastRepDepthLabel: "Last rep depth",
-    lastRepKneePassedToe: "Front knee passed your toe on that rep",
-    liveAngleGuidanceNote:
-      "Guidance only, based on webcam pose estimation — not a clinical measurement.",
-    getReadyEyebrow: "Leg Lunge",
-    getReadyCaption: "Get into position — the set starts automatically.",
-  },
   moduleB: {
     subscore_rom_completeness: "ROM completeness",
     subscore_tempo_consistency: "Tempo consistency",
     subscore_stability_control: "Stability control",
-    subscore_symmetry_cross_rep: "Left/right symmetry",
     tag_low_confidence: "Model confidence was low for this set",
     tag_low_capture_quality: "Capture quality was too low to fully trust this result",
     tag_retry_camera_placement: "Try adjusting your camera placement next time",
+    tag_insufficient_depth: "Didn't reach enough depth — aim for closer to parallel",
+    tag_excessive_forward_lean: "Leaning too far forward — keep your chest more upright",
+    tag_heel_lift: "Heels lifting off the floor — keep your weight through your heels",
   },
 };
 export default en;

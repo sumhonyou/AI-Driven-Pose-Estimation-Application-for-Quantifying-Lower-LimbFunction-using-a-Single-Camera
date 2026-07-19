@@ -146,49 +146,10 @@ describe("Report", () => {
     expect(screen.queryByText(/squat metrics/i)).not.toBeInTheDocument();
   });
 
-  // Stage 4.7 (Lunge): Module B's "lunge" code contains the substring "lunge"
-  // that Module A's "weight_bearing_lunge_test" code also contains -- a real
-  // collision bug this test locks in the fix for, not just a hypothetical one.
-  it("renders the Module B panel (not Module A) for a lunge session, including the cross-rep symmetry note", async () => {
-    vi.mocked(sessionService.get).mockResolvedValue({
-      ...baseSession,
-      id: "s3",
-      exercise_code: "lunge",
-      exercise_name: "Leg Lunge",
-      exercise_type: "lunge",
-    });
-    vi.mocked(moduleBService.get).mockResolvedValue({
-      ...moduleBResult,
-      exercise_code: "lunge",
-      metrics: {
-        ...moduleBResult.metrics,
-        rule_subscores: [
-          { code: "rom_completeness", score: 8, notes: [] },
-          {
-            code: "symmetry_cross_rep",
-            score: null,
-            notes: [],
-            metrics: {
-              left_lead_reps: 2,
-              right_lead_reps: 1,
-              front_knee_peak_symmetry_index_pct: 12.5,
-              front_knee_rom_symmetry_index_pct: 8.3,
-            },
-          },
-        ],
-      },
-    });
-
-    renderReport("s3");
-
-    expect(await screen.findByText(/leg lunge metrics/i)).toBeInTheDocument();
-    expect(moduleAService.get).not.toHaveBeenCalled();
-    expect(screen.queryByText(/things to check/i)).not.toBeInTheDocument();
-    // Symmetry's score is always null (report-only, Stage 4.4 (Lunge)) -- the
-    // row must still show its cross-rep numbers, not a bare unexplained "—".
-    expect(await screen.findByText(/2.*left-lead.*1.*right-lead/i)).toBeInTheDocument();
-  });
-
+  // Leg Lunge was removed from the product (2026-07-19); this test now covers the
+  // WBLT side of the collision guard only. The "lunge" Module B code no longer
+  // exists to collide with "weight_bearing_lunge_test", but the exact-match check
+  // in Report.tsx stays defensive against any future code that would.
   it("renders the Module A panel (not Module B) for a weight-bearing lunge test session", async () => {
     vi.mocked(sessionService.get).mockResolvedValue({
       ...baseSession,

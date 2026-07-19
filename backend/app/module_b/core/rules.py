@@ -11,8 +11,8 @@ class SubScore:
     """One explainable 0–10 rule component; ``None`` means unavailable.
 
     ``metrics`` carries report-only numeric measurements that must NEVER
-    contribute to ``RuleScores.score`` (e.g. lunge's cross-rep symmetry index,
-    Stage 4.4 Lunge) -- keep ``score=None`` on any sub-score that only reports.
+    contribute to ``RuleScores.score`` -- keep ``score=None`` on any sub-score
+    that only reports.
     """
 
     code: str
