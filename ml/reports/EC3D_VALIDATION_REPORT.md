@@ -1,4 +1,4 @@
-# EC3D external validation — Phase 5, Stage 5.9
+# EC3D external validation — Phase 5, Stage 5.13
 
 **Verdict: the external validation could not be performed as a generalisation check,
 and this report explains why with measurements rather than reporting a number that
@@ -6,9 +6,13 @@ would not mean what it appears to mean.** The confusion matrix the checklist req
 is included, and it is captioned as what it actually is.
 
 Model under test: `squat-1.0.0+rehab246-loso-3c441ac.dirty` — the exported artifact in
-`ml/artifacts/squat/`, loaded through the backend's own `get_model_bundle("squat")`,
-scored at the shipped fusion config (`w_rule=0.2`, `w_ml=0.8`,
-`confidence_low_threshold=0.85`). Nothing was re-tuned for this report.
+`ml/artifacts/squat/`, loaded through the backend's own `get_model_bundle("squat")` and
+scored through the **exact production functions** `router.py`'s
+`analyze_module_b_session` calls for squat: `score_squat_set()`, `fuse_model()` at
+squat's live `band_policy` (`{'scheme': 'binary', 'decision_threshold': 8.447974, 'w_rule': 0.0, 'w_ml': 1.0}`, Stage 5.11's committed binary Good/Poor
+decision) and `evaluate_fault_gates()` (Stage 5.12's depth/lean/heel-rise gates).
+Nothing was re-tuned for this report; **6** of
+132 reps had their fused band overridden to Poor by a fault gate.
 
 Cohort: **132 EC3D squat repetitions** — 41 Correct, 91 faulty —
 from **4 subjects** (Hugues, Isinsu, Sena, Vidit).
@@ -24,12 +28,12 @@ kept here. The findings below make the caveat stronger, not weaker.
 
 | metric | value |
 | ------ | ----- |
-| `accuracy_strict` (Fair counted wrong) | **0.053** |
-| `accuracy_confident` (Fair excluded) | **0.184** |
-| `macro_f1` | 0.089 |
-| `fair_rate` (abstention) | 0.712 |
-| `recall_good` | 0.171 |
-| `recall_poor` | 0.000 |
+| `accuracy_strict` (Fair counted wrong) | **0.576** |
+| `accuracy_confident` (Fair excluded) | **0.576** |
+| `macro_f1` | 0.483 |
+| `fair_rate` (abstention) | 0.000 |
+| `recall_good` | 0.244 |
+| `recall_poor` | 0.725 |
 | n | 132 |
 
 ![Fused 3-band output on EC3D. Rows are EC3D ground truth (Correct/faulty, collapsed to Good/Poor by Option A); columns are the band the user would be shown. Cells show counts with row-normalised percentages. Drawn by the same plotting function as `confusion_matrix_3band.png` (not a copy of it), so the two matrices are directly comparable side by side.](figures/ec3d_confusion_matrix.png)
@@ -46,21 +50,23 @@ P(Good) over the 132 EC3D reps ranged **0.618 –
 
 ### Two cells carry the whole result
 
-**`recall_poor` is exactly 0.000: the model did not return a
-confident Poor for a single one of the 91 faulty repetitions.** This independently
-corroborates the Stage 5.8 finding — which was measured in-sample, on the model's own
-98 training rows — on **4 subjects it has never seen, from a different
-dataset, captured on different hardware**. The mechanism is visible in the
-probabilities: P(Good) never fell below 0.618 here, so
-confidence toward Poor never exceeded 0.382, against a
-`confidence_low_threshold` of 0.85. The Poor column of the matrix above is empty,
-and it is empty for a reason that has now been observed twice by unrelated means.
+**`recall_poor` = 0.725.** Unlike the original Stage 5.9 run
+(which scored EC3D through a hand-rolled call to `fuse_scores()` at the old triband
+`w_rule_default`/`w_ml_default` config and never ran a fault gate), this run scores
+through the production `band_policy` — a single cut on the fused score at
+`decision_threshold=8.447974` with
+`w_rule=0.0`/`w_ml=1.0` — **and** Stage 5.12's
+fault gates, which independently forced **6** of 132 reps
+to Poor regardless of the fused score. Both mechanisms can produce a Poor band here in a
+way the pre-5.11/5.12 pipeline could not, so a `recall_poor` of 0 is no longer the
+mechanistic near-certainty it was in Stage 5.9 — read the value above as measured, not
+assumed.
 
-**`accuracy_confident` = 0.184 is below chance, and that
+**`accuracy_confident` = 0.576 is below chance, and that
 is the signature of inversion rather than noise.** A model reading uninformative
 features would land near 0.5 on the repetitions it commits to, or abstain. This one
-commits to 38 repetitions and is wrong on
-0.816 of them — it is not confused, it is
+commits to 132 repetitions and is wrong on
+0.424 of them — it is not confused, it is
 confidently backwards. Finding 2 is why.
 
 ## Finding 1 — EC3D's poses are canonicalised, not raw mocap
@@ -137,12 +143,12 @@ wrong way round.
 
 The clearest evidence is not in the table above but in the outcome. Of EC3D's
 **21** *"Not low enough"* repetitions — the shallowest, most unambiguously
-faulty squats in the cohort — the system called **17
-(81.0%) Good**. Of its **41** genuinely
-**Correct** repetitions it called only **7
-(17.1%) Good**.
+faulty squats in the cohort — the system called **11
+(52.4%) Good**. Of its **41** genuinely
+**Correct** repetitions it called only **10
+(24.4%) Good**.
 
-**The model is 4.7× more likely to approve
+**The model is 2.1× more likely to approve
 a "not low enough" fault than an actually-correct squat.** That is the learned
 "incorrect reps are deeper" relationship applied to a cohort where the fault is being
 too shallow. It is exactly backwards, it is not subtle, and no threshold change fixes
@@ -159,11 +165,11 @@ Per EC3D instruction label, with the band the system would have shown:
 
 | EC3D label | plane | n | Good | Fair | Poor |
 | ---------- | ----- | - | --- | --- | --- |
-| 1 — Correct | n/a (correct class) | 41 | 7 | 34 | 0 |
-| 2 — Feet too wide | frontal | 23 | 5 | 18 | 0 |
-| 3 — Knees inward | frontal | 23 | 8 | 15 | 0 |
-| 4 — Not low enough | sagittal | 21 | 17 | 4 | 0 |
-| 5 — Front bent | sagittal | 24 | 1 | 23 | 0 |
+| 1 — Correct | n/a (correct class) | 41 | 10 | 0 | 31 |
+| 2 — Feet too wide | frontal | 23 | 5 | 0 | 18 |
+| 3 — Knees inward | frontal | 23 | 8 | 0 | 15 |
+| 4 — Not low enough | sagittal | 21 | 11 | 0 | 10 |
+| 5 — Front bent | sagittal | 24 | 1 | 0 | 23 |
 
 **"Feet too wide" and "Knees inward" are frontal-plane faults.** Locked Assumption #3
 drops frontal valgus from the taxonomy as monocular-infeasible: there is no valgus

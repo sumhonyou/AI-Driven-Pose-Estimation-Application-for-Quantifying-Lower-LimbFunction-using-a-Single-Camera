@@ -44,6 +44,18 @@ export type ModuleBMetrics = {
   per_rep_summaries: ModuleBRepSummary[];
 };
 
+// Stage 6.5: the after-set coaching text. `feedback_source` is surfaced honestly in the
+// UI rather than hidden -- an examiner will ask which layer actually produced the text.
+export type ModuleBFeedback = {
+  structured_feedback: string | null;
+  rewritten_feedback: string | null;
+  feedback_source: "llm" | "template";
+  llm_attempted: boolean;
+  provider: string | null;
+  model_version: string | null;
+  disclaimer_version: string | null;
+};
+
 export type ModuleBResult = {
   session_id: string;
   exercise_code: string;
@@ -55,6 +67,7 @@ export type ModuleBResult = {
   q: number | null;
   metrics: ModuleBMetrics;
   error_tags: ModuleBErrorTag[];
+  feedback: ModuleBFeedback | null;
   created_at: string | null;
 };
 

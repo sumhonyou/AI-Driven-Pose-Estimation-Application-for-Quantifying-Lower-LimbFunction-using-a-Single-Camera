@@ -70,8 +70,13 @@ class ModuleBExercise(ABC):
     ) -> RuleScores:
         """Aggregate a completed set's per-rep features into RuleScores."""
 
-    @abstractmethod
-    def error_tags(
-        self, features: FeatureVector, rules: RuleScores, ml: Any
-    ) -> list[str]:
-        """Return deterministic exercise-specific movement-quality tags."""
+    def build_error_tags(
+        self, *, fusion: Any, gate_result: Any, rule_scores: RuleScores
+    ) -> list[Any] | None:
+        """Optional taxonomy-driven error-tag builder for the analyzed set.
+
+        Returns None by default so the router falls back to its generic system+gate tag
+        construction. An exercise that owns a tag taxonomy (Stage 6.1, squat) returns the
+        full ErrorTagWrite list, keeping every tag's severity/source in one place.
+        """
+        return None

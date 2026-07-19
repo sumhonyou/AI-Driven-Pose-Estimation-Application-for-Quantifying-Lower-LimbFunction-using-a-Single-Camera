@@ -322,8 +322,12 @@ const zh: Dict = {
     mlConf: "模型可信度",
     errorTags: "错误标签",
     coaching: "指导反馈",
+    coachingTipLabel: "通用提示",
     coachingBody:
       "总体不错——你的动作大体受控，活动范围接近预期。试着让每次动作的节奏更平稳，并确保全身始终在摄像头画面内。这不是医学诊断。",
+    feedbackSourceTemplate: "自动生成摘要",
+    feedbackSourceLlm: "AI 改写",
+    feedbackUnavailable: "此次训练暂无指导反馈。",
     disclaimer: "本报告仅描述动作质量，并非医学诊断。如有疼痛或疑虑，请咨询合格的医疗专业人员。",
     bandInfoLabel: "此评级代表什么？",
     captureQualityInfoLabel: "捕捉质量代表什么？",
@@ -615,6 +619,7 @@ const zh: Dict = {
     tag_insufficient_depth: "下蹲深度不足——尽量接近大腿与地面平行",
     tag_excessive_forward_lean: "身体前倾过多——保持胸部更挺直",
     tag_heel_lift: "脚跟离地——将重心放在脚跟上",
+    tag_inconsistent_tempo: "尽量保持每次动作节奏更稳定",
   },
 };
 export default zh;

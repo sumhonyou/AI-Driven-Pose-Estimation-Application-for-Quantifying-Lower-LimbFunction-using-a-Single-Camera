@@ -9,11 +9,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.db.database import get_db
 from app.db.models import Session as SessionModel
 from app.db.models import User
 from app.module_b.core import crud
+from app.module_b.core.feedback import build_structured_feedback
+from app.module_b.core.feedback_safety import check_llm_feedback
+from app.module_b.core.feedback_templates import (
+    CURRENT_DISCLAIMER_VERSION,
+    compose_template,
+)
 from app.module_b.core.fusion import fuse_model
+from app.module_b.core.llm_client import GroqClient
 from app.module_b.core.model_registry import get_model_bundle
 from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.core.quality import assess_capture_quality
@@ -111,9 +119,12 @@ def analyze_module_b_session(
         feature_vectors=feature_vectors,
         reps=reps,
         quality=quality,
-        error_tags=(_system_error_tags(fusion.flags) + _fault_gate_tags(gate_result)),
+        error_tags=_build_error_tags(exercise, fusion, gate_result, rule_scores),
     )
     summary = crud.result_summary(result, crud.get_error_tags(db, session.id))
+    summary["feedback"] = _build_and_save_feedback(
+        db, session_id=session.id, summary=summary
+    )
     logger.info(
         "module-b result session=%s exercise=%s band=%s score=%.2f q=%.2f",
         session.id,
@@ -141,6 +152,11 @@ def get_module_b_result(
             detail="Module B result not found",
         )
     summary = crud.result_summary(result, crud.get_error_tags(db, session.id))
+    # Read the exact stored feedback row, never recompute it (same "never re-derive a
+    # historical grade" contract this endpoint already promises above).
+    summary["feedback"] = crud.feedback_summary(
+        crud.get_feedback_by_session(db, session.id)
+    )
     logger.info(
         "module-b result session=%s exercise=%s model=%s",
         session_id,
@@ -148,6 +164,79 @@ def get_module_b_result(
         result.model_version,
     )
     return ModuleBResultResponse(**summary)
+
+
+def _build_and_save_feedback(
+    db: DbSession, *, session_id: UUID, summary: dict
+) -> dict | None:
+    """Stage 6.2/6.5/6.4: compose the deterministic template from the just-built result,
+    optionally try a Groq rewrite on top (config-gated, after-set only -- this function is
+    only reachable from `/analyze`, which runs once the whole set is already scored), and
+    persist whichever text survives Stage 6.3's safety filter. Every analyzed set always
+    gets a working report even if the LLM is disabled, times out, or is rejected.
+    """
+    structured = build_structured_feedback(summary)
+    template_text = compose_template(structured)
+
+    rewritten_text = template_text
+    feedback_source = "template"
+    llm_attempted = False
+    provider: str | None = None
+    model_version: str | None = None
+
+    if settings.feedback_llm_enabled and settings.llm_api_key:
+        llm_attempted = True
+        # `llm_api_key`/`llm_model` are provider-agnostic naming; GroqClient is the one
+        # adapter that reads them today (see core/config.py's comment).
+        client = GroqClient(api_key=settings.llm_api_key, model=settings.llm_model)
+        result = client.rewrite_feedback(structured=structured)
+        provider = result.provider
+        model_version = result.model_version
+        if result.text is None:
+            logger.info(
+                "module-b feedback llm_failed session=%s error=%s",
+                session_id,
+                result.error,
+            )
+        else:
+            safety = check_llm_feedback(result.text, structured=structured)
+            if safety.accepted:
+                rewritten_text = result.text
+                feedback_source = "llm"
+            else:
+                logger.info(
+                    "module-b feedback llm_rejected session=%s reason=%s",
+                    session_id,
+                    safety.reason,
+                )
+
+    row = crud.save_feedback(
+        db,
+        session_id=session_id,
+        feedback=crud.FeedbackWrite(
+            structured_feedback=template_text,
+            rewritten_feedback=rewritten_text,
+            feedback_source=feedback_source,
+            llm_attempted=llm_attempted,
+            provider=provider,
+            model_version=model_version,
+            disclaimer_version=CURRENT_DISCLAIMER_VERSION,
+        ),
+    )
+    return crud.feedback_summary(row)
+
+
+def _build_error_tags(
+    exercise, fusion, gate_result, rule_scores
+) -> list[crud.ErrorTagWrite]:
+    """Prefer an exercise's own taxonomy-driven tag builder (Stage 6.1); fall back to the
+    generic system+gate construction for any exercise that defines no builder."""
+    tags = exercise.build_error_tags(
+        fusion=fusion, gate_result=gate_result, rule_scores=rule_scores
+    )
+    if tags is not None:
+        return tags
+    return _system_error_tags(fusion.flags) + _fault_gate_tags(gate_result)
 
 
 def _system_error_tags(flags: tuple[str, ...]) -> list[crud.ErrorTagWrite]:

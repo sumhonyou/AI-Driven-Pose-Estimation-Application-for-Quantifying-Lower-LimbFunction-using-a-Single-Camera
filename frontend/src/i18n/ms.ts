@@ -340,8 +340,12 @@ const ms: Dict = {
     mlConf: "keyakinan model",
     errorTags: "Label ralat",
     coaching: "Maklum balas bimbingan",
+    coachingTipLabel: "Petua umum",
     coachingBody:
       "Bagus secara keseluruhan — pergerakan anda kebanyakannya terkawal dan julat hampir seperti dijangka. Cuba kekalkan rentak yang lebih stabil pada setiap ulangan dan pastikan seluruh badan kekal dalam pandangan kamera. Ini bukan diagnosis perubatan.",
+    feedbackSourceTemplate: "Ringkasan automatik",
+    feedbackSourceLlm: "Ditulis semula oleh AI",
+    feedbackUnavailable: "Maklum balas bimbingan tiada untuk sesi ini.",
     disclaimer:
       "Laporan ini hanya menerangkan kualiti pergerakan dan bukan diagnosis perubatan. Jika anda mengalami kesakitan atau kebimbangan, rujuk profesional kesihatan yang berkelayakan.",
     bandInfoLabel: "Apakah maksud gred ini?",
@@ -665,6 +669,7 @@ const ms: Dict = {
     tag_insufficient_depth: "Kedalaman tidak mencukupi — sasarkan lebih hampir ke paras selari",
     tag_excessive_forward_lean: "Terlalu condong ke hadapan — kekalkan dada lebih tegak",
     tag_heel_lift: "Tumit terangkat dari lantai — kekalkan berat pada tumit anda",
+    tag_inconsistent_tempo: "Sasarkan rentak yang lebih stabil sepanjang ulangan anda",
   },
 };
 export default ms;

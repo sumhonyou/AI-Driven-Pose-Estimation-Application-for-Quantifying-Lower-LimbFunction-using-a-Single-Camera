@@ -22,6 +22,19 @@ class ModuleBErrorTagResponse(BaseModel):
     message: str | None = None
 
 
+class ModuleBFeedbackResponse(BaseModel):
+    """Stage 6.5: the after-set coaching text. `feedback_source` is surfaced honestly
+    (never hidden) so the report always shows which layer actually produced the text."""
+
+    structured_feedback: str | None = None
+    rewritten_feedback: str | None = None
+    feedback_source: str
+    llm_attempted: bool
+    provider: str | None = None
+    model_version: str | None = None
+    disclaimer_version: str | None = None
+
+
 class ModuleBResultResponse(BaseModel):
     session_id: UUID
     exercise_code: str
@@ -33,4 +46,5 @@ class ModuleBResultResponse(BaseModel):
     q: float | None = None
     metrics: dict = Field(default_factory=dict)
     error_tags: list[ModuleBErrorTagResponse] = Field(default_factory=list)
+    feedback: ModuleBFeedbackResponse | None = None
     created_at: str | None = None

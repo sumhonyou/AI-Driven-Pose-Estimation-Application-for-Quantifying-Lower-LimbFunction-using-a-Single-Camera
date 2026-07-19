@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session as DbSession
 
-from app.db.models import ModuleBErrorTag, ModuleBResult
+from app.db.models import FeedbackText, ModuleBErrorTag, ModuleBResult
 from app.db.models import Session as SessionModel
 from app.module_b.core.features import FeatureVector
 from app.module_b.core.fsm import Rep
@@ -82,6 +82,61 @@ def save_result(
     db.commit()
     db.refresh(result)
     return result
+
+
+@dataclass(frozen=True)
+class FeedbackWrite:
+    """One after-set feedback snapshot to store with a Module B session (Stage 6.5)."""
+
+    structured_feedback: str | None
+    rewritten_feedback: str | None
+    feedback_source: str  # "llm" | "template"
+    llm_attempted: bool
+    provider: str | None = None
+    model_version: str | None = None
+    disclaimer_version: str | None = None
+
+
+def save_feedback(
+    db: DbSession, *, session_id: UUID, feedback: FeedbackWrite
+) -> FeedbackText:
+    """Upsert the one feedback row for a session, mirroring `save_result`'s pattern."""
+    row = get_feedback_by_session(db, session_id)
+    if row is None:
+        row = FeedbackText(session_id=session_id)
+        db.add(row)
+
+    row.structured_feedback = feedback.structured_feedback
+    row.rewritten_feedback = feedback.rewritten_feedback
+    row.feedback_source = feedback.feedback_source
+    row.llm_attempted = feedback.llm_attempted
+    row.provider = feedback.provider
+    row.model_version = feedback.model_version
+    row.disclaimer_version = feedback.disclaimer_version
+
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def get_feedback_by_session(db: DbSession, session_id: UUID) -> FeedbackText | None:
+    """Return the one feedback row for a session, if it exists."""
+    return db.scalar(select(FeedbackText).where(FeedbackText.session_id == session_id))
+
+
+def feedback_summary(feedback: FeedbackText | None) -> dict[str, Any] | None:
+    """Build the API payload for a stored feedback row; None if none was ever saved."""
+    if feedback is None:
+        return None
+    return {
+        "structured_feedback": feedback.structured_feedback,
+        "rewritten_feedback": feedback.rewritten_feedback,
+        "feedback_source": feedback.feedback_source,
+        "llm_attempted": feedback.llm_attempted,
+        "provider": feedback.provider,
+        "model_version": feedback.model_version,
+        "disclaimer_version": feedback.disclaimer_version,
+    }
 
 
 def get_result_by_session(db: DbSession, session_id: UUID) -> ModuleBResult | None:

@@ -112,7 +112,9 @@ def tempo_subscore(feature_vectors: list[FeatureVector]) -> SubScore:
             5.0,
             0.0,
         )
-    return SubScore(code=TEMPO_CODE, score=_clamp_score(score))
+    # Surface the CV (report-only) so the Stage 6.1 inconsistent_tempo tag reuses it
+    # instead of recomputing, and so it is persisted for the report.
+    return SubScore(code=TEMPO_CODE, score=_clamp_score(score), metrics={"cv": cv})
 
 
 def stability_subscore(features: FeatureVector) -> SubScore:

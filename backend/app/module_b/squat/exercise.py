@@ -12,6 +12,7 @@ from app.module_b.squat.fault_gates import FaultGateResult, evaluate_fault_gates
 from app.module_b.squat.features import extract_squat_features
 from app.module_b.squat.rules import score_squat_rep, score_squat_set
 from app.module_b.squat.segmentation import segment_squat_frames
+from app.module_b.squat.tags import build_squat_error_tags
 
 if TYPE_CHECKING:
     from app.module_b.core.features import FeatureVector
@@ -72,7 +73,13 @@ class SquatExercise(ModuleBExercise):
     ) -> RuleScores:
         return score_squat_set(feature_vectors)
 
-    def error_tags(
-        self, features: FeatureVector, rules: RuleScores, ml: Any
-    ) -> list[str]:
-        raise NotImplementedError("Squat error tags are implemented in Stage 4.4")
+    def build_error_tags(
+        self, *, fusion: Any, gate_result: Any, rule_scores: RuleScores
+    ) -> list[Any]:
+        # Stage 6.1: one taxonomy owns every squat tag (system flags, fault gates, and
+        # the soft tempo tag). Replaces the old NotImplementedError error_tags() stub.
+        return build_squat_error_tags(
+            fusion_flags=fusion.flags,
+            gate_result=gate_result,
+            rule_scores=rule_scores,
+        )

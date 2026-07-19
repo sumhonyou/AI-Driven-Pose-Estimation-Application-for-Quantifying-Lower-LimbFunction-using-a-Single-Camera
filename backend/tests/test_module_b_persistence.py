@@ -8,9 +8,16 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
-from app.db.models import ModuleBErrorTag, ModuleBResult
+from app.db.models import FeedbackText, ModuleBErrorTag, ModuleBResult
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
-from app.module_b.core.crud import ErrorTagWrite, result_summary, save_result
+from app.module_b.core.crud import (
+    ErrorTagWrite,
+    FeedbackWrite,
+    feedback_summary,
+    result_summary,
+    save_feedback,
+    save_result,
+)
 from app.module_b.core.features import FeatureVector
 from app.module_b.core.fsm import Rep
 from app.module_b.core.fusion import FusionResult
@@ -142,6 +149,52 @@ class ModuleBPersistenceTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertIn('"tag":"a_tag"', first)
+
+
+class FeedbackPersistenceTests(unittest.TestCase):
+    def test_save_feedback_records_template_row(self) -> None:
+        db = _FakeDb()
+        session_id = uuid4()
+
+        row = save_feedback(
+            db,
+            session_id=session_id,
+            feedback=FeedbackWrite(
+                structured_feedback="Grade: Needs Improvement. Didn't reach enough depth.",
+                rewritten_feedback="Grade: Needs Improvement. Didn't reach enough depth.",
+                feedback_source="template",
+                llm_attempted=False,
+                disclaimer_version="v1",
+            ),
+        )
+
+        self.assertTrue(db.committed)
+        self.assertEqual(row.session_id, session_id)
+        self.assertEqual(row.feedback_source, "template")
+        self.assertFalse(row.llm_attempted)
+        self.assertIsNone(row.provider)
+        self.assertEqual(row.disclaimer_version, "v1")
+
+    def test_feedback_summary_shape(self) -> None:
+        row = FeedbackText(
+            session_id=uuid4(),
+            structured_feedback="Grade: Good. No specific issues were flagged.",
+            rewritten_feedback="Grade: Good. No specific issues were flagged.",
+            feedback_source="template",
+            llm_attempted=False,
+            provider=None,
+            model_version=None,
+            disclaimer_version="v1",
+        )
+
+        summary = feedback_summary(row)
+
+        self.assertEqual(summary["feedback_source"], "template")
+        self.assertFalse(summary["llm_attempted"])
+        self.assertEqual(summary["disclaimer_version"], "v1")
+
+    def test_feedback_summary_none_when_never_saved(self) -> None:
+        self.assertIsNone(feedback_summary(None))
 
 
 if __name__ == "__main__":

@@ -54,6 +54,24 @@ function wbltTrendText(
     : t("wblt.trendNoPrevious");
 }
 
+// Rule-based coaching tip for Module A (STS/SLS/WBLT) -- deterministic, not LLM
+// (task.md Table 7 scopes the rewriting layer to Module B only). Reuses the same
+// `warning_tags` already computed for the "Things to check" panel, so the tip
+// reflects what actually happened this session instead of always showing the same
+// generic paragraph. Falls back to that generic paragraph only when nothing was
+// flagged -- a clean session genuinely has no session-specific issue to name.
+function moduleACoachingTip(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  warningTags: string[],
+): string {
+  if (warningTags.length === 0) {
+    return t("report.coachingBody");
+  }
+  return t(("report.warn_" + warningTags[0]) as never, {
+    defaultValue: warningTags[0],
+  });
+}
+
 // Exercise codes graded by Module B's generic registry+plugin pipeline (task.md
 // Stage 4.1's architecture) -- exact-match set, not a substring check, to guard
 // against any future Module B code colliding with a Module A one.
@@ -612,23 +630,54 @@ export default function Report() {
           )}
 
           {isModuleB ? (
-            <div className="panel reveal" style={{ marginBottom: 18 }}>
-              <div className="panel-head" style={{ marginBottom: 16 }}>
-                <h3>{t("report.errorTags")}</h3>
+            <div className="dash-grid-2" style={{ marginBottom: 18 }}>
+              <div className="panel reveal">
+                <div className="panel-head" style={{ marginBottom: 16 }}>
+                  <div>
+                    <h3>{t("report.coaching")}</h3>
+                  </div>
+                  <span
+                    className="mi"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      display: "grid",
+                      placeItems: "center",
+                      background: "var(--good-bg)",
+                      color: "var(--accent-text)",
+                    }}
+                  >
+                    <Lightbulb width={19} height={19} />
+                  </span>
+                </div>
+                <div className="feedback-box">
+                  <div className="fb-label">
+                    {moduleBResult?.feedback?.feedback_source === "llm"
+                      ? t("report.feedbackSourceLlm")
+                      : t("report.feedbackSourceTemplate")}
+                  </div>
+                  {moduleBResult?.feedback?.rewritten_feedback ?? t("report.feedbackUnavailable")}
+                </div>
               </div>
-              <div className="tags">
-                {moduleBResult?.error_tags.length === 0 && (
-                  <span className="tag">
-                    <span className="sev low" />
-                    {t("report.noWarnings")}
-                  </span>
-                )}
-                {moduleBResult?.error_tags.map((tag) => (
-                  <span className="tag" key={tag.tag}>
-                    <span className={"sev " + severityClass(tag.severity)} />
-                    {t(("moduleB.tag_" + tag.tag) as never, { defaultValue: tag.tag })}
-                  </span>
-                ))}
+              <div className="panel reveal">
+                <div className="panel-head" style={{ marginBottom: 16 }}>
+                  <h3>{t("report.errorTags")}</h3>
+                </div>
+                <div className="tags">
+                  {moduleBResult?.error_tags.length === 0 && (
+                    <span className="tag">
+                      <span className="sev low" />
+                      {t("report.noWarnings")}
+                    </span>
+                  )}
+                  {moduleBResult?.error_tags.map((tag) => (
+                    <span className="tag" key={tag.tag}>
+                      <span className={"sev " + severityClass(tag.severity)} />
+                      {t(("moduleB.tag_" + tag.tag) as never, { defaultValue: tag.tag })}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           ) : (
@@ -655,8 +704,8 @@ export default function Report() {
                     </span>
                   </div>
                   <div className="feedback-box">
-                    <div className="fb-label">{t("common.ai")}</div>
-                    {t("report.coachingBody")}
+                    <div className="fb-label">{t("report.coachingTipLabel")}</div>
+                    {moduleACoachingTip(t, result.warning_tags)}
                   </div>
                 </div>
                 <div className="panel reveal">

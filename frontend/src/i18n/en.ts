@@ -335,8 +335,15 @@ const en = {
     mlConf: "model confidence",
     errorTags: "Error tags",
     coaching: "Coaching feedback",
+    // Module A's coaching text is static, general-purpose copy, not generated per
+    // session (unlike Module B's feedback_source-labelled panel below) -- labelled
+    // honestly rather than as "AI", which it never was.
+    coachingTipLabel: "General tip",
     coachingBody:
       "Good job overall — your movement was mostly controlled and your range was close to expected. Try to keep a steadier rhythm on each repetition and make sure your whole body stays visible to the camera. This is not a medical diagnosis.",
+    feedbackSourceTemplate: "Automatic summary",
+    feedbackSourceLlm: "AI-rewritten",
+    feedbackUnavailable: "Coaching feedback is not available for this session.",
     disclaimer:
       "This report describes movement quality only and is not a medical diagnosis. If you have pain or concerns, consult a qualified healthcare professional.",
     bandInfoLabel: "What does this band mean?",
@@ -650,6 +657,7 @@ const en = {
     tag_insufficient_depth: "Didn't reach enough depth — aim for closer to parallel",
     tag_excessive_forward_lean: "Leaning too far forward — keep your chest more upright",
     tag_heel_lift: "Heels lifting off the floor — keep your weight through your heels",
+    tag_inconsistent_tempo: "Aim for a steadier pace across your reps",
   },
 };
 export default en;

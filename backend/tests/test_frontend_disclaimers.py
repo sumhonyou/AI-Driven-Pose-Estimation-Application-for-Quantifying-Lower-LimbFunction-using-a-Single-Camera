@@ -14,21 +14,9 @@ import re
 import unittest
 from pathlib import Path
 
-FRONTEND_I18N_DIR = Path(__file__).resolve().parents[2] / "frontend" / "src" / "i18n"
+from app.core.safety_phrases import FORBIDDEN_PHRASES
 
-FORBIDDEN_PHRASES = [
-    "your balance is normal",
-    "your balance is healthy",
-    "your ankle is healthy",
-    "your ankles are healthy",
-    "you have poor balance",
-    "you have good balance",
-    "clinically diagnosed",
-    "medically diagnosed",
-    "diagnosed with",
-    "this diagnoses",
-    "this confirms you have",
-]
+FRONTEND_I18N_DIR = Path(__file__).resolve().parents[2] / "frontend" / "src" / "i18n"
 
 STRING_LITERAL_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
 

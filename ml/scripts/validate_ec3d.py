@@ -38,21 +38,41 @@ inverted, out-of-distribution input — not an estimate of how it generalises.
 
 Nothing here re-tunes, re-fits or re-thresholds anything. The artifact and
 `MODULE_B_CORE_CONFIG` are read live and used as shipped.
+
+**Stage 5.13 update (2026-07-19):** this script now scores EC3D through the exact same
+production functions `router.py`'s `analyze_module_b_session` calls for squat —
+`score_squat_set()`, `fuse_model()` (with squat's live `band_policy` read off
+`SQUAT_CONFIG`, i.e. the committed binary Good/Poor decision from Stage 5.11) and
+`evaluate_fault_gates()` (Stage 5.12's depth/lean/heel-rise gates, which can force a
+band to Poor). Earlier this script called `fuse_scores()` directly at the old triband
+defaults (`w_rule_default`/`w_ml_default`) and never ran the fault gates, so it
+validated an ML+rule blend that predates both Stage 5.11 and 5.12 and no longer ships.
+This version cannot drift from production the same way, because it calls the same
+functions production calls rather than reimplementing the orchestration. (It calls
+those functions directly rather than through `SquatExercise`/`get_exercise()`, whose
+error-tag builder pulls in FastAPI/SQLAlchemy — dependencies outside `ml/.venv` that
+this script has no use for; `SQUAT_CONFIG`, `score_squat_set`, `fuse_model` and
+`evaluate_fault_gates` are exactly what those methods delegate to for squat.)
 """
 
 from __future__ import annotations
 
+import dataclasses
 import pickle
 from pathlib import Path
 
 import numpy as np
 import yaml
-from app.module_b.core.config import MODULE_B_CORE_CONFIG
+from app.module_b.core.fusion import fuse_model
 from app.module_b.core.model_registry import get_model_bundle
 from app.module_b.core.preprocessing import preprocess_world_landmarks
-from app.module_b.squat.features import SQUAT_FEATURE_NAMES, extract_squat_features
+from app.module_b.squat.config import SQUAT_CONFIG
+from app.module_b.squat.fault_gates import evaluate_fault_gates
+from app.module_b.squat.features import (SQUAT_FEATURE_NAMES,
+                                         extract_squat_features)
+from app.module_b.squat.rules import score_squat_set
 from evaluate_squat import _evaluation_metrics, plot_confusion_matrix_3band
-from sweep_fusion_weights import PREDICTED_BANDS, TRUE_LABELS, _fuse_all, _rule_score
+from sweep_fusion_weights import PREDICTED_BANDS, TRUE_LABELS
 from train_squat import _read_rows
 
 ML_ROOT = Path(__file__).resolve().parent.parent
@@ -156,15 +176,26 @@ def load_ec3d_squats(pickle_path: Path) -> tuple[dict, np.ndarray]:
     return episodes, squat_poses
 
 
-def build_ec3d_feature_rows(episodes: dict, poses: np.ndarray) -> list[dict]:
+def build_ec3d_feature_rows(
+    episodes: dict, poses: np.ndarray
+) -> tuple[list[dict], list, list[dict]]:
     """One feature row per EC3D episode, via the live extractor (X1).
 
     EC3D's episodes are its own instructed repetition boundaries, so they are used
     directly rather than re-segmented — the same decision Stage 5.3 made for
     REHAB24-6's physio-verified `first_frame`/`last_frame`. Re-running the FSM here
     would measure the segmenter, not the model.
+
+    Returns `(rows, vectors, reps)`: `rows` is the flattened report-friendly dict per
+    episode (unchanged contract); `vectors` is the parallel list of `FeatureVector`
+    objects and `reps` the parallel list of `{"frames": [...]}` rep-shaped dicts —
+    both needed, alongside `rows`, to call the same `exercise.set_rule_scores()` /
+    `fuse_model()` / `exercise.evaluate_fault_gates()` entrypoints production calls
+    (Stage 5.13), rather than reimplementing fusion by hand from `rows` alone.
     """
     rows = []
+    vectors = []
+    reps = []
     for key in sorted(episodes, key=lambda k: (k[0], int(k[1]), int(k[2]))):
         subject, label, episode = key
         frame_indices = episodes[key]
@@ -178,7 +209,10 @@ def build_ec3d_feature_rows(episodes: dict, poses: np.ndarray) -> list[dict]:
         ]
         # Same preprocessing the live capture runs (X1). With visibility pinned at
         # 1.0 the confidence filter and gap-fill are no-ops, so this is One Euro only.
-        vector = extract_squat_features(preprocess_world_landmarks(frames))
+        # Kept (not just its output) because the heel-rise fault gate reads a rep's
+        # preprocessed frames directly, the same input `router.py` hands it.
+        preprocessed_frames = preprocess_world_landmarks(frames)
+        vector = extract_squat_features(preprocessed_frames)
         row = {
             "subject": subject,
             "ec3d_label": label,
@@ -190,7 +224,9 @@ def build_ec3d_feature_rows(episodes: dict, poses: np.ndarray) -> list[dict]:
         }
         row.update(dict(zip(SQUAT_FEATURE_NAMES, vector.values, strict=True)))
         rows.append(row)
-    return rows
+        vectors.append(vector)
+        reps.append({"frames": preprocessed_frames})
+    return rows, vectors, reps
 
 
 def _canonicalisation_evidence(poses: np.ndarray, episodes: dict) -> dict:
@@ -336,50 +372,69 @@ def main() -> None:
     print(
         "Mapping BODY_25 -> MediaPipe-33 and extracting features via the live code..."
     )
-    ec3d_rows = build_ec3d_feature_rows(episodes, poses)
+    ec3d_rows, vectors, reps = build_ec3d_feature_rows(episodes, poses)
     true_labels = [row["label"] for row in ec3d_rows]
     print(
         f"  {len(ec3d_rows)} reps: "
         f"{true_labels.count('Good')} Correct / {true_labels.count('Poor')} faulty"
     )
 
-    model = get_model_bundle("squat")
+    # Stage 5.13: score through the same production functions router.py's
+    # `analyze_module_b_session` calls for squat — `score_squat_set()`, `fuse_model()`
+    # with squat's live `band_policy`, and `evaluate_fault_gates()` with squat's live
+    # `fault_gates` config — read straight off `SQUAT_CONFIG`, not a hand-rolled
+    # re-blend of the raw classifier and rule score, and not `SquatExercise`/
+    # `get_exercise()` (which pull in FastAPI/SQLAlchemy through the error-tag
+    # builder — dependencies this venv doesn't carry and this script has no use for).
+    # This tracks whatever squat ships, including Stage 5.11's binary decision and
+    # Stage 5.12's fault gates, with no separate copy of either to fall out of sync.
+    model = get_model_bundle(SQUAT_CONFIG["model_key"])
     print(f"Scoring with the shipped artifact: model_version={model.model_version}")
-    x = np.array(
-        [[float(row[name]) for name in SQUAT_FEATURE_NAMES] for row in ec3d_rows],
-        dtype=float,
-    )
-    prob_good = np.array(
-        [model.classifier.predict_proba([row])[0][1] for row in x.tolist()], dtype=float
+    band_policy = SQUAT_CONFIG.get("band_policy")
+    gate_config = SQUAT_CONFIG.get("fault_gates")
+    print(
+        f"Fusing+gating at the shipped production config: band_policy={band_policy}, "
+        f"fault_gates={list(gate_config or {})}"
     )
 
-    rule_scores = [_rule_score(row) for row in ec3d_rows]
     # Mocap: every mapped joint is fully observed, so `q` is a clean 1.0 and the
     # q_min gate never fires. Stated in the report rather than left implicit.
-    qs = [1.0] * len(ec3d_rows)
+    Q_MOCAP = 1.0
 
-    w_rule = MODULE_B_CORE_CONFIG["w_rule_default"]
-    w_ml = MODULE_B_CORE_CONFIG["w_ml_default"]
-    threshold = MODULE_B_CORE_CONFIG["confidence_low_threshold"]
-    print(
-        f"Fusing at the shipped config: w_rule={w_rule}, w_ml={w_ml}, "
-        f"confidence_low_threshold={threshold}"
-    )
-    fused = _fuse_all(
-        ec3d_rows,
-        prob_good,
-        rule_scores,
-        qs,
-        w_rule=w_rule,
-        w_ml=w_ml,
-        confidence_low_threshold=threshold,
-    )
+    fused = []
+    gate_overridden = 0
+    for row, vector, rep in zip(ec3d_rows, vectors, reps, strict=True):
+        # Each EC3D episode is scored as its own one-rep session — the same
+        # granularity `router.py` uses for a session containing a single rep, since
+        # `score_squat_set([vector])`'s duration-weighted/mean aggregates over one
+        # rep reduce to that rep's own subscores.
+        rule_scores = score_squat_set([vector])
+        fusion = fuse_model(
+            rule_scores=rule_scores,
+            model=model,
+            features=vector,
+            q=Q_MOCAP,
+            band_policy=band_policy,
+        )
+        gate_result = (
+            evaluate_fault_gates([rep], [vector], gate_config) if gate_config else None
+        )
+        if gate_result is not None and not gate_result.all_passed:
+            if fusion.band != "Poor":
+                gate_overridden += 1
+            fusion = dataclasses.replace(fusion, band="Poor")
+        fused.append(fusion)
+        row["fused_score"] = fusion.score
+        row["fused_band"] = fusion.band
+
+    prob_good = np.array([f.ml_score / 10.0 for f in fused], dtype=float)
     bands = [f.band for f in fused]
     metrics = _evaluation_metrics(true_labels, bands)
     print(
         f"  accuracy_strict={metrics['accuracy_strict']:.3f}  "
         f"accuracy_confident={metrics['accuracy_confident']:.3f}  "
-        f"macro_f1={metrics['macro_f1']:.3f}  fair_rate={metrics['fair_rate']:.3f}"
+        f"macro_f1={metrics['macro_f1']:.3f}  fair_rate={metrics['fair_rate']:.3f}  "
+        f"fault_gate_overrides={gate_overridden}"
     )
 
     importances = _gini_importances(model)
@@ -410,9 +465,8 @@ def main() -> None:
         breakdown=breakdown,
         prob_good=prob_good,
         model=model,
-        w_rule=w_rule,
-        w_ml=w_ml,
-        threshold=threshold,
+        band_policy=band_policy,
+        gate_overridden=gate_overridden,
     )
     print(f"Wrote {REPORT_MD}")
 
@@ -430,9 +484,8 @@ def write_report(
     breakdown: list[dict],
     prob_good: np.ndarray,
     model,
-    w_rule: float,
-    w_ml: float,
-    threshold: float,
+    band_policy: dict,
+    gate_overridden: int,
 ) -> None:
     counts = metrics["counts"]
     subjects = sorted({row["subject"] for row in ec3d_rows})
@@ -466,7 +519,7 @@ def write_report(
     not_low_good_rate = not_low["counts"]["Good"] / not_low["n"]
     correct_good_rate = correct["counts"]["Good"] / correct["n"]
 
-    report = f"""# EC3D external validation — Phase 5, Stage 5.9
+    report = f"""# EC3D external validation — Phase 5, Stage 5.13
 
 **Verdict: the external validation could not be performed as a generalisation check,
 and this report explains why with measurements rather than reporting a number that
@@ -474,9 +527,13 @@ would not mean what it appears to mean.** The confusion matrix the checklist req
 is included, and it is captioned as what it actually is.
 
 Model under test: `{model.model_version}` — the exported artifact in
-`ml/artifacts/squat/`, loaded through the backend's own `get_model_bundle("squat")`,
-scored at the shipped fusion config (`w_rule={w_rule}`, `w_ml={w_ml}`,
-`confidence_low_threshold={threshold}`). Nothing was re-tuned for this report.
+`ml/artifacts/squat/`, loaded through the backend's own `get_model_bundle("squat")` and
+scored through the **exact production functions** `router.py`'s
+`analyze_module_b_session` calls for squat: `score_squat_set()`, `fuse_model()` at
+squat's live `band_policy` (`{band_policy}`, Stage 5.11's committed binary Good/Poor
+decision) and `evaluate_fault_gates()` (Stage 5.12's depth/lean/heel-rise gates).
+Nothing was re-tuned for this report; **{gate_overridden}** of
+{len(ec3d_rows)} reps had their fused band overridden to Poor by a fault gate.
 
 Cohort: **{len(ec3d_rows)} EC3D squat repetitions** — {n_good} Correct, {n_poor} faulty —
 from **{len(subjects)} subjects** ({", ".join(subjects)}).
@@ -514,15 +571,17 @@ P(Good) over the {len(ec3d_rows)} EC3D reps ranged **{_fmt(float(prob_good.min()
 
 ### Two cells carry the whole result
 
-**`recall_poor` is exactly {_fmt(metrics["recall_poor"])}: the model did not return a
-confident Poor for a single one of the {n_poor} faulty repetitions.** This independently
-corroborates the Stage 5.8 finding — which was measured in-sample, on the model's own
-98 training rows — on **{len(subjects)} subjects it has never seen, from a different
-dataset, captured on different hardware**. The mechanism is visible in the
-probabilities: P(Good) never fell below {_fmt(float(prob_good.min()))} here, so
-confidence toward Poor never exceeded {_fmt(1.0 - float(prob_good.min()))}, against a
-`confidence_low_threshold` of {threshold}. The Poor column of the matrix above is empty,
-and it is empty for a reason that has now been observed twice by unrelated means.
+**`recall_poor` = {_fmt(metrics["recall_poor"])}.** Unlike the original Stage 5.9 run
+(which scored EC3D through a hand-rolled call to `fuse_scores()` at the old triband
+`w_rule_default`/`w_ml_default` config and never ran a fault gate), this run scores
+through the production `band_policy` — a single cut on the fused score at
+`decision_threshold={_fmt(band_policy["decision_threshold"], 6)}` with
+`w_rule={band_policy["w_rule"]}`/`w_ml={band_policy["w_ml"]}` — **and** Stage 5.12's
+fault gates, which independently forced **{gate_overridden}** of {len(ec3d_rows)} reps
+to Poor regardless of the fused score. Both mechanisms can produce a Poor band here in a
+way the pre-5.11/5.12 pipeline could not, so a `recall_poor` of 0 is no longer the
+mechanistic near-certainty it was in Stage 5.9 — read the value above as measured, not
+assumed.
 
 **`accuracy_confident` = {_fmt(metrics["accuracy_confident"])} is below chance, and that
 is the signature of inversion rather than noise.** A model reading uninformative

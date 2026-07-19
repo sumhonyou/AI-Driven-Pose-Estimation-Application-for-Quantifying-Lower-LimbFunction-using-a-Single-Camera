@@ -306,14 +306,25 @@ class FeedbackText(Base):
     session_id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True),
         ForeignKey("sessions.id", ondelete="CASCADE"),
+        unique=True,
         nullable=False,
     )
     structured_feedback: Mapped[str | None] = mapped_column(Text)
     rewritten_feedback: Mapped[str | None] = mapped_column(Text)
-    llm_used: Mapped[bool] = mapped_column(
+    # 'llm' | 'template' -- which text `rewritten_feedback` actually holds.
+    feedback_source: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="template"
+    )
+    # Distinct from feedback_source: True even when the LLM was called but Stage 6.3's
+    # safety filter rejected its output and fell back to the template (Phase 6 Stage 6.5).
+    llm_attempted: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
-    safety_disclaimer: Mapped[str | None] = mapped_column(Text)
+    provider: Mapped[str | None] = mapped_column(String(50))
+    model_version: Mapped[str | None] = mapped_column(String(100))
+    # Versioned id for the disclaimer copy shown alongside this report (the disclaimer
+    # text itself always comes from the current i18n render, never stored here).
+    disclaimer_version: Mapped[str | None] = mapped_column(String(20))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
