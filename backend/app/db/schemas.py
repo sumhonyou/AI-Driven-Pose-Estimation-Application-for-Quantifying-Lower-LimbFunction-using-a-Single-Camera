@@ -148,6 +148,9 @@ class SessionRead(BaseModel):
     # Denormalized like score/band. None for exercises with no rep concept
     # (SLS, WBLT) and for sessions recorded before this field existed.
     rep_count: int | None = None
+    # The rep goal the user set before the set, if any -- lets the report show what was
+    # aimed for alongside what was attempted. Optional in the UI, so None is normal.
+    target_rep_count: int | None = None
 
 
 # Latest score/band/quality for a single exercise type (dashboard tile).
@@ -176,6 +179,11 @@ class TrendPoint(BaseModel):
     band: str | None = None
     capture_quality: float | None = None
     confidence: float | None = None  # Module B only; None for Module A
+    # Denormalized like score/band (sessions.rep_count). None for exercises with no
+    # rep concept (SLS, WBLT). Stage 5.22: lets the frontend chart attempts vs counted
+    # reps per session without a second endpoint -- `score` alone can't distinguish a
+    # hard session from a short one.
+    rep_count: int | None = None
 
 
 class ExerciseTrend(BaseModel):

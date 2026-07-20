@@ -91,6 +91,7 @@
   - [22. Future Enhancements](#22-future-enhancements)
   - [23. Final Implementation Priority](#23-final-implementation-priority)
   - [24. Additions and Deviations from the Original Plan](#24-additions-and-deviations-from-the-original-plan)
+  - [25. Current System Limitations (for the Final Report)](#25-current-system-limitations-for-the-final-report)
 
 ## 1. Short Project Summary
 
@@ -404,6 +405,15 @@ The prototype validates layout, user flow, and page content before backend work 
     - View reminders
     - Mark reminder as complete
 
+12. **Progress Deep-Dive Page** _(added in Phase 7 — route `/progress`, see [§24](#24-additions-and-deviations-from-the-original-plan))_
+    - Per-exercise trend deep dive (one exercise at a time, chosen via a category selector: Functional Checking / Rehab Grading)
+    - Date-range control (14 days / 30 days / All)
+    - Score trend chart with Good/Fair/Poor band zones
+    - Band distribution for the selected exercise
+    - Capture-quality trend
+    - Module B only: confidence trend + ranked error-tag bar chart
+    - Complements the Dashboard's multi-exercise "at a glance" overview (the Dashboard shows small-multiples across all exercises; the Progress page shows one exercise in full detail)
+
 ---
 
 ## 9. Module A: Functional Checking
@@ -521,9 +531,64 @@ User selects Rehab Grading mode
 → results are stored in PostgreSQL
 ```
 
+> **As-built detail — how the hybrid grading pipeline actually works, live session vs post-session (2026-07-19).** The arrow list above is the high-level shape; this is the concrete "who does what, with what data, producing what" breakdown for squat as it ships today.
+
+**A. Live session — frontend only, no backend calls per frame**
+
+- Webcam frames → MediaPipe Pose (in-browser) → per-frame body landmarks. Raw video never leaves the browser.
+- Frontend buffers landmarks in memory for the whole set and computes a **capture-quality score** (visibility/framing) continuously.
+- Frontend also runs a **rough local estimate** purely for on-screen feedback — a hysteresis rep counter + a crude ROM band guess. This is a display-only approximation, clearly separate from the real grade; it never touches the database.
+- Squat has no fixed rep count (unlike STS's clinical 5 reps), so the set ends when the user taps **"Finish Set"** (or the inactivity/rep-goal prompts). At that point the frontend sends the **entire session's buffered landmark/feature summary in one request** — `POST /api/module-b/analyze` — not per-frame streaming.
+
+**B. Post-session — backend, one request, after the set ends**
+
+1. **Registry dispatch** — `exercise_code` (`"squat"`) resolves to the squat plugin behind the shared generic router.
+2. **Rep segmentation** — a hysteresis finite-state machine (`STANDING → DESCENDING → BOTTOM → ASCENDING → STANDING`, driven by knee-flexion angle) splits the raw landmark stream into discrete reps.
+3. **Feature extraction** — for each rep, 13 ordered features are computed (knee ROM, trunk lean, tempo, symmetry, etc.), each a pure function of that rep's own frames.
+4. **Rule sub-scores** — ROM / Tempo / Stability, each 0–10, from clinical-norm and heuristic bands → averaged into `S_rule`.
+5. **ML inference** — the calibrated Extra Trees model scores the **first rep's** feature vector → `P(Good)` → `S_ml = 10·P(Good)`.
+6. **Fusion + band decision** — `S_final = w_rule·S_rule + w_ml·S_ml` using squat's tuned weights (`w_rule=0`, `w_ml=1`, i.e. pure ML); a single cut on `S_final` at `decision_threshold=8.447974` commits the band to **Good or Poor** (§10.4).
+7. **Fault gates (override layer)** — independently of the score above, three rule thresholds (depth / forward lean / heel rise) are checked on **every** rep. Any failure forces the band to **Poor with a named reason**, regardless of what fusion decided.
+8. **Error tags** — assembled from the fault gates (rule-sourced), a soft tempo-consistency tag, and system tags (low confidence / low capture quality), each ranked by severity.
+9. **Feedback** — a deterministic template is always composed from the band/score/tags first; if the LLM is enabled, its rewrite must pass a safety filter (no grade/band/score change, no invented tags) before it's allowed to replace the template.
+10. **Persistence** — final score, band, confidence, model version, rule sub-scores, ML score, feature vector, error tags, and feedback text are written to PostgreSQL in one pass.
+11. **Response** — the full report is returned to the frontend and rendered on the Report page.
+
+> **Which layers look at every rep vs. one rep (important — clarifies a common misreading).** Every rep is segmented and turned into features. From there: the **rule sub-scores** (ROM / tempo / stability) are computed across **all** reps, and the **three fault gates** (depth / lean / heel-lift) are checked on **every** rep — so the safety-critical fault detection covers the whole set. The **trained ML classifier**, however, currently produces its holistic Good/Poor prediction from the **first rep only** (`feature_vectors[0]` in `core/router.py`), because it was trained as a per-rep classifier and the first completed rep is taken as the representative sample. Aggregating the ML probability across all reps is a documented, deliberately-deferred improvement (see [§25.2](#252-squat-model--grading-limitations-module-b) item 10) — it is not yet built. So "the system evaluates every rep after the session" is **true for the rule + fault-gate layers** and **not yet true for the ML classifier's own verdict**.
+
+**Result the user sees:** a 0–10 score, a **Good / Needs Improvement** band, a confidence percentage, the three rule sub-scores plus the ML score for transparency, ranked error tags (with the specific fault named when a gate fired), and coaching text — never a raw model score with no explanation.
+
+> **Why train a machine learning model at all, instead of only using rules / an angle threshold?** (plain-language explanation + viva defence — a natural question once you see the fault gates already cover the obvious faults with pure thresholds)
+>
+> **The framing that defuses the question: this system does not use ML _instead of_ thresholds — it uses both, each where it is justified.** Where a validated clinical cutoff exists (squat-to-parallel depth, forward-lean, heel-lift), an explicit **rule** is used — those are the transparent, clinically-anchored fault gates. ML is used only for the part a single threshold **cannot** do. So an examiner's "just set an angle threshold" is not rejected — it is already in the system as the fault gates.
+>
+> 1. **A threshold is one number on one feature; "good form" is many features interacting.** A rep can hit perfect depth but with a collapsing trunk, uneven tempo, and wobble. To grade _overall_ quality with rules you would have to hand-write a combination formula across all 13 features **and hand-pick every weight and interaction term** (e.g. "shallow depth is acceptable _if_ ankle mobility is limited"). Every one of those numbers is a guess. The model learns those weights from labeled data, and the **feature-importance ranking can be reported as evidence** — a threshold gives no importance, no weighting, no principled way to combine features.
+> 2. **The strongest single point: a hand-picked assumption was empirically _wrong_, and only the data caught it.** The obvious rule "deeper squat = better" seemed safe. But in the labeled training data the reps marked _incorrect_ were actually **deeper** on average — the opposite of the assumption. A designer setting that threshold by hand would have graded backwards. This is the thesis in one fact: **hand-set thresholds encode the designer's assumptions, which can be false; a trained model learns the real relationship from ground truth.** When the fusion weight was chosen empirically it drove `w_rule → 0`, i.e. on this data the ML carried signal the rules did not.
+> 3. **ML gives a confidence/probability; a threshold gives only a hard yes/no.** The calibrated classifier outputs `P(Good)`, which the system uses to flag low-confidence reps. A bare threshold has no notion of "borderline."
+> 4. **It is the methodological contribution being assessed — done honestly.** Module B is specified as a hybrid rule + ML system; building the full pipeline (feature engineering → training → calibration → cross-validation → **external validation on EC3D**) is a core deliverable. Crucially, the honest scientific step was taken: it was _tested_ whether ML actually beats rules, and _where it does not generalise is reported_ — that rigour is itself the contribution.
+>
+> **Honest caveat (state it, don't hide it):** this project's own external validation found the model does **not** generalise well beyond its small dataset (see [§25.2](#252-squat-model--grading-limitations-module-b), items 6–7) — 98 reps from 9 people, so it may have partly learned quirks of that group rather than universal biomechanics. ML adds genuine value over pure rules _in principle_ (catching interactions a person would not think to hand-code); how much is realised here is limited by how little labeled data was available.
+>
+> _One-line viva version:_ "I don't use ML instead of thresholds — I use thresholds where a validated clinical cutoff exists (the fault gates) and ML for the part a threshold can't do: judging overall quality across many interacting features, where I showed empirically that a naive single-feature threshold can even point the wrong way."
+>
+> **Why does grading run after the set, not live, if rehab is about correcting form?** (a fair, strong challenge — answered head-on)
+>
+> **The framing: live feedback is _not_ absent — the precise _grade_ is deferred.** The split is **immediate low-risk cues live, accurate grade the instant the set ends** — not "nothing live."
+>
+> 1. **Live feedback already exists, kept deliberately light.** During the set the frontend gives real-time capture-quality, body-visibility, camera-alignment warnings, a rep counter, and a rough movement-band estimate — the things that are safe and cheap to say in real time. Running the full pipeline (rep splitting + 13 features + ML inference + fusion) on every video frame would add latency for no benefit and defeat the privacy design (video never leaves the browser).
+> 2. **An accurate grade physically requires a _completed_ rep.** "Did you reach parallel depth?" is only defined at the bottom of the movement; "was your tempo consistent?" needs the rep(s) to be over. A grade produced mid-rep would be a **wrong** grade — and in rehab, confidently telling someone the wrong thing mid-movement is worse than telling them the right thing a second later.
+> 3. **Safety / non-diagnostic boundary.** Flashing "bad form, stop!" from a noisy half-computed mid-rep estimate could make a user jerk or alter their movement — an injury risk. Acting on unreliable real-time signals contradicts the conservative, non-diagnostic design; high-confidence feedback delivered the moment the set ends is safer to act on.
+> 4. **It mirrors how a physiotherapist actually works** — quick nudges _during_ ("keep going, a bit deeper"), detailed correction and explanation _after_ the set, not a paragraph mid-squat. And for rehab the real feedback loop is per-**session over weeks**, which is exactly what the post-session report + progress dashboard deliver.
+>
+> **Honest scope:** true per-rep real-time coaching (an instant "that rep was too shallow" the moment a rep finishes) is a genuine enhancement, documented as future work (the optional WebSocket per-rep push, [§11.2](#112-optional-enhancement)). It was not built because MVP priority was a complete, deployed, evaluated, _safe_ pipeline first — defensible scoping, named as future work rather than hidden. This ties to the ML-scores-first-rep-only limitation above: making the ML score every rep is the same piece of future work that would enable richer live per-rep grading.
+>
+> _One-line viva version:_ "The immediate, low-risk guidance — stay in frame, keep going, roughly on track — happens live. The precise 'this rep was poor and here's why' comes the moment the set ends, because an accurate grade requires a completed rep and acting on a noisy mid-rep judgment is itself an injury risk. It's the same way a physio nudges during and explains after."
+
 ### 10.2 Module B Output
 
-> **Update:** field names below now match the actual `module_b_results`/`module_b_error_tags`/`feedback_texts` schema in [§13](#13-postgresql-database-design). `exercise_type` reflects the real squat exercise, not the original placeholder.
+> **Note:** field names below match the actual `module_b_results`/`module_b_error_tags`/`feedback_texts` schema in [§13](#13-postgresql-database-design), and the two examples below are the **real as-built squat shape** (Stages 5.11/5.12 + Phase 6/7) — a committed binary Good/Poor with `w_rule=0`/`w_ml=1`, not the original illustrative three-band design. See [§10.4](#104-fusion-scoring) for how the decision policy was chosen.
+
+**Example A — a clean Good rep, all fault gates pass, ML verdict stands:**
 
 ```json
 {
@@ -531,24 +596,30 @@ User selects Rehab Grading mode
   "mode": "rehab_grading",
   "exercise_type": "squat",
   "capture_quality": 0.86,
-  "score": 7.0,
+  "score": 9.4,
   "band": "Good",
   "confidence": 0.78,
   "model_version": "squat-1.0.0+rehab246-loso-<shorthash>",
   "feature_schema_version": "1.0.0",
   "metrics_json": {
     "rule_score": 7.2,
-    "ml_score": 6.8,
-    "w_rule": 0.4,
-    "w_ml": 0.6,
-    "sub_scores": {
-      "rom_completeness": 7.5,
-      "tempo_consistency": 6.8,
-      "stability_control": 7.1
+    "rule_subscores": [
+      { "code": "rom_completeness", "score": 7.5, "notes": [] },
+      { "code": "tempo_consistency", "score": 6.8, "metrics": { "cv": 0.12 } },
+      { "code": "stability_control", "score": 7.1, "notes": [] }
+    ],
+    "ml_score": 9.4,
+    "fusion_weights": { "w_rule": 0.0, "w_ml": 1.0 },
+    "fusion_flags": [],
+    "placeholder_model_notice": false,
+    "capture_quality": {
+      "q": 0.86,
+      "valid_frame_ratio": 0.94,
+      "capture_quality_band": "good"
     },
-    "feature_vector": {
-      "...": "ordered per FeatureVector.names, see task.md Phase 4 Stage 4.2"
-    }
+    "per_rep_summaries": [
+      { "duration_s": 2.1, "bottom_knee_flexion_deg": 101.3 }
+    ]
   },
   "error_tags": [
     {
@@ -558,7 +629,7 @@ User selects Rehab Grading mode
       "message": "Aim for a steadier pace across your reps."
     }
   ],
-  "structured_feedback": "Your overall movement quality was good...",
+  "structured_feedback": "Grade: Good. Aim for a steadier pace across your reps.",
   "rewritten_feedback": "Good job. Your movement was mostly controlled...",
   "feedback_source": "llm",
   "llm_attempted": true,
@@ -567,7 +638,47 @@ User selects Rehab Grading mode
 }
 ```
 
-> **Placeholder-model note:** during Phase 4 (before Phase 5 trains the real model), `model_version` reads `"stub-0"` and the response/report both carry a visible placeholder-model notice — see task.md Phase 4 Stage 4.5.
+**Example B — a fault-gate override: the ML alone would have said Good, but a depth fault forces the band to Poor:**
+
+```json
+{
+  "session_id": "uuid",
+  "exercise_type": "squat",
+  "capture_quality": 0.81,
+  "score": 9.42,
+  "band": "Poor",
+  "confidence": 0.74,
+  "model_version": "squat-1.0.0+rehab246-loso-<shorthash>",
+  "feature_schema_version": "1.0.0",
+  "metrics_json": {
+    "rule_score": 6.9,
+    "ml_score": 9.42,
+    "fusion_weights": { "w_rule": 0.0, "w_ml": 1.0 },
+    "fusion_flags": [],
+    "per_rep_summaries": [
+      { "duration_s": 1.9, "bottom_knee_flexion_deg": 73.7 }
+    ]
+  },
+  "error_tags": [
+    {
+      "tag": "insufficient_depth",
+      "severity": "High",
+      "source": "rule",
+      "message": "Didn't reach enough depth — aim for closer to parallel."
+    }
+  ],
+  "structured_feedback": "Grade: Needs Improvement. Didn't reach enough depth — aim for closer to parallel.",
+  "rewritten_feedback": null,
+  "feedback_source": "template",
+  "llm_attempted": false,
+  "disclaimer_version": "v1",
+  "created_at": "timestamp"
+}
+```
+
+> **What the two examples show:** the ML's fused score alone (`ml_score: 9.42`, well above the `decision_threshold: 8.447974`) would band Example B as **Good** — but the peak knee flexion (73.7°) is below the depth-gate threshold (78.04°), so the fault gate **overrides** the band to `Poor` with a specific named reason (`insufficient_depth`), independent of the ML score. This is the fault-gate override layer described in [§10.4](#104-fusion-scoring) acting exactly as designed: interpretable rules win over an opaque score when they disagree. The internal `band` value stays lowercase `"poor"`/`"good"` in the database/model; the UI displays `"poor"` as **"Needs Improvement"**.
+
+> **Placeholder-model note:** during Phase 4 (before Phase 5 trains the real model), `model_version` reads `"stub-0"` and the response/report both carry a visible placeholder-model notice — see task.md Phase 4 Stage 4.5. `model_version` has been unchanged since Stage 5.8 — Stages 5.11/5.12 changed only the decision policy on top of the model, not the model itself.
 
 ### 10.3 Why Extra Trees Classifier
 
@@ -641,6 +752,27 @@ If 0.70 <= capture_quality < 0.80:
 If capture_quality < 0.70:
   do not produce final confident score; ask user to retry
 ```
+
+**As-built squat decision policy (Phase 5 Stages 5.11 + 5.12, 2026-07-19 — this is what actually ships):**
+
+The squat model itself was trained, calibrated and LOSO/nested-CV-evaluated in Phase 5 and then **left byte-identical**; Stages 5.11 and 5.12 changed only the _decision policy_ on top of it, not the model.
+
+1. **Committed binary band (Stage 5.11).** The three-band output relied on `Fair` as an _abstention_ — the fusion layer forced `Fair` whenever calibrated confidence fell below 0.85. The shipped model's confidence never exceeds ~0.76, so that override fired on almost every rep and `Poor` was effectively never shown (three-band recall(Poor) ≈ 0.077). HY chose to make squat **commit** to Good/Poor so the app can actually flag poor form. This is implemented as a per-exercise `band_policy` in `SQUAT_CONFIG`: fusion weights `w_rule = 0.0` / `w_ml = 1.0`, and a single cut on the fused 0–10 score at `decision_threshold = 8.447974` (chosen for maximum macro-F1 on the out-of-fold predictions). `band_policy = None` (the default) preserves the original three-band abstention for Module A and the retired lunge, byte-for-byte. **The trade-off is explicit and accepted:** out-of-fold recall(Poor) rises 0.077 → **1.000**, at the cost of flagging **22/72 (31%) of Good reps as Poor**; critically **0** poor-form reps are ever called Good, so the app never tells a poor-form user they are fine.
+
+2. **Interpretable fault gates (Stage 5.12).** Because the fused score is opaque (it can't say _why_ a rep was bad) and the ML only scores the first rep of a set, three interpretable rule gates run on **every** rep as a separate override layer (not blended into any score):
+
+```text
+depth gate       : knee_flex_peak_deg  <  78.04°   (clinical parallel norm 90° minus the pipeline's measured -11.96° under-read)
+lean gate        : trunk_lean_peak_deg >= 41.42°   (data-driven, Youden-J on the training set)
+heel-rise gate   : heel_rise_peak_norm >= 0.084    (data-driven, Youden-J; rule-only, not an ML feature)
+
+If any gate fails on any rep -> band forced to "Poor" with a specific named error tag,
+regardless of the ML verdict. Only if every gate passes does the ML band stand.
+```
+
+The gates are the concrete fix for the ML's rep-0-only blind spot _for faults_. The depth gate is **not** data-driven from REHAB24-6 (that dataset's own depth signal is inverted — its incorrect reps are actually deeper), so it is anchored to the clinical parallel-squat norm instead.
+
+3. **Low-confidence handling still applies.** A low-`Q` / low-confidence rep still surfaces a `low_confidence` system error tag, but the band now still commits (it no longer abstains to Fair for squat).
 
 ---
 
@@ -1029,18 +1161,24 @@ POST /api/reports/{session_id}/rewrite-feedback
 
 ```text
 GET /api/dashboard/summary
-GET /api/dashboard/trends            -- response keyed by exercise_type
-GET /api/dashboard/error-tags        -- response keyed by exercise_type (Module B only)
+GET /api/dashboard/trends            -- response keyed by exercise_type; accepts ?from=&to=
+GET /api/dashboard/error-tags        -- response keyed by exercise_type (Module B only); accepts ?from=&to=
 ```
+
+> **As-built note (Phase 7):** these three endpoints back **both** the Dashboard overview and the new `/progress` deep-dive page — the Progress page reuses `trends` and `error-tags` with the `from`/`to` range parameters (14d/30d/All), no extra endpoints. **MDC honesty:** `ExerciseTrend.mdc_source` is `"none"` (and `mdc = null`) for **every** exercise on the 0–10 composite score — no published MDC exists on that composite for any exercise, so the UI shows an honest "no meaningful-change threshold" caption rather than inventing one. (WBLT's real published MDC applies only to its raw distance/angle, shown per-session on the report, not on the dashboard's 0–10 trend.)
 
 ### 14.9 Reminder APIs
 
 ```text
-POST   /api/reminders
 GET    /api/reminders
-PUT    /api/reminders/{reminder_id}
+POST   /api/reminders
+PATCH  /api/reminders/{reminder_id}
 DELETE /api/reminders/{reminder_id}
+POST   /api/reminders/{reminder_id}/complete       -- mark done (sets last_completed_at)
+GET    /api/reminders/{reminder_id}/export.ics     -- RFC-5545 .ics download (VEVENT + popup VALARM + RRULE)
 ```
+
+> **As-built note (Phase 7 Stage 7.3):** reminders are now fully implemented (they were a hardcoded UI mock before). The `reminders` table gained nullable `exercise_code` (deep-link target — deliberately **not** an FK, so a reminder survives its exercise being retired) and `last_completed_at`. Delivery is **client-side, no email/scheduler infrastructure**: each reminder offers a **Google Calendar link** (`calendar.google.com/render`, no OAuth) and a downloadable **`.ics`** — the user's own calendar app fires the timed alert. In-app, a nav **red-dot badge** and a Dashboard **due-banner** appear only when a reminder is actually due (`is_due()` supports `once`/`daily`/`mwf`/`weekly`, failing closed on unknown frequencies). Clicking a reminder **deep-links straight into its exercise** (sets mode + exercise and navigates to camera setup). **Email verification on signup was explicitly scoped out** (it was the only ask that required building email infrastructure from scratch).
 
 ---
 
@@ -1092,6 +1230,15 @@ Always store both:
 - `feedback_source` (`"llm"` or `"template"`) and `llm_attempted` (whether the LLM was called at all, distinct from whether its output survived the safety filter) — see the updated `feedback_texts` schema in [§13](#13-postgresql-database-design)
 
 The structured feedback is the trusted source. The LLM text is only a readability layer.
+
+> **As-built note (Phase 6 complete, 2026-07-19):**
+>
+> - **Provider:** Groq, model `llama-3.3-70b-versatile` (the plan's `llama-3.3-70b` was a shorthand; the real production id was verified live against the Groq docs and API — free tier 30 RPM / 1,000 RPD / 12,000 TPM / 100,000 TPD).
+> - **Disabled by default.** `feedback_llm_enabled` defaults to **False** — with the LLM off, the report is still fully populated by the deterministic **template fallback** (built _first_, on purpose), which proves the LLM is optional polish rather than a dependency. Enabling it in production is a config flip, not a code change.
+> - **Template-first flow.** The template is always composed first; the LLM only overwrites `rewritten_feedback`/`feedback_source` **if** the safety filter accepts its output. On any error/timeout/429/empty-response/safety-rejection it silently falls back to the template. Timeout 8s, retry-once **only** on a 429.
+> - **Safety filter (enforced before store/display):** rejects forbidden diagnostic phrases; verifies the band and score in the rewritten text match the structured input exactly (a mismatch discards the LLM text — the "Needs Improvement" relabel is accounted for so it isn't a false positive); rejects any taxonomy tag not in the structured input; caps length at 600 chars. A test asserts the grade is byte-identical before and after the rewrite.
+> - **Scope: Module B (squat) only.** Confirmed against the proposal that the rewriting layer is a Module B component; Module A reports keep a static "General tip" panel and are **not** LLM-rewritten (a mislabelled "AI" panel on Module A was corrected to "General tip" during this phase).
+> - **Payload carries only** band/score/confidence/rep_count/tags — never raw video, never health records. There is no live/per-frame LLM endpoint; the call happens only after the set is fully scored.
 
 ---
 
@@ -1339,5 +1486,63 @@ This section records where the implementation **added to or diverged from** the 
 | Module B `feedback_texts` schema        | §13/§15 had `llm_used BOOLEAN` + stored `safety_disclaimer` text                                                                       | Replaced with `feedback_source` (`"llm"`/`"template"`) + `llm_attempted BOOLEAN` + `provider`/`model_version` + `disclaimer_version`                                                                                                                                                                                                                                                                                                                                                                                                                          | `llm_used=FALSE` couldn't distinguish "never called" from "called, output rejected by the safety filter" — an examiner-relevant distinction; the disclaimer shown is always the current i18n render, so storing a duplicate text copy per row was redundant — a version id gives audit traceability instead — see task.md Phase 6 Stage 6.5                                            |
 | Dashboard trend/error-tag payload shape | §14.8 listed `GET /api/dashboard/trends` and `GET /api/dashboard/error-tags` without specifying response shape                         | Both endpoints return their payload **keyed by `exercise_type`** in one response, not one call per exercise                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Phase 7's goal is fixing the trend/band panels for every exercise (Module A + B) in a single dashboard load — see task.md Phase 7 Stage 7.0                                                                                                                                                                                                                                            |
 | Squat live-session end condition        | §10/§14 never specified how a squat set (unlike STS's clinically-validated fixed 5 reps) should end                                    | Decided 2026-07-16: **unlimited reps**, live client-side counter, ended manually via a **"Finish Set"** button that posts the whole buffer once. Plus an **inactivity safety net** (~9s no motion after ≥1 rep prompts finish-or-continue, never auto-submits) and an **optional motivational rep-goal** (10–80, step 10, or blank) shown as "Rep X of Y" + a progress bar — display-only, never sent to grading, hitting it only prompts, never auto-finishes                                                                                                | A fixed rep count would be an uncited clinical threshold (unlike STS's 5) and a fixed time window can cut a rep mid-motion or reward a fast/sloppy squatter over a slow, controlled one; a user-owned motivational goal has no such grading risk since it's never sent to the backend — see task.md Phase 4 Stage 4.7                                                                  |
+| Squat output: committed binary band     | §10 designed a three-band Good/Fair/Poor output for every Module B exercise                                                            | Squat commits to **binary Good/Poor** (no Fair), `Poor` displayed as **"Needs Improvement"**, `w_rule=0`/`w_ml=1`, single score cut at 8.447974 — a decision-policy change on an unchanged model (Stage 5.11). Module A + retired lunge keep three bands via a default `band_policy=None`. **Concrete example:** [§10.2 Example A](#102-module-b-output) — `ml_score: 9.4` above threshold → `band: "Good"`, no Fair possible                                                                                                                                 | The three-band scheme's `Fair` was an abstention that fired on ~every rep (model confidence never > ~0.76), so `Poor` was effectively unreachable (recall 0.077). Committing makes the app able to flag poor form (recall(Poor) → 1.0), accepting 31% false-alarm on Good reps but zero poor-called-Good — see task.md Phase 5 Stage 5.11                                              |
+| Squat interpretable fault gates         | §10 planned a single fused ML+rule score with no per-rep rule override                                                                 | Added three **per-rep fault gates** (depth < 78.04°, lean ≥ 41.42°, heel-rise ≥ 0.084) as a separate override layer that forces `Poor` with a named reason if any gate fails on any rep (Stage 5.12); additive hook, model unchanged, no feature-schema bump. **Concrete example:** [§10.2 Example B](#102-module-b-output) — `ml_score: 9.42` (would band Good on its own) but `bottom_knee_flexion_deg: 73.7` trips the depth gate (< 78.04°) → band forced to `"Poor"` with tag `insufficient_depth`, ML overridden                                        | The fused score is opaque (can't say _why_) and the ML scores only rep 0; gates add an interpretable "why" and cover every rep for fault detection. Depth is anchored to the clinical parallel norm, not the training data (REHAB24-6's depth signal is inverted) — see task.md Phase 5 Stage 5.12                                                                                     |
+| Squat error-tag taxonomy trimmed        | §10 illustrative taxonomy implied faults like asymmetry / stance width could be tagged                                                 | Taxonomy **reconciled to 5 tags** (3 fault-gate + `inconsistent_tempo` soft + `low_confidence` system); `knee_valgus`, `asymmetry`, `feet_too_wide` **excluded** as un-measurable from one side view                                                                                                                                                                                                                                                                                                                                                          | A single monocular side view cannot resolve frontal-plane valgus, far-limb asymmetry (occluded), or depth-axis stance width — tagging them would report noise. Documented in `docs/module_b_limitations.md` — see task.md Phase 6 Stage 6.1                                                                                                                                            |
+| LLM default state + provider            | §15 implied the LLM rewrite is part of the normal flow                                                                                 | Groq `llama-3.3-70b-versatile`, **disabled by default** (`feedback_llm_enabled=False`); the deterministic template fallback is built first and fully populates the report with the LLM off; enabling is a config flip                                                                                                                                                                                                                                                                                                                                         | Proves the LLM is optional polish, not a dependency; keeps the demo working with no external egress unless deliberately enabled at Phase 8 — see task.md Phase 6 Stages 6.2/6.4                                                                                                                                                                                                        |
+| Reminders delivery mechanism            | §11/§13 planned a `reminders` table with add/view/complete, delivery unspecified                                                       | Client-side delivery: **Google Calendar link + downloadable `.ics`** (no backend email, no scheduler, no OAuth); in-app due-alert badge/banner; reminder deep-links into its exercise. Email verification on signup explicitly skipped                                                                                                                                                                                                                                                                                                                        | Avoids building email/scheduler/OAuth infrastructure from scratch; the user's own calendar app fires the real timed alert — see task.md Phase 7 Stage 7.3                                                                                                                                                                                                                              |
+| Progress deep-dive page                 | §8.1 listed 11 pages; no dedicated per-exercise progress page                                                                          | Added a 12th page (`/progress`): one-exercise-at-a-time trend deep dive with a Functional/Rehab category selector, date-range control, band zones, capture-quality/confidence trends, and a ranked error-tag chart (Module B only)                                                                                                                                                                                                                                                                                                                            | The Dashboard's multi-exercise overview becomes unreadable if each exercise shows full-detail sub-trends; the deep dive is where a per-exercise trend line is actually legible — see task.md Phase 7 Stage 7.1b                                                                                                                                                                        |
 
 _These are enhancements consistent with the project goals in §23, not departures from the MVP priorities. This list covers the deviations identified so far — add further rows here as the implementation continues to evolve._
+
+---
+
+## 25. Current System Limitations (for the Final Report)
+
+This section is a **single consolidated list of the current version's known limitations**, written so they can be lifted directly into the final report's limitations chapter. An examiner reads a named limitation as rigour and an unnamed one as oversight — so every limitation below is stated with _what_ it is, _why_ it exists, and (where relevant) _what would reverse it_. These are the limits of the system **as it will be presented for user testing**; user-testing feedback may add usability limitations on top of these.
+
+Sources of truth: `task.md` (Phases 5–7), `docs/module_b_limitations.md`, `ml/reports/SQUAT_EVALUATION_REPORT_2BAND.md` (+ `_3BAND`), and `ml/reports/PHASE5_CHAPTER_DRAFT.md`. Where a number is quoted, re-verify it against the live report before final submission — several are computed from a fixed corpus and will move if the corpus changes.
+
+### 25.1 Monocular single-camera limitations (whole system)
+
+1. **Depth axis is unreliable.** A single webcam resolves the plane facing it well but resolves the camera-depth axis worst. Every feature that lives on that axis was either dropped or down-weighted. This is the root cause of several limitations below.
+2. **Frontal-plane faults are not measured at all.** Knee valgus / knock-knee is **deliberately excluded** from features, rules, tags, and evaluation — it is ill-posed from a sagittal (side) view. _(Excluded, not unimplemented.)_
+3. **Far-limb occlusion.** From one side view the far limb is partly occluded (far-knee visibility ≈ 0.59–0.78 vs near-side ≈ 0.95–0.99). This is why left/right **asymmetry is not tagged** — the feature did not track true inter-leg difference against mocap (r ≈ −0.05) and the model ranked it near-last.
+4. **Stance width is not tagged.** In profile the feet separate mainly along the depth axis; the stance-width feature was below chance in-sample (AUC 0.37) and inverted on external data, so a `feet_too_wide` tag would fire on noise.
+5. **No true 3D / clinical goniometry.** All angles are 2D projections from image landmarks; the system is explicitly **non-diagnostic** and reports conservative Good/Fair/Poor bands, not exact clinical degrees.
+
+### 25.2 Squat model & grading limitations (Module B)
+
+6. **Small dataset.** The squat model is trained/evaluated on **98 side-view reps from 9 subjects (72 Good / 26 Poor)**, out-of-fold. Per-cell counts are small integers — a single rep changing hands moves a rate by several points. Treat all squat metrics as order-of-magnitude, not precise.
+7. **The "Poor" construct is population-specific and did not transfer.** The classifier learned "resembles REHAB24-6's _incorrect_ reps", which in that cohort skew **deeper and faster** — not a clinical "you exceeded a safe angle" rule. On the external EC3D set this construct **did not transfer** (and partly inverted). The model is a within-dataset quality proxy, not a validated clinical grader.
+8. **Committing to binary Good/Poor gives up the zero-severe-error guarantee (by design).** At the shipped operating point, **recall(Poor) = 1.000** but **22/72 (31%) of Good reps are flagged Poor** (false alarms). The safer direction is preserved — **0** poor-form reps are ever called Good — but a well-performed rep being told "Needs Improvement" is a real and expected failure mode.
+9. **The ROM rule is inverted for this population, so fusion is pure-ML (`w_rule = 0`).** The rule rewards depth, but in the training data incorrect reps are deeper; the empirical sweep therefore weighted the rule to zero. The rule sub-scores are still shown for transparency but do not drive the squat band.
+10. **The ML scores only the first rep of a set.** The calibrated classifier evaluates `feature_vectors[0]` only. This is mitigated for **faults** by the per-rep fault gates (which run on every rep), but the _holistic_ ML quality verdict still reflects rep 0 only. Explicitly deferred, not fixed.
+11. **The depth gate threshold is clinically anchored, not data-driven.** Depth < 78.04° = clinical parallel norm (90°) minus the pipeline's measured −11.96° under-read. It is **not** learned from REHAB24-6 because that dataset's own depth signal is inverted. The lean (41.42°) and heel-rise (0.084) gates are data-driven (Youden-J) on the same small sample.
+12. **No published MDC / repeatability threshold on the 0–10 score.** The dashboard shows trends with **no "meaningful change" claim** for any exercise because no published MDC exists on the composite score. Small trend movements may be measurement noise. _(WBLT does have a published MDC, but only on raw distance/angle, shown per-session — not on the 0–10 trend.)_
+13. **Only one Module B exercise ships (squat).** The leg lunge was investigated and then **removed** (2026-07-19); the second Module B exercise seen in earlier planning no longer exists. The architecture remains a registry of exercise plugins, so this is a scope limit, not an architectural one.
+
+### 25.3 Module A (functional check) limitations
+
+14. **SLS stability is frontal-plane only.** The single-leg-stance ball-in-circle stability sub-score is scored in the image plane; sway toward/away from the camera is not captured (monocular-depth limitation).
+15. **SLS agreement is validated on a synthetic corpus, not real pilot recordings.** The ICC(2,1) ≈ 0.995 / kappa ≈ 0.857 / Bland-Altman figures come from a fixed-seed **synthetic** replay corpus — no real pilot recordings exist yet. There is a small systematic bias (system reads ≈ 0.75 s shorter than a stopwatch) from the FSM's drop-hysteresis frames.
+16. **STS and WBLT have no measurement-agreement harness yet.** Only SLS has a replay/agreement evaluation; the same framing is planned but not built for STS completion-time and WBLT dorsiflexion-ROM.
+17. **WBLT's official band relies on user self-measurement.** The banded output uses a **self-reported** ruler/tape distance scored against McBride et al. age/sex norms; the camera angle is only a secondary corroboration signal. Accuracy depends on the user measuring correctly, and it requires the account's **exact age** (not just an age range).
+18. **All Module A thresholds are heuristic/prototype values.** Band cutoffs are starting heuristics to be refined with pilot data, not clinically validated cut points.
+
+### 25.4 LLM / feedback limitations
+
+19. **The LLM rewrite is disabled by default and Module-B-only.** With `feedback_llm_enabled=False` (the default), users see the deterministic **template** feedback, not LLM-rewritten text. Module A reports are never LLM-rewritten (they show a static "General tip"). If the demo is run with the LLM off, no AI-rewritten coaching text appears at all.
+20. **LLM output is best-effort and can silently fall back.** On any timeout / rate-limit (429) / safety-filter rejection, the system falls back to the template with no user-visible error. The LLM never changes the grade, band, score, or tags (enforced by the safety filter), so it is a readability layer only — but the polish is not guaranteed to appear.
+21. **External dependency + free-tier limits when enabled.** When enabled, feedback depends on Groq's free tier (30 RPM / 1,000 RPD / 12,000 TPM / 100,000 TPD) and outbound egress; not yet decided/verified for the deployed Cloud Run demo (Phase 8, open question Q8).
+
+### 25.5 Platform / operational limitations
+
+22. **Not yet deployed.** Phase 8 (Google Cloud deployment) is not complete; the system runs locally (FastAPI + Postgres + Vite dev server). User testing is against a local instance unless deployment lands first.
+23. **Camera capture cannot run in a sandboxed/automated browser.** Live webcam + MediaPipe requires a real browser with camera permission; this is a testing-environment limitation, not a product defect, but it means some flows can only be verified manually.
+24. **No email verification / password recovery.** Signup does not verify email and there is no account-recovery flow (email infrastructure was deliberately scoped out).
+25. **Reminder alerts are client-side only.** There is no server-side push/email; timed alerts fire only if the user adds the reminder to their own calendar (Google Calendar link / `.ics`). The in-app badge/banner only shows while the app is open.
+26. **Single-language grade values in the DB.** Band values are stored in English (`good`/`fair`/`poor`); the UI translates them (en/zh/ms), and `poor` is displayed as "Needs Improvement" — but any raw DB inspection shows the internal English values.
+27. **Demo/seed data is clearly marked, not real model runs.** The multi-session demo account uses `model_version="demo-seed"` rows; it exists to exercise the dashboard/progress panels, not to represent real captured sessions.
+
+> **Before final submission:** re-run the evaluation harnesses and re-quote any number cited above from the live report files, and fold in whatever usability limitations the post-user-testing questionnaire surfaces.

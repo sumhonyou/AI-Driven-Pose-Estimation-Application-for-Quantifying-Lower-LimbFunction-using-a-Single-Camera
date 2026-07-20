@@ -75,10 +75,10 @@ import random
 from pathlib import Path
 
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
-from app.module_b.core.fusion import fuse_model
 from app.module_b.core.model_registry import get_model_bundle
 from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.core.quality import assess_capture_quality
+from app.module_b.core.set_scoring import failed_gates_by_rep, score_set
 from app.module_b.squat.config import SQUAT_CONFIG
 from app.module_b.squat.fault_gates import evaluate_fault_gates
 from app.module_b.squat.features import extract_squat_features
@@ -410,27 +410,28 @@ def analyse(frames: list[dict]) -> dict:
     if rule_scores.score is None:
         return {"n_reps": len(reps), "band": None, "error": "no rule score"}
 
-    fusion = fuse_model(
-        rule_scores=rule_scores,
-        model=get_model_bundle("squat"),
-        features=feature_vectors[0],
-        q=float(quality["q"]),
-        # Stage 5.11: squat commits to a binary Good/Poor band. Passing the policy keeps
-        # the corpus's measured bands identical to what the live endpoint now returns.
-        band_policy=SQUAT_CONFIG.get("band_policy"),
-    )
-    # Stage 5.12: fault gates run across every rep and override the band to Poor if any
-    # fails. Applied here for the same reason as band_policy above — the measured band
-    # must equal what router.py returns, gates included. Called directly (not via the
+    # Stage 5.13: gates are evaluated first and folded into each rep's own verdict, then
+    # the band is a strict majority of those verdicts — no set-wide override any more.
+    # Applied here for the same reason band_policy was at 5.11: the measured band must
+    # equal what router.py returns. Gates are called directly (not via the
     # exercise/registry) so this generator keeps running in the fastapi-free ml venv.
     gate_result = evaluate_fault_gates(
         reps, feature_vectors, SQUAT_CONFIG["fault_gates"]
     )
+    set_score = score_set(
+        rule_scores=rule_scores,
+        model=get_model_bundle("squat"),
+        feature_vectors=feature_vectors,
+        q=float(quality["q"]),
+        band_policy=SQUAT_CONFIG.get("band_policy"),
+        failed_gates_by_rep=failed_gates_by_rep(gate_result),
+    )
+    fusion = set_score.fusion
     fault_gate_tags = sorted({check.tag for check in gate_result.failed})
-    band = "Poor" if not gate_result.all_passed else fusion.band
     return {
         "n_reps": len(reps),
-        "band": band,
+        "band": fusion.band,
+        "good_rep_count": set_score.good_rep_count,
         "score": round(fusion.score, 4),
         "rule_score": round(rule_scores.score, 4),
         "confidence": round(fusion.confidence, 4),

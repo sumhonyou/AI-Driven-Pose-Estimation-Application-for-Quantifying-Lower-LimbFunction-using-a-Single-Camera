@@ -53,14 +53,30 @@ STS_SESSIONS = [
 # (days_ago, score 0-10, band, capture_quality, confidence, rep_count, tags)
 # Squat is a committed binary Good/Poor classifier (Stage 5.11) -- no "Fair"
 # band is ever emitted, so seed data must not invent one.
+#
+# ⚠ Stage 5.18 invariant: the squat score is the share of clean reps and the band is a
+# strict majority of the same per-rep verdicts, so `band == "Good"` iff `score > 5.0`.
+# This data is written straight to the DB and bypasses the scoring pipeline, so nothing
+# enforces that for it -- keep every row on the correct side of 5.0 by hand. (The 11-days
+# -ago row was 5.2/"Poor" before this stage, which would render as a contradictory
+# 5.2-with-Needs-Improvement report: exactly the defect Stage 5.18 removed everywhere else.)
 SQUAT_SESSIONS = [
     (25, 3.1, "Poor", 0.58, 0.81, 5, ["insufficient_depth", "excessive_forward_lean"]),
     (20, 3.6, "Poor", 0.65, 0.77, 5, ["insufficient_depth"]),
     (16, 4.4, "Poor", 0.71, 0.83, 6, ["excessive_forward_lean", "heel_lift"]),
-    (11, 5.2, "Poor", 0.80, 0.88, 6, ["heel_lift"]),
+    (11, 4.8, "Poor", 0.80, 0.88, 6, ["heel_lift"]),
     (6, 6.9, "Good", 0.87, 0.92, 7, ["inconsistent_tempo"]),
     (2, 7.5, "Good", 0.93, 0.95, 7, []),
 ]
+
+# Guard: the fixture above is hand-maintained, so assert the Stage 5.18 invariant at import
+# rather than let a future edit reintroduce a contradictory demo report.
+for _row in SQUAT_SESSIONS:
+    _score, _band = _row[1], _row[2]
+    assert (_band == "Good") == (_score > 5.0), (
+        f"SQUAT_SESSIONS row {_row[0]} days ago violates the Stage 5.18 invariant: "
+        f"score={_score} cannot band {_band!r} (Good iff score > 5.0)"
+    )
 
 _TAG_SEVERITY = {
     "insufficient_depth": "high",

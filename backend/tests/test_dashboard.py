@@ -36,6 +36,7 @@ def _session(
     confidence=None,
     is_module_b: bool = False,
     tags: list | None = None,
+    rep_count: int | None = None,
 ) -> SimpleNamespace:
     # A Module B session always carries a module_b_result (even if confidence is
     # None); that presence is how the builders classify the exercise type.
@@ -49,6 +50,7 @@ def _session(
         capture_quality=capture_quality,
         module_b_result=module_b_result,
         module_b_error_tags=tags or [],
+        rep_count=rep_count,
     )
 
 
@@ -105,6 +107,19 @@ class BuildTrendsTests(unittest.TestCase):
         trends = build_trends(sessions)
         self.assertIsNone(trends["sit_to_stand"].points[0].confidence)
         self.assertEqual(trends["squat"].points[0].confidence, 0.8125)
+
+    def test_rep_count_is_denormalized_onto_the_trend_point(self) -> None:
+        # Stage 5.22: lets the frontend chart attempts vs counted reps per session
+        # without a second endpoint. None for exercises with no rep concept (SLS/WBLT).
+        sessions = [
+            _session("squat", is_module_b=True, score=Decimal("6.7"), rep_count=9),
+            _session(
+                "supported_single_leg_stance", score=Decimal("8.0"), rep_count=None
+            ),
+        ]
+        trends = build_trends(sessions)
+        self.assertEqual(trends["squat"].points[0].rep_count, 9)
+        self.assertIsNone(trends["supported_single_leg_stance"].points[0].rep_count)
 
     def test_score_trend_never_asserts_published_mdc(self) -> None:
         # No published MDC exists on the 0-10 score, even for WBLT.

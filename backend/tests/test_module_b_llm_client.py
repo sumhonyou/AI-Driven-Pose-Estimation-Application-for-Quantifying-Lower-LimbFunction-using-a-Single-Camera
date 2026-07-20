@@ -52,8 +52,20 @@ class _FakeResponse:
 
 class GroqClientSuccessTests(unittest.TestCase):
     def test_successful_rewrite_returns_text(self) -> None:
+        # Stage 5.17: the model must reply with the {summary, tips} JSON contract.
         ok_response = _FakeResponse(
-            200, {"choices": [{"message": {"content": "Nice set, keep it up."}}]}
+            200,
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {"summary": "Nice set, keep it up.", "tips": []}
+                            )
+                        }
+                    }
+                ]
+            },
         )
         with patch(
             "app.module_b.core.llm_client.httpx.post", return_value=ok_response
@@ -61,10 +73,27 @@ class GroqClientSuccessTests(unittest.TestCase):
             client = GroqClient(api_key="test-key")
             result = client.rewrite_feedback(structured=_structured())
 
-        self.assertEqual(result.text, "Nice set, keep it up.")
+        self.assertEqual(
+            json.loads(result.text), {"summary": "Nice set, keep it up.", "tips": []}
+        )
         self.assertEqual(result.provider, "groq")
         self.assertEqual(result.model_version, GROQ_MODEL)
         self.assertEqual(post.call_count, 1)  # no retry needed on success
+
+    def test_a_wrapping_code_fence_is_tolerated(self) -> None:
+        """LLMs routinely wrap JSON in ```-fences despite being told not to; the parser
+        strips it rather than treating a cosmetic habit as a contract violation."""
+        fenced = (
+            "```json\n" + json.dumps({"summary": "Good set.", "tips": []}) + "\n```"
+        )
+        ok_response = _FakeResponse(
+            200, {"choices": [{"message": {"content": fenced}}]}
+        )
+        with patch("app.module_b.core.llm_client.httpx.post", return_value=ok_response):
+            client = GroqClient(api_key="test-key")
+            result = client.rewrite_feedback(structured=_structured())
+
+        self.assertEqual(json.loads(result.text), {"summary": "Good set.", "tips": []})
 
 
 class GroqClientFailureTests(unittest.TestCase):
@@ -117,6 +146,37 @@ class GroqClientFailureTests(unittest.TestCase):
         self.assertIsNone(result.text)
         self.assertEqual(post.call_count, 2)  # retried, still empty both times
 
+    def test_malformed_json_is_retried_then_treated_as_failure(self) -> None:
+        """Stage 5.17: a reply that ignores the JSON contract is treated exactly like a
+        timeout -- retried once, then surfaced as a failure, never shown half-parsed."""
+        prose_response = _FakeResponse(
+            200,
+            {"choices": [{"message": {"content": "Great set! Keep it up."}}]},
+        )
+        with patch(
+            "app.module_b.core.llm_client.httpx.post", return_value=prose_response
+        ) as post:
+            client = GroqClient(api_key="test-key")
+            result = client.rewrite_feedback(structured=_structured())
+
+        self.assertIsNone(result.text)
+        self.assertEqual(result.error, "invalid_json")
+        self.assertEqual(post.call_count, 2)  # retried, still malformed both times
+
+    def test_valid_json_missing_the_tips_key_is_treated_as_failure(self) -> None:
+        wrong_shape = _FakeResponse(
+            200, {"choices": [{"message": {"content": json.dumps({"summary": "Ok."})}}]}
+        )
+        with patch(
+            "app.module_b.core.llm_client.httpx.post", return_value=wrong_shape
+        ) as post:
+            client = GroqClient(api_key="test-key")
+            result = client.rewrite_feedback(structured=_structured())
+
+        self.assertIsNone(result.text)
+        self.assertEqual(result.error, "invalid_json")
+        self.assertEqual(post.call_count, 2)
+
 
 class PayloadContentTests(unittest.TestCase):
     def test_payload_carries_only_metrics_and_tags_never_raw_frames(self) -> None:
@@ -134,7 +194,11 @@ class PayloadContentTests(unittest.TestCase):
 
         user_message = payload["messages"][1]["content"]
         self.assertIn("insufficient_depth", user_message)
-        self.assertIn("Poor", user_message)
+        # Stage 5.17: the DISPLAY label goes to the model, never the internal "Poor"
+        # value -- otherwise nothing stops it writing "the Poor band" verbatim, which
+        # then contradicts the UI's own relabelling.
+        self.assertIn("Needs Improvement", user_message)
+        self.assertNotIn("'Poor'", user_message)
         # No landmark/frame-shaped keys can appear -- StructuredFeedback never carries
         # them in the first place, so this also guards against a future field addition.
         for forbidden in ("worldLandmarks", "timestampMs", "frames"):

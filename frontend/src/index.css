@@ -47,6 +47,11 @@ html[data-theme="light"] {
   --on-accent: #04160a;
   --good: var(--emerald);
   --good-bg: rgba(0, 174, 84, 0.12);
+  /* Stage 5.21: was referenced by .squat-reject-note/.rep-breakdown with a hardcoded
+     fallback (rgba(245,158,11,.12), a DIFFERENT amber to --amber's #f5b731) and never
+     actually defined here, so the fallback always won and never adapted to dark mode.
+     Derived from --amber's own rgb (245, 183, 49), same alpha convention as --good-bg. */
+  --warn-bg: rgba(245, 183, 49, 0.14);
   color-scheme: light;
 }
 
@@ -71,6 +76,7 @@ html[data-theme="dark"] {
   --on-accent: #04160a;
   --good: var(--lime);
   --good-bg: rgba(155, 255, 0, 0.13);
+  --warn-bg: rgba(245, 183, 49, 0.16);
   color-scheme: dark;
 }
 
@@ -2340,6 +2346,10 @@ html[data-theme="dark"] .trend.down {
   font-size: 1.06rem;
   font-weight: 700;
   color: var(--text-3);
+  /* .mv's tight letter-spacing (for the big number) inherits here too,
+     crushing "6.4" against "/10" and "83" against "%" with no visible gap. */
+  letter-spacing: normal;
+  margin-left: 2px;
 }
 .metric .ml {
   font-size: 0.84rem;
@@ -3475,6 +3485,135 @@ html[data-theme="dark"] .ex-card .ex-img {
   text-align: center;
   line-height: 1.35;
 }
+/* Stage 5.21: the live-feedback panel, promoted directly under the Time/Reps HUD so
+   corrective feedback is the most prominent thing on screen while exercising at a
+   distance. Always shows the LAST rep's verdict (idle/counted/rejected) and never
+   auto-clears -- the state only changes on the next rep, giving both praise and
+   correction a constant, predictable location. Fixed min-height so switching between
+   the three states never shifts the layout underneath it. */
+.live-feedback-panel {
+  border-radius: var(--r-lg);
+  border: 2px solid var(--border);
+  padding: 22px 24px;
+  min-height: 128px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  transition:
+    background-color 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+.live-feedback-panel.idle {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.live-feedback-panel.counted {
+  background: var(--good-bg);
+  border-color: var(--good);
+}
+.live-feedback-panel.rejected {
+  background: var(--warn-bg);
+  border-color: var(--amber);
+}
+.live-feedback-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.live-feedback-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.live-feedback-panel.idle .live-feedback-icon {
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+.live-feedback-panel.counted .live-feedback-icon {
+  background: var(--good);
+  color: var(--on-accent);
+}
+.live-feedback-panel.rejected .live-feedback-icon {
+  background: var(--amber);
+  color: var(--on-accent);
+}
+/* Legible at a distance while exercising -- this is the largest text weight/size on
+   the page apart from the HUD numbers, deliberately: it is what the user most needs
+   to read without stepping toward the screen. */
+.live-feedback-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text);
+}
+.live-feedback-panel.counted .live-feedback-title {
+  color: var(--accent-text);
+}
+.live-feedback-panel.rejected .live-feedback-title {
+  color: var(--text);
+}
+.live-feedback-reasons {
+  margin: 4px 0 0 52px;
+  padding-left: 20px;
+  list-style: disc;
+}
+.live-feedback-reasons li {
+  /* Up from the report's 0.9rem reason text -- this is read mid-exercise, not at rest. */
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+.live-feedback-detail {
+  margin-left: 52px;
+  font-size: 0.94rem;
+  color: var(--text-2);
+}
+
+/* Post-session rep breakdown: how many reps counted, and the named faults for those
+   that didn't. Same warning tone as the live "didn't count" note, deliberately. */
+.rep-breakdown {
+  background: var(--warn-bg, rgba(245, 183, 49, 0.14));
+  border: 1px solid var(--amber);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  font-size: 0.9rem;
+}
+.rep-breakdown ul {
+  margin: 8px 0 0;
+  /* Tailwind Preflight resets `list-style: none` globally -- restore the marker or
+     these read as unstructured run-on lines (the Stage 5.17 bullet defect). */
+  list-style: disc;
+  padding-left: 22px;
+}
+.rep-breakdown li {
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+/* "That rep didn't count" — a rejected rep's reason, shown live under the counter.
+   Warning-toned, not error-toned: the rep is coachable feedback, not a failure. */
+.squat-reject-note {
+  background: var(--warn-bg, rgba(245, 183, 49, 0.14));
+  border: 1px solid var(--amber);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+.squat-reject-note ul {
+  margin: 6px 0 0;
+  list-style: disc;
+  padding-left: 22px;
+}
+.squat-reject-note li {
+  margin-top: 3px;
+  line-height: 1.4;
+}
 .knee-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3687,7 +3826,11 @@ html[data-theme="dark"] .ex-card .ex-img {
   color: var(--text);
   font-weight: 600;
 }
-.sub-score .ss-top span {
+/* Direct-child selector only: a descendant `span` here would also match
+   InfoTooltip's own `.info-tooltip-panel` (it renders as a nested `<span>`
+   when `row.info` puts the trigger inside the `<b>` label), overriding its
+   size/weight/color with this value-number styling. */
+.sub-score .ss-top > span {
   font-size: 1.31rem;
   font-weight: 800;
   color: var(--accent-text);
@@ -3709,6 +3852,21 @@ html[data-theme="dark"] .ex-card .ex-img {
   text-transform: uppercase;
   color: var(--accent-text);
   margin-bottom: 10px;
+}
+/* Stage 5.17: native <p> summary + <ul> tips, replacing a raw string that could carry
+   literal "* " markdown. The site-wide `* { margin: 0 }` reset zeroes both by default. */
+.feedback-box p + ul {
+  margin-top: 10px;
+}
+.feedback-box ul {
+  list-style: disc;
+  padding-left: 22px;
+}
+.feedback-box li {
+  margin-top: 6px;
+}
+.feedback-box li:first-child {
+  margin-top: 0;
 }
 
 /* Merged Module A "coaching" panel: one card per flagged issue, pairing the

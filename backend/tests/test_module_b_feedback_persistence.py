@@ -150,5 +150,62 @@ class ThreeStateFeedbackSourceTests(unittest.TestCase):
         self.assertEqual(summary["provider"], "groq")
 
 
+class LegacyPlainTextFeedbackFallbackTests(unittest.TestCase):
+    """Stage 5.17: rows stored before the JSON contract existed hold a plain sentence in
+    `rewritten_feedback`, not `{"summary": ..., "tips": [...]}`. The read path must wrap
+    them rather than crash, so old sessions in a user's history keep rendering."""
+
+    def test_a_pre_stage_5_17_row_is_wrapped_as_a_summary_with_no_tips(self) -> None:
+        db = _FakeDb()
+        row = save_feedback(
+            db,
+            session_id=uuid4(),
+            feedback=FeedbackWrite(
+                structured_feedback="Grade: Good. No specific issues were flagged.",
+                rewritten_feedback="Grade: Good. No specific issues were flagged.",
+                feedback_source="template",
+                llm_attempted=False,
+            ),
+        )
+
+        summary = feedback_summary(row)
+
+        self.assertEqual(
+            summary["rewritten_feedback_structured"],
+            {
+                "summary": "Grade: Good. No specific issues were flagged.",
+                "tips": [],
+            },
+        )
+        # The raw stored string is untouched -- only the new field is derived from it.
+        self.assertEqual(
+            summary["rewritten_feedback"],
+            "Grade: Good. No specific issues were flagged.",
+        )
+
+    def test_a_stage_5_17_json_row_parses_into_its_real_summary_and_tips(self) -> None:
+        db = _FakeDb()
+        row = save_feedback(
+            db,
+            session_id=uuid4(),
+            feedback=FeedbackWrite(
+                structured_feedback='{"summary": "Grade: Good.", "tips": ["Nice tempo."]}',
+                rewritten_feedback='{"summary": "Grade: Good.", "tips": ["Nice tempo."]}',
+                feedback_source="template",
+                llm_attempted=False,
+            ),
+        )
+
+        summary = feedback_summary(row)
+
+        self.assertEqual(
+            summary["rewritten_feedback_structured"],
+            {"summary": "Grade: Good.", "tips": ["Nice tempo."]},
+        )
+
+    def test_no_feedback_row_yields_no_structured_field_crash(self) -> None:
+        self.assertIsNone(feedback_summary(None))
+
+
 if __name__ == "__main__":
     unittest.main()

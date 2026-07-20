@@ -134,6 +134,11 @@ class Session(Base):
     # Denormalized like score/band. NULL for exercises with no rep concept
     # (SLS, WBLT) and for sessions recorded before this column existed.
     rep_count: Mapped[int | None] = mapped_column(Integer)
+    # The goal the user picked before the set, so the report can distinguish
+    # "attempted 16" from "attempted 16 while aiming for 10". Optional in the UI, so
+    # NULL is a normal value. Written by the Module B analyze endpoint rather than
+    # session/start -- the target is chosen after the session row already exists.
+    target_rep_count: Mapped[int | None] = mapped_column(Integer)
     device_info: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

@@ -8,7 +8,14 @@
 // in sync with the backend; the constants below are only the pre-fetch fallback
 // (X7 — do not hand-sync these long-term, per Phase 3E Stage 5's lesson).
 import { LM, type WorldLandmark } from "../../types/pose";
+import { createOcclusionReleaser, LandmarkSmoother } from "../oneEuroFilter";
 import { moduleBService } from "../../services/moduleBService";
+import {
+  createHeelRiseTracker,
+  evaluateSquatFaultGates,
+  type SquatFaultGateConfig,
+  type SquatFaultTag,
+} from "./squatFaultGates";
 
 export type SquatLiveConfig = {
   enterDescendingDeg: number;
@@ -19,6 +26,10 @@ export type SquatLiveConfig = {
   romParallelStartDeg: number;
   romDeepStartDeg: number;
   romDeepFullScoreDeg: number;
+  faultGates: SquatFaultGateConfig;
+  /** Mirrors core config's interpolation_max_gap_frames — how long an occlusion may
+   * last before hold-last is released. */
+  interpolationMaxGapFrames: number;
 };
 
 export const FALLBACK_SQUAT_LIVE_CONFIG: SquatLiveConfig = {
@@ -30,6 +41,17 @@ export const FALLBACK_SQUAT_LIVE_CONFIG: SquatLiveConfig = {
   romParallelStartDeg: 90.0,
   romDeepStartDeg: 110.0,
   romDeepFullScoreDeg: 130.0,
+  interpolationMaxGapFrames: 5,
+  // Pre-fetch fallback only, mirroring squat/config.py's fault_gates block. The real
+  // values arrive from the backend config endpoint (X7).
+  faultGates: {
+    depthEnabled: true,
+    minKneeFlexPeakDeg: 78.04,
+    leanEnabled: true,
+    faultTrunkLeanPeakDeg: 41.42411876009375,
+    heelRiseEnabled: true,
+    faultHeelRisePeakNorm: 0.08399336939375095,
+  },
 };
 
 /** Binary band cut for the live ROM estimate (Stage 5.11). The authoritative
@@ -46,7 +68,11 @@ export type SquatBandEstimate = "Poor" | "Good" | null;
 export type SquatDepthZone = "minimal" | "shallow" | "parallel" | "deep";
 
 export interface SquatLiveUpdate {
+  /** Reps that COUNT toward the target: completed movements that passed every gate. */
   repCount: number;
+  /** Every completed movement, gate failures included. Drives the attempt cap so a user
+   * who cannot pass a gate is never trapped repeating it forever. */
+  attemptCount: number;
   phase: SquatPhase;
   /** Current bilateral mean knee flexion (0deg straight, increasing as the knee bends). */
   currentFlexionDeg: number;
@@ -59,6 +85,10 @@ export interface SquatLiveUpdate {
   lastRepBandEstimate: SquatBandEstimate;
   /** True only on the exact frame a rep was just confirmed — used to trigger sounds/toasts. */
   repJustCompleted: boolean;
+  /** True only on the exact frame a completed rep was REJECTED by a fault gate. */
+  repJustRejected: boolean;
+  /** Why the last rep was rejected; empty when it passed. i18n via `moduleB.tag_<tag>`. */
+  lastRepFailedGates: SquatFaultTag[];
 }
 
 /** Which named ROM zone a live flexion angle currently falls in. */
@@ -82,7 +112,23 @@ export async function fetchSquatLiveConfig(): Promise<SquatLiveConfig> {
     const exercise = config.exercise as Record<string, unknown>;
     const segmentation = (exercise?.segmentation ?? {}) as Record<string, number>;
     const rom = ((exercise?.rules as Record<string, unknown>)?.rom ?? {}) as Record<string, number>;
+    const core = (config.core ?? {}) as Record<string, number>;
+    const gates = (exercise?.fault_gates ?? {}) as Record<string, Record<string, unknown>>;
+    const fallbackGates = FALLBACK_SQUAT_LIVE_CONFIG.faultGates;
     return {
+      faultGates: {
+        // `enabled` is honoured so disabling a gate server-side also disables it live.
+        depthEnabled: (gates.depth?.enabled as boolean) ?? fallbackGates.depthEnabled,
+        minKneeFlexPeakDeg:
+          (gates.depth?.min_knee_flex_peak_deg as number) ?? fallbackGates.minKneeFlexPeakDeg,
+        leanEnabled: (gates.lean?.enabled as boolean) ?? fallbackGates.leanEnabled,
+        faultTrunkLeanPeakDeg:
+          (gates.lean?.fault_trunk_lean_peak_deg as number) ?? fallbackGates.faultTrunkLeanPeakDeg,
+        heelRiseEnabled: (gates.heel_rise?.enabled as boolean) ?? fallbackGates.heelRiseEnabled,
+        faultHeelRisePeakNorm:
+          (gates.heel_rise?.fault_heel_rise_peak_norm as number) ??
+          fallbackGates.faultHeelRisePeakNorm,
+      },
       enterDescendingDeg:
         segmentation.enter_descending_deg ?? FALLBACK_SQUAT_LIVE_CONFIG.enterDescendingDeg,
       exitStandingDeg: segmentation.exit_standing_deg ?? FALLBACK_SQUAT_LIVE_CONFIG.exitStandingDeg,
@@ -94,6 +140,8 @@ export async function fetchSquatLiveConfig(): Promise<SquatLiveConfig> {
       romDeepStartDeg: rom.deep_start_deg ?? FALLBACK_SQUAT_LIVE_CONFIG.romDeepStartDeg,
       romDeepFullScoreDeg:
         rom.deep_full_score_deg ?? FALLBACK_SQUAT_LIVE_CONFIG.romDeepFullScoreDeg,
+      interpolationMaxGapFrames:
+        core.interpolation_max_gap_frames ?? FALLBACK_SQUAT_LIVE_CONFIG.interpolationMaxGapFrames,
     };
   } catch (err) {
     console.error("[squatLiveEstimate] Config fetch failed, using fallback thresholds", err);
@@ -171,9 +219,20 @@ function scoreToBandEstimate(score: number): SquatBandEstimate {
   return score >= BAND_GOOD_MIN_SCORE ? "Good" : "Poor";
 }
 
-/** Stateful per-set live tracker: hysteresis rep counter + per-rep ROM band estimate. */
+/** Stateful per-set live tracker: hysteresis rep counter + per-rep ROM band estimate.
+ *
+ * World landmarks are smoothed here before segmentation, because the backend segments
+ * the One-Euro-smoothed stream (core/preprocessing.py) while MediaPipe hands us raw ones
+ * (useMediaPipePose only smooths the 2D landmarks, for drawing). Without this the two
+ * counters read different signals and disagree on borderline reps near the 30 deg entry.
+ * Note this is closer parity, not exact: the backend also gap-fills and releases long
+ * occlusions first, and both of those need future frames, so they can't run live. */
 export function createSquatLiveEstimator(config: SquatLiveConfig = FALLBACK_SQUAT_LIVE_CONFIG) {
+  let smoother = new LandmarkSmoother<WorldLandmark>();
+  let releaser = createOcclusionReleaser(config.interpolationMaxGapFrames);
+  const heelRise = createHeelRiseTracker();
   let repCount = 0;
+  let attemptCount = 0;
   let phase: SquatPhase = "standing";
   let active = false;
   let candidateStartS: number | null = null;
@@ -184,15 +243,19 @@ export function createSquatLiveEstimator(config: SquatLiveConfig = FALLBACK_SQUA
   let lastRepPeakDeg: number | null = null;
   let lastRepPeakTrunkLeanDeg: number | null = null;
   let lastRepBandEstimate: SquatBandEstimate = null;
+  let lastRepFailedGates: SquatFaultTag[] = [];
 
   return {
     update(worldLandmarks: WorldLandmark[], nowMs: number): SquatLiveUpdate {
       const timestampS = nowMs / 1000;
       let repJustCompleted = false;
+      let repJustRejected = false;
 
+      // Heel rise needs landmarks through 32, two beyond what segmentation needs.
       if (!worldLandmarks || worldLandmarks.length <= 28) {
         return {
           repCount,
+          attemptCount,
           phase,
           currentFlexionDeg: 0,
           currentTrunkLeanDeg: 0,
@@ -201,10 +264,17 @@ export function createSquatLiveEstimator(config: SquatLiveConfig = FALLBACK_SQUA
           lastRepPeakTrunkLeanDeg,
           lastRepBandEstimate,
           repJustCompleted,
+          repJustRejected,
+          lastRepFailedGates,
         };
       }
-      const flexion = meanKneeFlexionDeg(worldLandmarks);
-      const trunkLean = trunkLeanDeg(worldLandmarks);
+      // Release long occlusions BEFORE smoothing, matching the backend's order:
+      // gap-fill -> release -> One Euro. Without this a persistently low-visibility
+      // limb freezes at its standing pose and no rep is ever detected.
+      const released = releaser.apply(worldLandmarks);
+      const smoothed = smoother.smoothFrame(timestampS, released);
+      const flexion = meanKneeFlexionDeg(smoothed);
+      const trunkLean = trunkLeanDeg(smoothed);
 
       if (!active) {
         if (timestampS >= refractoryUntilS && flexion >= config.enterDescendingDeg) {
@@ -212,25 +282,48 @@ export function createSquatLiveEstimator(config: SquatLiveConfig = FALLBACK_SQUA
           candidateStartS = timestampS;
           peakFlexionDeg = flexion;
           peakTrunkLeanDeg = trunkLean;
+          heelRise.reset();
+          heelRise.record(smoothed);
           phase = "descending";
         }
       } else {
         if (flexion > peakFlexionDeg) peakFlexionDeg = flexion;
         if (trunkLean > peakTrunkLeanDeg) peakTrunkLeanDeg = trunkLean;
+        heelRise.record(smoothed);
         phase = flexion >= previousFlexionDeg ? "descending" : "ascending";
 
         if (flexion <= config.exitStandingDeg) {
           const durationS = timestampS - (candidateStartS ?? timestampS);
           if (durationS + 1e-9 >= config.minRepDurationS) {
-            repCount += 1;
+            // A completed movement. Whether it COUNTS is the fault gates' call — the
+            // same three the backend runs over every rep, so a rejection here matches
+            // what the report will say. An attempt is recorded either way.
+            lastRepFailedGates = evaluateSquatFaultGates(
+              {
+                kneeFlexPeakDeg: peakFlexionDeg,
+                trunkLeanPeakDeg: peakTrunkLeanDeg,
+                heelRisePeakNorm: heelRise.result(),
+              },
+              config.faultGates,
+            );
+            attemptCount += 1;
             lastRepPeakDeg = peakFlexionDeg;
             lastRepPeakTrunkLeanDeg = peakTrunkLeanDeg;
             lastRepBandEstimate = scoreToBandEstimate(romScoreEstimate(peakFlexionDeg, config));
-            repJustCompleted = true;
+            if (lastRepFailedGates.length > 0) {
+              repJustRejected = true;
+            } else {
+              repCount += 1;
+              repJustCompleted = true;
+            }
+            // Refractory starts on any CONFIRMED movement, matching core/fsm.py's
+            // _close_candidate (which knows nothing about gates). Arming it on a
+            // rejected short candidate would blind the live counter to a fast rebound
+            // the backend still counts.
+            refractoryUntilS = timestampS + config.refractoryS;
           }
           active = false;
           candidateStartS = null;
-          refractoryUntilS = timestampS + config.refractoryS;
           phase = "standing";
         }
       }
@@ -238,6 +331,7 @@ export function createSquatLiveEstimator(config: SquatLiveConfig = FALLBACK_SQUA
 
       return {
         repCount,
+        attemptCount,
         phase,
         currentFlexionDeg: flexion,
         currentTrunkLeanDeg: trunkLean,
@@ -246,10 +340,19 @@ export function createSquatLiveEstimator(config: SquatLiveConfig = FALLBACK_SQUA
         lastRepPeakTrunkLeanDeg,
         lastRepBandEstimate,
         repJustCompleted,
+        repJustRejected,
+        lastRepFailedGates,
       };
     },
     reset() {
+      // A fresh smoother per set — One Euro is stateful, so carrying it across sets
+      // would let the previous set's last pose bias the first frames of the next.
+      smoother = new LandmarkSmoother<WorldLandmark>();
+      releaser = createOcclusionReleaser(config.interpolationMaxGapFrames);
+      heelRise.reset();
       repCount = 0;
+      attemptCount = 0;
+      lastRepFailedGates = [];
       phase = "standing";
       active = false;
       candidateStartS = null;

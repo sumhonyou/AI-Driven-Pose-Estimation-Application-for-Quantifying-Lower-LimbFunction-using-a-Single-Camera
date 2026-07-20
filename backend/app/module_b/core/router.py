@@ -1,6 +1,5 @@
 """Thin generic HTTP router for all Module B exercise plugins."""
 
-import dataclasses
 import logging
 from uuid import UUID
 
@@ -15,18 +14,19 @@ from app.db.models import Session as SessionModel
 from app.db.models import User
 from app.module_b.core import crud
 from app.module_b.core.feedback import build_structured_feedback
+from app.module_b.core.feedback_contract import serialize as serialize_feedback_contract
 from app.module_b.core.feedback_safety import check_llm_feedback
 from app.module_b.core.feedback_templates import (
     CURRENT_DISCLAIMER_VERSION,
     compose_template,
 )
-from app.module_b.core.fusion import fuse_model
 from app.module_b.core.llm_client import GroqClient
 from app.module_b.core.model_registry import get_model_bundle
 from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.core.quality import assess_capture_quality
 from app.module_b.core.registry import get_exercise
 from app.module_b.core.schemas import ModuleBAnalyzeRequest, ModuleBResultResponse
+from app.module_b.core.set_scoring import failed_gates_by_rep, score_set
 from app.module_b.squat import trend as squat_trend
 
 logger = logging.getLogger(__name__)
@@ -98,19 +98,20 @@ def analyze_module_b_session(
     # Stage 5.8: the registered trained bundle, keyed by the exercise's own
     # model_key so a future exercise's artifact is picked up without a router change.
     model = get_model_bundle(exercise.model_key)
-    fusion = fuse_model(
+    # Gates run first now: Stage 5.13 folds each rep's gate failures into that rep's own
+    # verdict, instead of Stage 5.12's blanket "any gate fails -> the whole set is Poor"
+    # override (which condemned a long set for one bad rep and left `score` contradicting
+    # the band). Gate-less exercises return None and are unaffected.
+    gate_result = exercise.evaluate_fault_gates(reps, feature_vectors)
+    set_score = score_set(
         rule_scores=rule_scores,
         model=model,
-        features=feature_vectors[0],
+        feature_vectors=feature_vectors,
         q=float(quality["q"]),
         band_policy=exercise.band_policy,
+        failed_gates_by_rep=failed_gates_by_rep(gate_result),
     )
-    # Stage 5.12: interpretable fault gates run across EVERY rep (the ML above only
-    # scores rep 0). Any failed gate overrides the fused band to Poor with a specific,
-    # human-readable reason. Gate-less exercises return None here and are untouched.
-    gate_result = exercise.evaluate_fault_gates(reps, feature_vectors)
-    if gate_result is not None and not gate_result.all_passed:
-        fusion = dataclasses.replace(fusion, band="Poor")
+    fusion = set_score.fusion
     result = crud.save_result(
         db,
         session=session,
@@ -121,6 +122,8 @@ def analyze_module_b_session(
         reps=reps,
         quality=quality,
         error_tags=_build_error_tags(exercise, fusion, gate_result, rule_scores),
+        rep_verdicts=set_score.rep_verdicts,
+        target_rep_count=payload.target_rep_count,
     )
     summary = crud.result_summary(result, crud.get_error_tags(db, session.id))
     summary["feedback"] = _build_and_save_feedback(
@@ -200,7 +203,10 @@ def _build_and_save_feedback(
     gets a working report even if the LLM is disabled, times out, or is rejected.
     """
     structured = build_structured_feedback(summary)
-    template_text = compose_template(structured)
+    # Stage 5.17: template_text is now the canonical `feedback_contract` JSON string,
+    # the same shape an accepted LLM rewrite produces -- the report always renders one
+    # thing regardless of which layer wrote it.
+    template_text = serialize_feedback_contract(compose_template(structured))
 
     rewritten_text = template_text
     feedback_source = "template"
@@ -227,12 +233,24 @@ def _build_and_save_feedback(
             if safety.accepted:
                 rewritten_text = result.text
                 feedback_source = "llm"
+                # Stage 5.23: the failure/rejection paths above already logged
+                # themselves; without this, a successful rewrite was the one outcome
+                # that printed nothing at all, which read identically to "logging is
+                # broken" from the terminal. Every branch now logs exactly once.
+                logger.info(
+                    "module-b feedback llm_used session=%s provider=%s model=%s",
+                    session_id,
+                    provider,
+                    model_version,
+                )
             else:
                 logger.info(
                     "module-b feedback llm_rejected session=%s reason=%s",
                     session_id,
                     safety.reason,
                 )
+    else:
+        logger.info("module-b feedback llm_disabled session=%s", session_id)
 
     row = crud.save_feedback(
         db,

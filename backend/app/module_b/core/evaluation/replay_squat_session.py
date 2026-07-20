@@ -45,18 +45,17 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import json
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from app.module_b.core.features import FeatureVector
-from app.module_b.core.fusion import fuse_model, fuse_scores
 from app.module_b.core.model_registry import get_model_bundle
 from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.core.quality import assess_capture_quality
 from app.module_b.core.registry import get_exercise
+from app.module_b.core.set_scoring import failed_gates_by_rep, score_set
 from app.module_b.squat.rules import score_squat_set
 
 CORPUS_DIR = Path(__file__).resolve().parents[2] / "replay_corpus" / "squat"
@@ -87,20 +86,19 @@ def analyse_frames(frames: list[dict[str, Any]]) -> dict[str, Any]:
     if rule_scores.score is None:
         raise ValueError("No rule score is available for this set")
 
-    fusion = fuse_model(
+    # Faithful to the endpoint (Stage 5.13): gates are evaluated first and folded into
+    # each rep's own verdict, then the set's band is a strict majority of those verdicts.
+    # Keeping this in step with router.py matters — the pre-5.11 harness diverged on
+    # band_policy exactly this way, and the corpus silently encoded the wrong band.
+    gate_result = exercise.evaluate_fault_gates(reps, feature_vectors)
+    fusion = score_set(
         rule_scores=rule_scores,
         model=get_model_bundle(exercise.model_key),
-        features=feature_vectors[0],
+        feature_vectors=feature_vectors,
         q=float(quality["q"]),
-        # Faithful to the endpoint: squat's committed binary band policy (Stage 5.11).
         band_policy=exercise.band_policy,
-    )
-    # Faithful to the endpoint (Stage 5.12): fault gates run across every rep and
-    # override the band to Poor if any fails. Without this the replay would diverge
-    # from router.py the same way the pre-Stage-5.11 harness diverged on band_policy.
-    gate_result = exercise.evaluate_fault_gates(reps, feature_vectors)
-    if gate_result is not None and not gate_result.all_passed:
-        fusion = dataclasses.replace(fusion, band="Poor")
+        failed_gates_by_rep=failed_gates_by_rep(gate_result),
+    ).fusion
     return {
         "n_reps": len(reps),
         "score": fusion.score,
@@ -130,19 +128,23 @@ def replay_rules_and_fusion(
     rebuilt). Passing a list of `None`s would happen to work only because the squat
     implementation ignores its `reps` argument today — depending on that would be
     depending on an implementation detail that is free to change.
+
+    ⚠ **Fault gates cannot run here** (heel-rise reads raw frames, which were never
+    stored), so a set whose stored band was decided by a gate failure will replay with
+    the model-only band. That gap predates Stage 5.13 — this path never ran gates — but
+    per-rep voting makes it visible more often, since gates now decide single reps rather
+    than the whole set. Compare bands from this path with that caveat in mind.
     """
     rule_scores = score_squat_set(feature_vectors)
     if rule_scores.score is None:
         raise ValueError("No rule score is available for these stored feature vectors")
-    model = get_model_bundle(EXERCISE_CODE)
-    fusion = fuse_scores(
-        rule_score=rule_scores.score,
-        probabilities=model.predict_proba(feature_vectors[0]),
+    fusion = score_set(
+        rule_scores=rule_scores,
+        model=get_model_bundle(EXERCISE_CODE),
+        feature_vectors=feature_vectors,
         q=q,
-        model_version=model.model_version,
-        is_placeholder_model=model.is_placeholder,
         band_policy=get_exercise(EXERCISE_CODE).band_policy,
-    )
+    ).fusion
     return {
         "score": fusion.score,
         "band": fusion.band,

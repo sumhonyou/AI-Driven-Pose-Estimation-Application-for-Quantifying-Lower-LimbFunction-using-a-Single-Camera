@@ -115,6 +115,13 @@ class DepthGateTests(unittest.TestCase):
         features = _feature_vector(knee_flex_peak_deg=DEPTH_MIN)
         self.assertIsNone(depth_gate(features, GATES["depth"], rep_index=0))
 
+    def test_the_message_quotes_the_actual_threshold(self) -> None:
+        """Stage 5.20 made the advice actionable by naming the angle to reach. The number
+        is written into the copy by hand (and duplicated in the frontend's i18n bundle,
+        per Stage 6.2's deliberate-duplication note), so nothing but this test stops the
+        threshold and the advice drifting apart."""
+        self.assertIn(f"{DEPTH_MIN:.0f}°", GATES["depth"]["message"])
+
 
 class LeanGateTests(unittest.TestCase):
     def test_excessive_lean_fails(self) -> None:

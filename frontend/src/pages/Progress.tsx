@@ -8,6 +8,8 @@ import ScoreTrendChart from "../components/charts/ScoreTrendChart";
 import BandDistributionBar from "../components/charts/BandDistributionBar";
 import PercentTrendChart from "../components/charts/PercentTrendChart";
 import ErrorTagBarChart from "../components/charts/ErrorTagBarChart";
+import RepAttemptsBarChart from "../components/charts/RepAttemptsBarChart";
+import { scoreBandThresholdsFor } from "../components/charts/dashboardChartUtils";
 import Dropdown from "../components/Dropdown";
 
 type Range = "7d" | "14d" | "30d" | "90d" | "all";
@@ -178,7 +180,11 @@ export default function Progress() {
                 </span>
               </div>
             </div>
-            <ScoreTrendChart points={points} variant="full" />
+            <ScoreTrendChart
+              points={points}
+              variant="full"
+              thresholds={scoreBandThresholdsFor(selected)}
+            />
 
             <div className="dash-grid" style={{ marginTop: 18, marginBottom: 0 }}>
               <div className="panel" style={{ background: "var(--surface-2)" }}>
@@ -208,20 +214,22 @@ export default function Progress() {
 
             {isModuleB && tags && (
               <div className="dash-grid" style={{ marginTop: 18, marginBottom: 0 }}>
+                {/* Stage 5.22: replaces the old Confidence trend -- a model-internal
+                    diagnostic (P(Good) vs P(Poor)) a patient cannot act on, and one
+                    that never moves for squat in practice (confidence == P(Good) in
+                    every recorded repetition, Stage 5.18's finding). Attempts vs
+                    counted reps is directly actionable and shows training volume the
+                    score alone can't -- since Stage 5.18 the score already equals
+                    10 * counted/attempts, so a percentage chart here would just
+                    replot the score series a second time. */}
                 <div className="panel" style={{ background: "var(--surface-2)" }}>
                   <div className="panel-head">
                     <div>
-                      <h3 style={{ fontSize: "0.94rem" }}>{t("progress.confidenceTrend")}</h3>
-                      <span className="sub">{t("progress.confidenceTrendSub")}</span>
+                      <h3 style={{ fontSize: "0.94rem" }}>{t("progress.repVolumeTrend")}</h3>
+                      <span className="sub">{t("progress.repVolumeTrendSub")}</span>
                     </div>
                   </div>
-                  <PercentTrendChart
-                    points={points}
-                    dataKey="confidence"
-                    color="var(--accent-text)"
-                    label={t("dash.confidence")}
-                    variant="full"
-                  />
+                  <RepAttemptsBarChart points={points} />
                 </div>
                 <div className="panel" style={{ background: "var(--surface-2)" }}>
                   <div className="panel-head">

@@ -2261,6 +2261,777 @@ band="Poor")`on any failure + new`_fault_gate_tags()`helper (duck-typed,`source=
   retrain / no new ML feature. Lunge + Module A untouched (hook returns None).
   ```
 
+### Phase 5 — Stage 5.13: Rep-count parity between the live counter and the backend (2026-07-20)
+
+**HY's report (2026-07-20):** "even though I have chosen 10 reps in the squat exercise, sometimes
+it comes out 9 reps." Stage 1 of a 5-stage plan (see
+`~/.claude/plans/need-you-propose-plan-compiled-nova.md`); the remaining stages (set-level ML
+scoring, live fault gates + auto-finish, report clarity, feedback formatting) are **not** started.
+
+- [x] **Root cause 1 — the two counters read different signals.** `useMediaPipePose.ts:51`
+      smooths only the 2D `landmarks` (for drawing); `worldLandmarks` are handed over raw. So the
+      live estimator segmented a **raw** stream while `core/router.py` segments the
+      **One-Euro-smoothed** stream from `preprocess_world_landmarks`. Fixed in
+      `utils/squat/squatLiveEstimate.ts` by smoothing inside `createSquatLiveEstimator` with the
+      **existing** `LandmarkSmoother` from `utils/oneEuroFilter.ts` (same 1.0/0.5/1.0 params as
+      `module_a/core/smoothing.py`) — reused, not forked. A fresh smoother per `reset()`, since
+      One Euro is stateful. Frames posted to the backend stay **raw**, so the backend still runs
+      its own preprocessing exactly once (double-smoothing would re-introduce the divergence).
+- [x] **Root cause 2 — the final rep was dropped.** `HysteresisRepFSM` only confirms a rep on the
+      return below `exit_standing_deg` (20°), so a capture stopping anywhere in the 20–30°
+      hysteresis deadband silently lost a rep the user completed. New opt-in
+      `HysteresisRepFSM.flush(max_signal_to_close=...)` + `SquatSegmentationFSM.flush()`, called
+      once at end-of-stream by `segment_squat_frames`. Gated by new
+      `SQUAT_CONFIG["segmentation"]["flush_trailing_rep"]`. The ceiling is the **existing**
+      `enter_descending_deg` (30°), so **no new tuned number was introduced**, and a capture cut
+      off mid-rep (still deep in the movement) is still discarded.
+- [x] **Root cause 3 — refractory divergence.** `squatLiveEstimate.ts` armed the refractory window
+      on _every_ exit; `fsm.py:_close_candidate` arms it only on a **confirmed** rep. Aligned to
+      the backend, so a fast rebound the backend counts is no longer invisible to the live counter.
+- [x] **Verified by a cross-language parity sweep** (temporary harness, since a real 10-rep webcam
+      set cannot be automated). One seeded generator produced identical noisy streams for both
+      sides: **6 rep depths × 5 jitter levels = 30 conditions**, 10 reps each. The live estimator
+      and `segment_squat_frames(preprocess_world_landmarks(frames))` now agree in **30/30**.
+      **The decisive condition is a 30.5° peak** — reps hovering on the 30° entry threshold, where
+      the crossing slope is shallowest: raw segments **10** reps but the smoothed/backend stream
+      segments **2 / 7 / 8 / 7 / 9** across the five jitter levels, and the fixed live counter now
+      returns exactly those same numbers. That is HY's "picked 10, got 9" symptom reproduced and
+      closed. Above ~31° peak, raw and smoothed agreed anyway (10/10) — the bug only bites reps
+      near the entry threshold.
+- [x] Backend **276/276** (4 new `TrailingRepFlushTests`; the count is 276 not the 222 quoted in
+      the Stage 5.12 note — the suite grew during Phase 6/7). Frontend vitest 4/4, `tsc` clean,
+      Prettier + Black + `isort --profile black` applied. **Replay corpus unchanged** — every
+      corpus rep already ends at standing, so nothing to flush and no fixture regeneration needed.
+- [ ] **Deliberately not done:** live/backend parity is now _close_, not _exact_ — the backend also
+      gap-fills and releases persistent occlusions before smoothing, and **both need future frames,
+      so neither can run live**. Residual divergence is possible on captures with long
+      low-visibility runs. Not measured here; flag for the limitations write-up.
+- [ ] **Not started (later stages of the same plan):** ML still scores only `feature_vectors[0]`;
+      the fault-gate band override still leaves `fusion.score` untouched (the 8.0-vs-"Needs
+      Improvement" contradiction); target reps still do not auto-finish; feedback still renders
+      raw markdown.
+
+### Phase 5 — Stage 5.14: Set-level ML scoring by majority vote (2026-07-20)
+
+**HY's report (2026-07-20):** a post-session squat report showed **8.0/10 next to "Needs
+Improvement"**. Root cause was two-fold and both halves are fixed here. Stage 2 of the same
+5-stage plan; Stages 3-5 (live fault gates + auto-finish, report clarity, feedback
+formatting) are **not** started.
+
+- [x] **Fixed the long-deferred single-rep defect.** `router.py` passed
+      `features=feature_vectors[0]`, so with `w_rule=0.0` the whole displayed score was
+      `10 × P(Good)` **for rep 0 only** — flagged at Stage 5.12 and deferred there. New
+      `backend/app/module_b/core/set_scoring.py` (`score_set`, `RepVerdict`, `SetScoreResult`,
+      `failed_gates_by_rep`) scores **every** rep. Driven entirely by a new
+      `band_policy["aggregation"] = "majority_vote"` key, so an exercise without it keeps the
+      exact single-vector path — **Module A untouched by construction** (same additive pattern
+      as `band_policy` and the gate hook). A placeholder model never votes.
+- [x] **Majority vote, not a mean — and the reason is the calibration.** The threshold
+      `8.447974` was tuned on **individual** reps (`tune_squat_binary_band.py`, max macro-F1
+      over OOF predictions). Averaging reps then applying that cut changes what the cut means,
+      because a mean over N reps has a far narrower spread. Voting applies the threshold where
+      it was calibrated and **needs no re-calibration** — which matters, because labels are
+      per-rep and **no set-level ground truth exists** to re-tune against. It is also the
+      noise-robust choice at the accepted ~31% per-rep false-alarm rate: on 10 genuinely good
+      reps, "any rep Poor→Poor" misgrades ~**98%** of sets (1−0.69¹⁰), majority ~~**5.5%**
+      (binomial P(X≥6), X~~B(10,0.31)), and the old rep-0 logic **31%** by construction.
+      ⚠ Those assume independent per-rep errors, which they are not — same subject/camera/
+      lighting — so the true majority rate is higher than 5.5%. **Ties break toward Poor.**
+- [x] **Fault gates moved from set-level override to per-rep verdict.** Stage 5.12's
+      `dataclasses.replace(fusion, band="Poor")` is **deleted**. A rep is Good iff the model
+      passes it **and** no gate fired on it. This removes the score/band contradiction's
+      structural cause: one bad rep in 30 no longer condemns the set. `failed_gates_by_rep`
+      lives in `set_scoring.py` and is shared by the router, the replay harness **and** the
+      corpus generator (X1) — a forked copy is exactly how the pre-5.11 harness drifted.
+      **The score is deliberately NOT adjusted to agree with a gate-decided band:**
+      `heel_rise_peak_norm` is rule-only and not in `SQUAT_FEATURE_NAMES`, so the model
+      genuinely cannot see a heel lift. Stage 4 must explain that in the UI, not fake agreement.
+- [x] **Per-rep detail persisted.** `crud._metrics_json` extends each `per_rep_summaries`
+      entry with `ml_score` / `confidence` / `failed_gates` / `counted_good`. Additive only —
+      absent for non-voting exercises, so historical rows still read back.
+- [x] **Live end-to-end verified** (real `fyp_postgres` + real uvicorn on port 8932, curl
+      through register→session/start→analyze, DB checked by direct SQL). A 3-rep corpus sample
+      returned `ml_score=9.2693` = the mean of its three reps (9.2563/9.2571/9.2946); the
+      **old** value was rep 0's 9.2563 exactly. DB row, session row and API response all agree.
+      ⚠⚠ **The decisive check was a MIXED set, which the corpus cannot produce**: 9 reps built
+      by concatenating two clean samples with one depth-failing sample →
+      **6 good / 3 gated → band Good** on a 6/9 majority, with `insufficient_depth` still
+      surfaced as a tag. Under Stage 5.12's override that identical set was Poor. Note reps 6-8
+      scored **9.42-9.45** from the model while failing the depth gate — a live demonstration
+      of the inverted-depth finding (the model cannot judge depth; the gate can).
+- [x] Backend **289/289** (13 new in `tests/test_module_b_set_scoring.py`). **Both key
+      behaviours mutation-checked**, not just asserted: relaxing the strict majority to `>=`
+      failed exactly the tie test; dropping gates from `counted_good` failed 5 tests. Formatted
+      with Black + `isort --profile black`.
+- [x] `PHASE5_CHAPTER_DRAFT.md` §8.7 added; **limitation 20 corrected** (its "the classifier's
+      own verdict continues to be formed from the first repetition alone" clause is now false)
+      and **new limitation 21** records the aggregation rule as a reasoned choice rather than a
+      measured optimum, plus the deliberate relaxation of the gate guarantee.
+- [ ] **⚠ Replay corpus regenerated but it CANNOT test this change.** Its synthetic samples have
+      near-identical reps within each set, so every set is unanimous — precisely where old and
+      new rules agree. **No band changed**; only scores moved (now means over reps) plus a new
+      `good_rep_count`. This **contradicts the plan's prediction** that `good_moderate_depth_1`
+      would flip to Good: all 3 of its reps fail the depth gate (peak 73.69° < 78.04°), so
+      0/3 good → Poor either way. The corpus is now non-regression evidence only; correctness
+      rests on the mixed-verdict unit tests and the live mixed-set check above.
+- [ ] **Deliberately not done:** no model retrain, no threshold re-tune (impossible without
+      set-level labels), no frontend change — the report still renders the old way and still
+      shows no pass mark, so **the 8.0-looks-like-a-pass confusion survives until Stage 4**.
+      `replay_rules_and_fusion` (`--session-id` path) still cannot run gates — heel-rise needs
+      raw frames, which are never stored — so a gate-decided band replays model-only. That gap
+      predates this stage but per-rep voting makes it visible more often; documented in the
+      function's docstring.
+
+### Phase 5 — Stage 5.15: Live fault gates + auto-finish at target (2026-07-20)
+
+**HY's design (2026-07-20):** a rep that trips a fault gate should be rejected **live** with
+its reason and not count toward the target, so the user redoes it — but it is still recorded,
+still sent, and still graded, so the post-session report stays honest about every attempt.
+Stage 3 of the 5-stage plan; Stages 4-5 (report clarity, feedback formatting) **not** started.
+
+- [x] **Fault gates ported to the browser.** New `frontend/src/utils/squat/squatFaultGates.ts`
+      mirrors `squat/fault_gates.py`: depth (`<` threshold), lean (`>=`), heel rise (`>=`),
+      with the same `_heel_rise_peak_norm` construction (peak bilateral toe−heel lift relative
+      to the rep's FIRST frame, divided by mean trunk length) built incrementally, since the
+      live path sees one frame at a time. **Thresholds are never hardcoded** — they come from
+      `GET /api/module-b/squat/config`, which already serves the whole `SQUAT_CONFIG` including
+      the `fault_gates` block; the local constants are pre-fetch fallback only (X7). A gate
+      disabled server-side is disabled live.
+- [x] **Heel gate abstains when it cannot see.** Heels/toes (29-32) are the lowest-visibility
+      landmarks in a side view and a false heel-lift rejection discards a rep the user did
+      correctly. `heelLandmarksVisible` requires all four above `MIN_VISIBILITY`; if any frame
+      of the rep was occluded the tracker returns `null` and **only** the heel gate is skipped
+      (depth and lean still apply), deferring that call to the backend.
+- [x] **Rejected reps don't count but are still attempts.** `SquatLiveUpdate` gains
+      `attemptCount`, `repJustRejected` and `lastRepFailedGates`. The reason renders from the
+      **same i18n keys the report uses** (`moduleB.tag_*`), so live wording and report wording
+      are identical by construction. No success chime on a rejected rep.
+- [x] **Auto-finish at target.** The target now drives the session — pick 10, get exactly 10
+      counted reps. Replaced the one-shot "Hit your goal!" modal (itself a Stage 5.13 root
+      cause: it paused the frame buffer mid-motion). `TARGET_OPTIONS`' "motivational-only"
+      comment and the `targetHitTitle`/`targetHitBody` keys are gone from en/zh/ms; new
+      `repDidNotCount` / `attemptsSummary` / `finishWhenReadyTargeted`.
+- [x] **Attempt cap so nobody is trapped.** `ATTEMPT_CAP_MULTIPLIER = 2` finishes the set at
+      `target × 2` attempts, and "Finish Set" stays available throughout. Necessary because the
+      depth gate is a **clinical** floor (78.04°), not learned from this cohort — a user with
+      restricted mobility may genuinely never pass it, and a rehab tool must not loop forever
+      (rules.md #3, #18).
+- [x] **⚠⚠ Found and fixed a real live/backend divergence the gate check exposed.** On
+      `lowq_reject_occluded_1` the live estimator segmented **0 reps** where the backend found 3. Cause: **every leg landmark is below `MIN_VISIBILITY` in all 342 frames** (median
+      0.450), so `LandmarkSmoother`'s hold-last froze the pose at standing and flexion never
+      crossed the 30° entry — precisely the failure `preprocessing._release_persistent_occlusions`
+      was written to prevent backend-side ("confidently stale" beats nothing). Fixed with a new
+      **opt-in** `createOcclusionReleaser` in `utils/oneEuroFilter.ts`, applied before smoothing
+      to match the backend's gap-fill→release→One-Euro order. `LandmarkSmoother` itself is
+      **untouched**, so WBLT (`services/wblt/wbltGeometry.ts`, the other consumer) is unaffected.
+      This is the residual limitation Stage 5.13 flagged as theoretical — now measured and
+      largely closed.
+- [x] **Cross-language gate parity verified, 7/7.** A temporary harness ran the live estimator
+      over all seven committed corpus samples and compared, per rep, against
+      `evaluate_fault_gates` + `failed_gates_by_rep` on the same frames. Before the occlusion
+      fix: **6/7** (the mismatch above). After: **7/7 exact** — same rep count, same
+      counted/rejected split, and the same specific tag on every rep.
+- [x] Frontend **17/17** (13 new in `src/test/squatFaultGates.test.ts`, covering each gate's
+      comparison direction at its exact boundary, the heel abstention, multi-fault reps and a
+      server-disabled gate). `tsc` clean, Prettier applied. Backend **289/289** unchanged —
+      this stage is frontend-only.
+- [ ] **Deliberately not done:** no new sound file for rejections (visual reason only). The
+      occlusion release is a **causal approximation** — the backend releases a long run
+      retroactively from its first frame, but live the run is only known to be long once it
+      exceeds 5 frames, so the first ~5 frames (~0.2 s at 25 fps) of each run still hold-last.
+      Bounded and self-correcting, but not exact parity.
+- [ ] **⚠ Not verified in a real browser** — the gates and auto-finish were checked against
+      recorded corpus frames, not a live webcam. **HY must confirm in-browser**: a deliberately
+      shallow rep is rejected with the right reason and does not advance the counter; selecting
+      10 yields exactly 10 counted reps; and the attempt cap fires.
+- [ ] **Still open until Stage 4:** the report shows no pass mark, so a score below 8.448 still
+      reads as a pass, and the rejected-attempt count is not surfaced post-session.
+
+### Phase 5 — Stage 5.16: Report clarity — pass mark, band reason, rep breakdown (2026-07-20)
+
+**HY's original report (2026-07-20):** the screenshot showing 8.0/10 next to "Needs
+Improvement" with no explanation. Stage 4 of the 5-stage plan; this closes the original
+complaint structurally rather than by fixing one number. Stage 5 (feedback formatting)
+**not** started.
+
+- [x] **Pass-mark tick on the score ring.** `Report.tsx` fetches `band_policy.decision_threshold`
+      from `GET /api/module-b/squat/config` (the same endpoint the live estimator already
+      uses) and draws a short tick at that position on the ring — **never hardcoded** (X7). A
+      caption states it plainly: "The pass mark is 8.4/10." This alone resolves "why does 8.0
+      fail" — the ring itself now shows the cut isn't 8.0.
+- [x] **The band's reason is now a headline sentence, not silence.** New copy under the band:
+      "N of M reps counted as good" (or "All M reps counted as good"), read from the Stage
+      5.14 per-rep verdicts already in `per_rep_summaries`. Falls back to nothing on rows from
+      before that stage (`hasRepVerdicts` guard) — old sessions render exactly as before.
+- [x] **Rep breakdown block**, shown only when at least one rep was rejected:
+      "N reps counted · M didn't count" plus one line per fault kind with a count
+      ("Didn't reach enough depth ×3"). Reuses the **same** `moduleB.tag_*` i18n keys the
+      Error tags panel and the Stage 5.15 live rejection note already use, so all three
+      surfaces say the same thing verbatim by construction, not by convention.
+- [x] **Trend-line wording fixed (Part 3.4 of the plan, done here since it touches the same
+      lines).** `report.trendScoreChanged`/`trendRepsChanged`/`trendTimeChanged`/
+      `trendHoldChanged` only ever prepended `+` for non-negative deltas, so a drop rendered
+      as e.g. "score -1.0/10" — reading as an absolute score of minus one, not a decrease.
+      Replaced with **direction-worded** keys (`trendScoreUp`/`Down`/`Same`, and the same
+      pattern for time/hold/reps) via a new shared `deltaPart()` helper — one change point
+      for all four exercises' trend lines (STS/SLS/WBLT/squat), not a squat-only patch.
+- [x] **`ModuleBRepSummary` extended** (optional fields: `ml_score`, `confidence`,
+      `failed_gates`, `counted_good`) to type the Stage 5.14 payload the frontend now reads.
+- [x] **Live-verified against a real backend + Postgres row** — the exact mixed 6-good/3-gated
+      session built for Stage 5.14's verification (`session_id=eedc86aa-...`), loaded through
+      the real running dev server (`localhost:5180` + `localhost:8000`, JWT injected into
+      `localStorage` since the session belongs to a scratch test account). **Confirmed via the
+      page's accessibility tree** (a full authoritative read of rendered content, independent
+      of any animation timing): `"9.3 / 10"`, `"Good"`, `"The pass mark is 8.4/10. 6 of 9 reps
+counted as good."`, `"6 reps counted · 3 didn't count"` + `"Didn't reach enough depth —
+aim for closer to parallel ×3"`, and the trend line `"Vs last session: score up 0.1
+pts · 6 more reps"` — all present, in order, exactly as designed.
+- [x] **Found and diagnosed a rendering-tool artifact, not a code defect.** The rep-breakdown
+      block's `.reveal.in` CSS transition was observed stuck at `opacity:0` despite having the
+      `.in` class in this automated preview tab. Confirmed **not** a Stage 4 regression: two
+      pre-existing panels (Coaching feedback, Error tags) showed the identical symptom in the
+      same load. Root-caused to the animation itself (`getAnimations()` showed a `CSSTransition`
+      stuck in `"running"` state) rather than a CSS/specificity bug — verified by forcing
+      `transition:none; opacity:1 !important` and confirming the final state matches the
+      intended design exactly. Real users are unaffected; only this specific automated tab's
+      rendering was implicated. **Also caused two 30s `computer` scroll-action timeouts**
+      during verification — worth flagging if this preview environment is used again.
+- [x] Frontend `tsc` clean; **4/4** `Report.test.tsx` (unchanged — no regression) + squat gate
+      tests unaffected (17 total across the two suites). Backend untouched — this stage is
+      frontend-only. Prettier applied to all touched files.
+- [ ] **Deliberately not done:** the "Reps" card still shows total segmented reps (9), not
+      counted reps (6) — deliberate, since it already matches `session.rep_count` (the
+      backend's stored total) and the new copy right below it already disambiguates "6 of 9
+      counted". No screenshot capture was possible for this record due to the tooling
+      artifact above; the accessibility-tree read is the verification evidence instead.
+- [ ] **Still open until Stage 5:** the coaching feedback card (visible in the same verified
+      session: `"Grade: Good. Didn't reach enough depth — aim for closer to parallel."`) is
+      still one run-on sentence — no bullets, no LLM JSON contract yet.
+
+### Phase 5 — Stage 5.16 follow-up: removed the score-ring pass-mark tick (2026-07-20)
+
+**HY's report (2026-07-20, after Stage 5.17):** a real webcam session showed a `9.3/10`
+ring banded `"Needs Improvement"` with a small tick mark on the ring and **no** accompanying
+"The pass mark is X/10" sentence — the tick's own visibility only depended on the
+`band_policy` config fetch succeeding, while the explanatory sentence beside it additionally
+required `hasRepVerdicts` (per-rep verdict data, only present on sessions analyzed after
+Stage 5.14). On an older session lacking that data, the tick rendered as an unexplained
+mark with zero context — the exact confusion HY flagged.
+
+- [x] Removed the ring tick entirely (the `<line>` element + the now-unused `passMarkPct`
+      derived value) from `Report.tsx`. The `passMark` state and its `"The pass mark is
+X/10..."` sentence are kept — that text-based explanation degrades gracefully (simply
+      absent on legacy rows, same as the rep-breakdown block already does), where the tick
+      could not.
+- [x] Verified: `npx tsc -b --force` shows only the one already-flagged, pre-existing,
+      out-of-scope `Report.test.tsx` error (unchanged); frontend vitest **17/17**; Prettier
+      applied.
+
+### Phase 5 — Stage 5.17: Structured coaching feedback (JSON contract, no more raw markdown) (2026-07-20)
+
+**HY's original report (2026-07-20):** the coaching card showed literal `* ` asterisks
+inline instead of a bullet list. Stage 5 (final stage) of the 5-stage plan.
+
+- [x] **New `backend/app/module_b/core/feedback_contract.py`** — the one JSON shape both
+      the template and the LLM path now produce: `{"summary": "...", "tips": ["...", ...]}`.
+      `parse()` is a total function (never raises) validating only SHAPE (dict, non-empty
+      `summary` string, `tips` a list of non-empty strings) and tolerates a wrapping
+      ` ```-fence` (LLMs add one despite being told not to). It deliberately does **not**
+      check markdown content or grade integrity — those stay owned by `feedback_safety.py`,
+      the one existing content-policy gate, so responsibilities don't blur.
+- [x] **`feedback_templates.compose_template`** now returns a `RewrittenFeedback`
+      (summary + tips) instead of one string — `_band_label` promoted to public
+      `band_label` (reused by `llm_client.py`). `router.py` serializes it once via
+      `feedback_contract.serialize` before storing, so `structured_feedback` and
+      `rewritten_feedback` are always the same canonical JSON shape.
+- [x] **`llm_client.py`**: new system prompt demands the JSON contract, no markdown, no
+      code fences, and explicitly "use the exact band word given — never invent a
+      different one." `rewrite_feedback` parses the reply via `feedback_contract.parse`;
+      **malformed JSON is retried exactly once, then treated as a failure**, same as a
+      timeout — never a half-parsed rewrite shown to the user.
+- [x] **Band-name leak fixed.** `_chat_payload` now sends `band_label(structured.band)` —
+      the DISPLAY word ("Needs Improvement") — instead of the raw internal value ("Poor").
+      Live-verified: HY's original screenshot showed the LLM writing _"falls into the Poor
+      band"_ while the UI said "Needs Improvement"; the model now has no reason to write
+      the internal name at all.
+- [x] **`feedback_safety.check_llm_feedback`** now parses the candidate via
+      `feedback_contract.parse` (reason `invalid_json` on failure) and adds a **new
+      markdown-formatting check** (`_MARKDOWN_CHARS_RE` for `*_#\``, `_LEADING_BULLET_RE`    for a leading`-`/`*`/`1.`on any tip) — reason`markdown_formatting`. All existing
+checks (forbidden phrase, grade/score/tag integrity) now run against the
+**joined summary+tips text**, not the raw JSON string, so they can't false-positive
+on JSON syntax (`{`, `"summary"`, etc.).
+- [x] **Read-path guard in `crud.feedback_summary`**: new `rewritten_feedback_structured`
+      field. Parses the stored string; a row from before this stage (a plain sentence, not
+      JSON) wraps as `{summary: <the old sentence>, tips: []}` rather than crashing — the
+      raw `rewritten_feedback` string is left untouched alongside it for audit. New
+      `RewrittenFeedbackStructured` Pydantic model in `schemas.py`.
+- [x] **Frontend renders natively.** `Report.tsx`'s coaching card now renders
+      `rewritten_feedback_structured.summary` as a `<p>` and `.tips` as a real `<ul>`/`<li>`
+      list — no markdown library added. `ModuleBFeedback` gains the typed
+      `rewritten_feedback_structured` field in `moduleBService.ts`.
+- [x] **Backend 316/316** (22 new: `test_module_b_feedback_contract.py` is new; safety/
+      template/llm_client/persistence suites rewritten for the JSON contract, not just
+      patched). **Markdown-rejection mutation-checked**: disabling the check made exactly
+      the 3 markdown tests fail, nothing else. Black + `isort --profile black` applied.
+- [x] **Live end-to-end verified against the real dev backend** (already running with
+      `--reload`, so no restart needed): a fresh `/analyze` call returned
+      `rewritten_feedback_structured: {"summary": "Grade: Good.", "tips": ["No specific
+issues were flagged for this set."]}` (LLM disabled locally → template path, correct
+      fallback); the Stage 5.14/5.16 session from **before** this stage still read back as
+      `{"summary": "Grade: Good. Didn't reach enough depth...", "tips": []}` — the legacy
+      guard working on a real pre-existing DB row, not just a unit-test fixture. Both
+      confirmed in the browser via the accessibility tree: a real `<ul>`/`<listitem>` for
+      the new row, a plain paragraph (no crash) for the legacy one.
+- [ ] **Deliberately not done:** no retry-with-corrected-prompt on a rejected LLM rewrite
+      (a `markdown_formatting` or `grade_mismatch_*` rejection falls straight back to the
+      template, same as any other rejection reason — no special-casing added).
+
+**⚠⚠ Process finding, not scoped to this stage — every prior "tsc clean" claim in Stages
+5.13–5.16 needs this caveat.** `npx tsc --noEmit` (bare, no `-p`/`-b`) was being used to
+"verify" all four earlier stages. Discovered here: the root `tsconfig.json` has
+`"files": []` and only `references` — bare `tsc --noEmit` against it silently checks
+**zero files** and exits with no output, indistinguishable from "clean." Confirmed by
+injecting an obvious type error into `src/main.tsx` and re-running the exact command
+previously used: still no output. **The correct invocation is `npx tsc -b` (project
+reference build mode)**, which actually walks `tsconfig.app.json`'s `include: ["src"]`.
+Running it for the first time against the full accumulated diff surfaced exactly three
+real issues, no more:
+
+1. **A genuine Stage 5.15 regression**, now fixed: `SquatLiveSessionPage.tsx`'s
+   `finishSet()` still called `setShowTargetHitPrompt(false)` after that state (and its
+   whole modal) was deleted when the target-hit prompt was replaced by auto-finish —
+   dead code left behind by the removal script, invisible until real tsc ran.
+2. **`Report.test.tsx`'s squat fixture was missing the (required) `feedback` field**
+   entirely — surfaced only because this stage made `ModuleBFeedback` a field on it; fixed
+   by adding a realistic fixture, which also let the test assert the new `<li>` rendering
+   for the first time (previously it asserted nothing about the coaching card).
+3. **One pre-existing, out-of-scope error left AS-IS**: `Report.test.tsx` line 183 (the
+   `warning_tags` test) spreads `{...moduleAResult, id: "s5", ...}`, and `id` is not a
+   `ModuleAResult` field. Confirmed via `git diff`/`git show HEAD:...` that this file is
+   **byte-identical to HEAD** — it predates every stage in this session and is unrelated to
+   feedback formatting. Left unfixed per scope discipline; flagging here since real tsc
+   finally makes it visible. **Every other file across all 5 stages is clean under the
+   correct invocation** — Stages 5.13/5.14/5.16's own "clean" claims hold up in retrospect,
+   only Stage 5.15 had a real latent bug, now fixed.
+
+### Phase 5 — Stage 5.18: The reported score becomes the share of clean reps (2026-07-20)
+
+**HY's report (2026-07-20), from a real webcam session:** "even I do quite a lot of errors, it
+still gives me quite high marks." Investigation turned this into the phase's sharpest finding.
+Stage A of a 5-stage plan (`~/.claude/plans/need-you-propose-plan-compiled-nova.md`); Stages
+B-E (history cleanup, report fixes, live redesign, progress page) are **not** started.
+
+- [x] **⚠⚠ Root cause measured on HY's own 16-rep session: the reported score ran
+      ANTI-CORRELATED with the faults the system detects.** Gate-failing reps carried a mean
+      classifier output of **8.845** against **8.807** for clean reps, and the set's
+      **highest-scoring rep (9.458) was a depth failure**. This is the EC3D construct
+      inversion (limitation 16) reproduced in deployment, on a participant and camera absent
+      from every dataset used in this project. Consequence: across all recorded sessions the
+      score spanned only **8.02-9.27** while real performance spanned 0%-100% clean — about
+      one eighth of the nominal scale for the entire quality range.
+- [x] **Score redefined — a one-line change.** `set_scoring.py`'s `final_score` is now
+      `10.0 * good / len(verdicts)` instead of `w_rule*rule + w_ml*mean_ml_score`. `good` is
+      the **same count the band vote already computed**, so no new arithmetic was introduced.
+      `mean_ml_score`/`mean_confidence` are untouched and still populate `fusion.ml_score`/
+      `fusion.confidence` for the report's secondary cards. Only squat sets
+      `aggregation="majority_vote"`, so Module A never reaches the line — no guard needed.
+- [x] **The headline property: band and score can no longer contradict.** `band == "Good"`
+      ⟺ `good*2 > total` ⟺ `score > 5.0`. The defect that started this whole line of work
+      (8.0 displayed beside "Needs Improvement") is now **arithmetically impossible**, not
+      merely unlikely. New `BandAndScoreCannotContradictTests` asserts the invariant across
+      **every split from 0/10 to 10/10** via `subTest`, plus the exact 5.0 tie boundary.
+- [x] **Both tests that pinned the OLD contract were rewritten, not patched** — as the plan
+      required: `test_set_score_is_the_mean_of_the_per_rep_ml_scores` →
+      `test_set_score_is_the_share_of_clean_reps`, and
+      `test_the_score_still_reports_what_the_model_measured` →
+      `test_gate_failures_now_move_the_score_as_well_as_the_band` (Stage 5.13's "gates change
+      the band, never the number" is **deliberately reversed** here).
+- [x] **Mutation-checked.** Replacing `good` with `len(verdicts)` failed **15 cases**,
+      including every subTest of the invariant. Only `clean=10` survived — correct, since
+      there `good == total` makes the mutation an identity. Green tests that cannot fail are
+      not evidence.
+- [x] **Replay corpus regenerated; ZERO bands changed** (verified by grepping the diff for
+      `"band"` lines: 0 hits). Only scores moved, e.g. `good_moderate_depth_1` 9.4212 → **0.0**
+      (all 3 reps depth-gated) and `good_moderate_depth_2` 9.2563 → **10.0** (all 3 clean).
+      Re-running the generator produced an identical diff — deterministic (X8).
+- [x] **Live end-to-end verified** against the running dev backend + Postgres. A 9-rep mixed
+      set (6 clean + 3 depth-gated) scored **6.67 = 10×6/9** and banded Good; the same set
+      scored **9.33** under the old definition. `ml_score` preserved at 9.325. Both
+      `sessions.score` and `module_b_results.score` persisted 6.67, and the invariant held in
+      the API response.
+- [x] Backend **320/320** (17 in the set-scoring module, 4 net new). Black + `isort` applied.
+- [x] `PHASE5_CHAPTER_DRAFT.md` **§8.8** written (deployment evidence: the anti-correlation,
+      the compressed range, and `confidence == P(Good)` in **47/47** live records with minimum
+      0.780 — a third independent confirmation of §8.2). **New limitations 22 and 23**; the
+      closing synthesis paragraph rewritten around the trajectory "the model is the score" →
+      "the model decides what the score counts".
+- [ ] **Deliberately not done:** no model retrain (the label construct is itself
+      population-specific — retraining on the same labels reproduces the confound); no change
+      to `confidence` in the API/DB (**HY chose to keep the Confidence card**); no frontend
+      change at all, so the report still shows the old "Reps" wording and no ML-only rejection
+      line until Stage C.
+- [ ] **⚠ Known display inconsistency until Stage E:** `dashboardChartUtils.ts` hardcodes score
+      band zones at 4/7 for every exercise, but squat's cut is now a clean 5.0. A squat point
+      can still sit in the wrong colour zone on the trend chart. Pre-existing (the old cut was
+      8.448, an even worse mismatch) — scheduled for Stage E, not introduced here.
+- [ ] **⚠ Historical data now mixes two score meanings.** 21 of 26 stored squat results
+      pre-date per-rep verdicts and cannot be recomputed. HY approved deleting them in
+      **Stage B**, which has not run yet — until it does, Dashboard averages and the trend
+      chart straddle the definition change.
+
+### Phase 5 — Stage 5.19: Squat history cleanup + backfill under the new score (2026-07-20)
+
+Stage B of the 5-stage plan, following Stage 5.18's score redefinition. Destructive, so it
+ran audit-first with HY confirming the exact set. Stages C-E not started.
+
+- [x] **⚠ The audit contradicted the plan's premise and the plan was corrected before acting.**
+      The plan assumed "21 legacy dev/test sessions". Reality: **42** squat sessions lacked
+      per-rep verdicts, because the earlier count only included rows that had a
+      `module_b_results` row and therefore missed every `in_progress`/`cancelled` capture. More
+      importantly **6 of them were deliberately seeded demo data** (`demo-progress@physiofit-
+demo.com`, all timestamped identically, created by `app/seed_demo_progress.py` so the
+      Dashboard/Progress charts have something to render) — not dev junk, and deleting them
+      would have emptied the Progress-page demo. Surfaced to HY with the full table before
+      anything was deleted; HY chose to keep the demo account.
+- [x] **DB-level cascade verified before deleting**, not assumed: queried
+      `information_schema` and confirmed `ON DELETE CASCADE` from `sessions` to
+      `module_b_results`, `module_b_error_tags`, `feedback_texts`, `module_a_results`,
+      `module_a_landmark_log`.
+- [x] **Backup taken first** — `pg_dump --data-only` of `sessions`/`module_b_results`/
+      `module_b_error_tags`/`feedback_texts` (260K) to the session scratchpad. ⚠ Credentials
+      are `fyp_user`/`fyp_rehab_db`, **not** `postgres` (the obvious guess fails).
+- [x] **Dry-run-by-default cleanup script** (`--apply` to write). Deleted **36** sessions
+      (20 abandoned `in_progress`/`cancelled` with no score + 16 legacy completed from
+      `tester123` and throwaway `stageXX@` accounts); the demo account was excluded by email.
+- [x] **Backfilled 6 sessions instead of deleting them** (HY's call). Their `counted_good`
+      flags were already persisted at analyze time, so score/band were recomputed as
+      `10 × good/total` with **no model re-run**: `9.27→10.00`, `9.33→6.67`, `9.27→10.00`,
+      `8.80→3.75`, `8.75→**5.00**`, `6.67→6.67` (the last a no-op — it was already recorded
+      under the new definition, a useful self-check). **HY's own 16-rep session from the
+      original screenshots is now exactly 5.00/Poor** — 8 of 16 clean, landing precisely on
+      the tie boundary where a strict majority still bands Poor.
+- [x] **⚠ Found and fixed a fixture that violated the new invariant.** The demo seed hardcoded
+      `(11, 5.2, "Poor", …)` — written straight to the DB, bypassing the scoring pipeline, so
+      nothing enforced consistency. Under Stage 5.18 a 5.2 must band Good, so that row would
+      have rendered as a contradictory "5.2 · Needs Improvement" report: precisely the defect
+      5.18 eliminated everywhere else. Changed to `4.8` (preserving the improving-trend
+      narrative 3.1→3.6→4.4→4.8→6.9→7.5), updated the one stored row to match, and added an
+      **import-time assertion** over `SQUAT_SESSIONS` so a future hand-edit cannot reintroduce
+      it.
+- [x] **Verified after applying:** 12 squat sessions remain, **0 invariant violations**;
+      orphaned `module_b_results`/`module_b_error_tags`/`feedback_texts` all **0** (cascade
+      clean); Module A untouched at **98** sessions (STS 53, WBLT 26, SLS 19) plus 3 legacy
+      lunge rows. Backend **320/320**.
+- [ ] **Deliberately not done:** the throwaway `stageXX@…` **user accounts** still exist with
+      zero squat sessions — harmless, and deleting user rows was outside what HY approved.
+      The demo account's 6 squat sessions still carry no per-rep verdicts, so their report
+      pages show no rep breakdown; that is inherent to fabricated fixture data and acceptable,
+      since its purpose is chart rendering, not report detail.
+
+### Phase 5 — Stage 5.20: Report clarity — target, attempts, model-only rejections, bullets (2026-07-20)
+
+Stage C of the 5-stage plan, addressing HY's issues 3, 5, 6, 7 and 8 from real webcam
+testing. Stages D-E (live redesign, progress page) not started.
+
+- [x] **Issue 8 — the counts now reconcile.** A rep counts only if it clears the gates
+      **and** the model's threshold, so a rep can be rejected with no named fault; those
+      were invisible, leaving "8 didn't count" above only 6 reasons (one session was 9 reps
+      → 0 good, 0 gated, **9 model-only** = a completely empty reason list). `Report.tsx`
+      now counts rejected reps with no failed gate — **by rep, not by tag**, since a rep can
+      trip two gates and would otherwise double-count — and renders
+      `report.modelOnlyRejection`. Also added `report.liveCountProvisional` explaining that
+      the live counter is gates-only while the final count also applies the model, so
+      "I hit my target of 10 but the report says 8" now has a stated reason.
+- [x] **Issue 3 — rep target persisted end-to-end.** New Alembic migration
+      `20260720_0012` adds nullable `sessions.target_rep_count`. ⚠ Sent on the **analyze**
+      request, not `session/start`: the goal is chosen on the live page _after_ the session
+      row exists. `crud.save_result` only writes it when non-None, so a re-analyze without a
+      target cannot erase one already recorded. Exposed via `SessionRead`/`SessionDTO`.
+      **Downgrade round-trip verified**, not just the upgrade.
+- [x] **Issue 3 — "Reps" relabelled "Attempts"** with an InfoTooltip ("every repetition
+      detected in this set, including the ones that didn't count"), plus a new "Rep goal"
+      card rendered only when a target was stored. 16 no longer reads as "16 completed".
+- [x] **⚠ `backend/alembic.ini` was missing entirely** even though `README.md` step 3
+      instructs `alembic upgrade head` — so the documented command could not work for anyone
+      cloning the repo. Not gitignored; simply absent. Added, with the DB URL deliberately
+      **not** in it (`alembic/env.py` injects `settings.database_url`, keeping credentials
+      out of version control per rules.md #4). ⚠ Postgres credentials are
+      `fyp_user`/`fyp_rehab_db`, not the obvious `postgres`.
+- [x] **Issue 5 — scroll-reveal removed from the report only.** Dropped `useReveal` and all
+      17 `reveal` class usages from `Report.tsx`; other pages keep theirs. Verified in-browser:
+      `document.querySelectorAll(".reveal").length === 0`. This also removes the
+      fade-in that made earlier screenshot verification unreliable.
+- [x] **Issue 6 — depth message now names the angle.** `"aim for closer to parallel"` →
+      `"aim for a knee bend of at least 78° (thighs close to parallel)"` in
+      `squat/config.py` and `moduleB.tag_insufficient_depth` (en/zh/ms). New
+      `test_the_message_quotes_the_actual_threshold` guards against the copy and
+      `min_knee_flex_peak_deg` drifting apart.
+- [x] **⚠ Surfaced a real config inconsistency behind issue 6, and HY chose to leave it.**
+      The depth gate fires below **78.04°** but `rules.rom` labels 60-90° "Shallow" and only
+      90°+ "Parallel" — so a rep at 85° passes the gate while the gauge calls it Shallow.
+      Cause: the gate **was** corrected for the pipeline's measured -11.96° under-read; the
+      ROM band edges were **not** — they are raw clinical numbers on a scale that reads ~12°
+      low. Re-basing them would change `rom_subscore` and the rule score, so it needs its own
+      validation stage. Documented in `squat/config.py` rather than silently patched.
+- [x] **Issue 7 — bullets restored.** Root cause is `@import "tailwindcss"` Preflight setting
+      `ul { list-style: none }` globally. Set `list-style: disc` + `padding-left: 22px` on
+      `.feedback-box ul`, `.rep-breakdown ul` and `.squat-reject-note ul`. Verified in-browser
+      via `getComputedStyle` → `listStyleType: "disc"` on both report lists.
+- [x] **Confidence card kept (HY's call) but no longer reads as a second opinion.** Added an
+      InfoTooltip explaining it reports how sure the model is of its own call and that it
+      tracks the ML prediction, because the model has not leaned toward Needs Improvement on
+      any recorded repetition. `moduleBRows` gained an optional `info` field; nothing removed
+      from the API or DB.
+- [x] **Verified live end-to-end**: a 9-rep mixed set with `target_rep_count: 10` returned
+      score **6.67**, band Good, and reconciled **6 counted + 3 gated + 0 model-only = 9**;
+      `target_rep_count` round-tripped DB → API → UI. Browser accessibility tree confirmed
+      "Attempts", "Rep goal 10 reps", the 78° wording in both the breakdown and the error
+      tags, the provisional-count note, both InfoTooltip buttons, and the coaching card
+      rendering as a real `<ul>` with two `<li>` tips.
+- [x] Backend **321/321** (1 new drift guard). Frontend **18/18** (1 new test asserting the
+      counts reconcile) — **mutation-checked** by disabling the model-only line, which failed
+      exactly that test. `npx tsc -b` clean apart from the known pre-existing
+      `Report.test.tsx:213` `id`-on-`ModuleAResult` error. Prettier + Black + isort applied.
+- [ ] **⚠ Pre-existing error still not fixed** (unchanged from Stage 5.17): `Report.test.tsx`
+      spreads `id` into a `ModuleAResult`, which has no such field. Byte-identical to HEAD,
+      unrelated to Module B, deliberately left alone per scope discipline.
+- [ ] **Deliberately not done:** the demo-progress account's squat sessions still have no
+      per-rep verdicts, so their reports show no rep breakdown — inherent to fabricated
+      fixture data whose purpose is chart rendering. The trend chart's 4/7 band zones still
+      do not match squat's 5.0 cut; that is Stage E.
+
+### Phase 5 — Stage 5.21: Live session redesign — promoted, persistent feedback (2026-07-20)
+
+Stage D of the 5-stage plan, addressing HY's issue 1: on a real webcam session, the "Rep 5
+of 10" status box sat below Live angles, and corrective feedback was easy to miss at a
+distance from the screen. Stage E (Progress page) not started.
+
+- [x] **Loaded the `ui-ux-pro-max` skill** (Stage plan requirement). It selected the
+      "Accessible & Ethical" style — high contrast, 16px+ text, WCAG AAA, reduced-motion —
+      appropriate for a screen read from several feet away mid-exercise. Kept PhysioFit's
+      existing palette and Inter type per the skill's own `consistency` rule; only the
+      pattern/style guidance was used, not a new color system.
+- [x] **New `.live-feedback-panel`, promoted directly under the `[Time | Reps]` HUD**,
+      replacing the deleted `.sls-live-status-box` ("Rep 5 of 10"). Three states —
+      `idle`/`counted`/`rejected` — each with a distinct icon, background and border
+      (`Play`/neutral, `Check`/green `--good`, `Alert`/amber `--warn-bg`). Rejected reasons
+      render at **1.05rem/600**, up from the report's 0.9rem, since this is read
+      mid-exercise, not at rest. Fixed `min-height: 128px` so switching states never
+      shifts the layout beneath it. `role="status" aria-live="polite"` preserved.
+- [x] **Persistent, not timed.** Deleted `REJECT_TOAST_MS` and the `setTimeout` that used
+      to auto-clear the rejection note after 3.2s (HY's chosen option: "Last rep verdict,
+      persistent — never blank"). `feedbackKind` is **derived**, not new state:
+      `rejectedGates` already held exactly "reasons for the most recent rejection, or none
+      if the most recent event was a good rep" — removing the auto-clear was the whole
+      change; no new state variable was needed.
+- [x] **Live angles panel demoted to third**, content byte-identical, position only.
+- [x] **HUD Reps card shows `5 / 10` when a target is set.** ⚠ Per the plan's explicit
+      warning, the shared `live.reps` **label** key (used by STS/SLS/WBLT too) was left
+      untouched — only this page's rendered _value_ changed, via a new squat-scoped
+      `squat.repsOfTargetValue` key.
+- [x] **Old per-rep UI removed from the "Live status" panel** (now just target picker +
+      progress bar + attempts summary + Finish button) since the promoted panel and the
+      HUD cover that ground. Two now-dead i18n keys (`repOfTarget`, `repCounted`) replaced
+      with the new panel's copy, confirmed unused via grep before deletion.
+- [x] **⚠ Fixed `--warn-bg`, found while styling the rejected state.** Used by
+      `.squat-reject-note`/`.rep-breakdown` since Stage 5.15/5.17 but **never defined** in
+      `:root` or either theme block — the hardcoded `rgba(245,158,11,.12)` fallback always
+      won, silently ignoring dark mode, and that fallback is a _different_ amber
+      (`#f59e0b`) from the `--amber` token (`#f5b731` = `rgb(245,183,49)`) used for the
+      border on the same elements. Now defined properly in both theme blocks, derived from
+      `--amber`'s own rgb; the two stale inline fallbacks updated to match.
+- [x] **Verified via direct DOM injection into the running dev server**, not a component
+      test — no mock harness exists for `useWebcam`/`useMediaPipePose` on any live-session
+      page yet, and building one from scratch was judged out of scope for a layout/CSS
+      check. Injected the actual three-state markup with the real `index.css` in effect
+      and confirmed via `getComputedStyle`: idle panel background = `rgb(10, 41, 20)` =
+      `--surface`'s dark-mode value exactly, matching the HUD card's own background
+      byte-for-byte. (A screenshot of the same panel looked visually lighter than the
+      computed value — traced to a compositing artifact in the screenshot tool over that
+      region, not a real color difference; computed style is the authoritative source and
+      it is correct.) Light mode screenshot confirmed three visually distinct states,
+      legible bold text, and the bullet marker rendering in the rejected reasons list.
+- [x] `npx tsc -b` clean apart from the known pre-existing `Report.test.tsx:213` error
+      (unrelated, unchanged). Frontend **18/18** (unaffected — this stage touched no tested
+      logic, only layout/CSS/copy). Prettier applied.
+- [ ] **⚠⚠ This stage's actual gate is NOT met yet.** The plan states it explicitly: "HY
+      confirms in a real webcam session that feedback is legible at a distance." Everything
+      above is static/injected verification of the CSS and markup: no live squat rep was
+      performed against this code, so timing (does the panel update fast enough after a
+      rep completes?), real-world legibility (screen brightness, actual viewing distance,
+      webcam framing) and the interaction with the countdown/inactivity/finish flows are
+      **unverified**. This is not a caveat to a mostly-complete verification — it is the
+      one thing that actually validates this stage, and it can only be done by HY.
+- [ ] **Deliberately not done:** no change to the setup-stage target picker, the countdown
+      overlay, or the inactivity/finish-set modals — out of scope for the feedback-panel
+      redesign. The `.sls-live-status-box`/`.sls-live-status-text` CSS rules were left in
+      `index.css` (confirmed still used by `SlsLiveSessionPage.tsx`/`WbltLiveSessionPage.tsx`).
+
+### Phase 5 — Stage 5.22: Progress page — rep volume replaces Confidence (2026-07-20)
+
+Stage E, the **final stage** of the 5-stage plan addressing HY's 10 issues from real
+webcam testing. Closes issue 10.
+
+- [x] **Asked HY before building, per the plan's own flagged fork.** Since Stage 5.18 the
+      squat score already equals `10 × counted/attempts`, so a "clean-rep rate" chart
+      would just replot the score series as a percentage — genuine duplication, zero new
+      code. The richer alternative (attempts vs counted reps per session) shows what the
+      score alone can't: training volume, and whether a low score came from a hard
+      session or a short one — but needs a new chart component and a new backend field.
+      **HY chose the richer option.**
+- [x] **`rep_count` added to `TrendPoint`** (`db/schemas.py`, populated in
+      `dashboard_service.build_trends` from the session's own already-existing
+      `rep_count` column — no migration needed). Frontend `types/api.ts` mirrors it.
+      Broke 3 existing `test_dashboard.py` tests whose `_session()` fixture predated the
+      field (`SimpleNamespace` with no `rep_count` attribute); fixed the shared fixture
+      itself rather than the individual tests, and added a real assertion
+      (`test_rep_count_is_denormalized_onto_the_trend_point`) that it actually
+      propagates, including the `None` case for SLS/WBLT.
+- [x] **New `RepAttemptsBarChart.tsx`** — a stacked bar per session, counted (green
+      `--good`) + rejected (amber `--amber`) to the total. `counted` is derived
+      client-side as `round(score/10 × rep_count)` rather than summed from raw
+      verdicts — the trend endpoint doesn't store per-rep data, and this recovers
+      exactly the integer the report itself would show, not an approximation.
+      Replaces the Confidence `PercentTrendChart` panel in `Progress.tsx` (which is
+      **not** deleted — still imported and used for the unrelated capture-quality
+      panel on the same page).
+- [x] **`dash.confidence` and the Dashboard page's own separate Confidence panel left
+      untouched** — deliberately out of scope; the plan and issue 10 were specifically
+      about the Progress page.
+- [x] **⚠ Fixed a pre-existing inconsistency while here, not a new one.** Score band
+      reference zones were hardcoded at 4/7 for every exercise, but squat has committed
+      to a binary Good/Poor vote since Stage 5.11 — a squat point could already sit in
+      the green 7-10 zone while its own badge said "Poor", **before** any of this
+      session's changes. Post-5.18 the cut is a clean 5.0. Added
+      `scoreBandThresholdsFor(exerciseType)` in `dashboardChartUtils.ts`
+      (`{poorMax:5, fairMax:5}` for squat — equal bounds collapse the middle
+      `ReferenceArea` to zero height, so `ScoreTrendChart` needed no new rendering
+      branch) and threaded it through `Progress.tsx`'s one `variant="full"` call site.
+      `ZoneLegend` now hides the "Fair" swatch when the zone is zero-width, so the
+      legend never promises a band that can't appear. `MiniTrendCard`'s `variant="mini"`
+      never rendered these zones at all (guarded by `!isMini`), so it needed no change.
+- [x] **New `src/test/progressCharts.test.ts`** (9 tests): the counted/rejected
+      derivation across the full score range (0 through 10 rep-tenths, asserting
+      `counted + rejected === attempts` every time), the real Stage 5.18 session
+      (8/16 clean → 5.0), zero-clean and zero-rejected edges, `rep_count: null` →
+      `null` (SLS/WBLT), zero-rep-count → `null` (no divide-by-zero), and
+      `scoreBandThresholdsFor` for squat vs every other exercise type.
+      **Mutation-checked**: broke the `rejected` derivation (off-by-one) and squat's
+      `fairMax` (gave it a real Fair band) — both failed exactly the tests written to
+      catch them, nothing else.
+- [x] **Verified live end-to-end**, not just unit tests: `GET /api/dashboard/trends`
+      returns `rep_count: 9` on real stored sessions; in-browser, read the DOM directly
+      (screenshot scroll-following is unreliable in this environment, a known limitation
+      from Stage 5.16 — verified via `getComputedStyle`/SVG inspection instead, which is
+      authoritative regardless): **4 `<path>` bar segments** (2 sessions × 2 stacked
+      colors) rendered in exactly `rgb(0,174,84)` and `rgb(245,183,49)` — `--good` and
+      `--amber`. Accessibility tree confirmed the "Rep volume" heading, "Counted"/
+      "Didn't count" legend, and the Score trend zone legend showing only
+      **"Good"/"Needs Improvement"** for squat — no "Fair" swatch.
+- [x] Backend **322/322** (fixed a shared test fixture + 1 new test). Frontend
+      **27/27** (9 new). `npx tsc -b` clean apart from the known pre-existing
+      `Report.test.tsx:213` error. Black + isort + Prettier applied.
+- [ ] **Deliberately not done:** `MiniTrendCard`'s mini chart (used on the Dashboard
+      page) still uses the shared 4/7 zones' _data_, though it never visually renders
+      them — no functional gap, noted for completeness. No change to `SessionHistory.tsx`
+      or any other raw-score display outside the two touched charts.
+
+---
+
+## Closing this 5-stage plan (Stages A–E, 2026-07-20)
+
+All 10 issues HY raised from real webcam testing are now addressed:
+
+1. **Live feedback redesign** (Stage D) — promoted, persistent verdict panel.
+2. **ML undermining scoring** (Stage A) — the headline score no longer comes from the
+   classifier at all; §8.8 + limitations 22–23 document why.
+3. **Rep target + "attempts" wording** (Stage C) — persisted end-to-end, migration
+   `20260720_0012`.
+4. **Confusing 8.8 with heavy errors** (Stage A) — root-caused (gate-failing reps scored
+   _higher_ than clean ones) and fixed by redefinition, not cosmetics.
+5. **Report scroll animation** (Stage C) — removed from `Report.tsx`.
+6. **Vague depth message** (Stage C) — quotes the actual 78° gate threshold, drift-guarded
+   by a test.
+7. **Missing bullets** (Stage C) — Tailwind Preflight's `list-style:none` restored on all
+   three affected lists.
+8. **Rejected-rep count not reconciling** (Stage C) — the ML-only-rejection line.
+9. **Rule-based vs ML explanation** (Part 5, folded into Stage A/C's chapter writing) —
+   segmentation/fault-gating vs holistic per-repetition assessment, with a stated boundary.
+10. **Confidence on the Progress page** (Stage E, this entry) — replaced with rep volume.
+
+Two things were surfaced during this work that were not on HY's original list and are
+recorded here so they aren't lost: **`backend/alembic.ini` was entirely missing** (Stage
+C) despite the README instructing `alembic upgrade head`, and **`npx tsc --noEmit`
+(bare) silently checks zero files in this repo** (discovered at Stage 5.17, before this
+plan) — `npx tsc -b` is the correct invocation and was used for every verification in
+Stages A–E.
+
+One process note for whoever picks this up next: the demo-progress account
+(§Stage B/5.19) and the throwaway `stageXX@…` test accounts (§Stage B) were deliberately
+left in the database — say so explicitly if a future cleanup pass should remove them.
+
+## Stage 5.23 — LLM feedback silently degraded + the logging gap that hid it (2026-07-20)
+
+**Symptom.** HY's post-session report showed `AUTOMATIC SUMMARY` (the deterministic
+template) where earlier sessions showed `AI-REWRITTEN`. Nothing was visibly broken —
+the report rendered correctly, which is exactly Stage 6.4's designed graceful
+degradation working as intended, and exactly why it went unnoticed.
+
+**Root cause.** `backend/.env` had `LLM_MODEL=llama-3.3-70b-instruct`, annotated
+"#cheap version". Groq does not host that model id. Verified live against
+`GET /v1/models`: the only llama models on the key are `llama-3.3-70b-versatile` and
+`llama-3.1-8b-instant`. A direct call with the bad id returns **HTTP 404
+`model_not_found`**; `GroqClient.rewrite_feedback` catches it, does not retry (only 429
+is retried, correctly), returns `text=None`, and `_build_and_save_feedback` falls back
+to the template. Both ids were confirmed by curl: `instruct` → 404, `versatile` → 200.
+Note the premise was also wrong — both Groq models are free-tier, so "cheap" was never a
+reason to switch. Fixed in `.env`, with a comment recording the verified model list so
+the same substitution isn't retried.
+
+**The DB already recorded the fingerprint** (`feedback_texts`): `llm_attempted=true` +
+`feedback_source=template` means "the call was made and did not survive", which is
+distinct from `llm_attempted=false` (LLM disabled). History showed a clean cutover —
+`llm` for every session 06:52→11:00, `template` for every session after.
+
+**Three sessions (11:02, 12:00, 12:02) failed while configured to the _valid_ model and
+remain unattributed.** Replaying the real pipeline for those exact stored sessions
+against `versatile` now returns call-OK + `safety.accepted=True` for all three, so it
+was transient (a timeout against `_TIMEOUT_S = 8.0`, or a 429) rather than reproducible.
+Stated as unresolved rather than guessed — the logs that would have said which were
+never captured, which is the second half of this entry.
+
+**The real gap: the diagnostics existed but could never be seen.** `core/router.py`
+already logs `module-b feedback llm_failed session=… error=…` and
+`llm_rejected session=… reason=…` — the two lines that would have named this
+immediately. But no logging configuration existed anywhere in the backend: root logger
+at default `WARNING`, zero handlers, so every `logger.info(...)` in the codebase was
+discarded before being written. Confirmed directly (`isEnabledFor(INFO)` → `False`,
+`root.handlers` → `[]`). `startup.sh` redirects to `/tmp/fyp_backend.log`, but that file
+did not exist (server started manually), and `startup.bat` redirects nowhere at all — so
+even the dropped lines had no destination.
+
+**Fix.** New `backend/app/core/logging_config.py` — `configure_logging(level)` attaches
+one stdout handler to the root logger, called from `main.py` **before** `FastAPI(...)`
+so import-time and startup records are captured too. Idempotent under `uvicorn --reload`
+(handler tagged `_fyp_configured` and reused, verified: 3 calls → 1 handler, no
+duplicate lines). `httpx` pinned to WARNING — it logs one INFO line per outbound request
+and would narrate every Groq call on top of the app's own, more useful, session-tagged
+lines. Level is env-configurable via new `settings.log_level` (`LOG_LEVEL`, default
+INFO).
+
+**Verification.** Backend **322/322** (the INFO line now visibly emitted mid-run, which
+is itself the proof); `settings.llm_model` re-resolves to `llama-3.3-70b-versatile`
+after the `.env` fix; reload-idempotency checked explicitly; Black + isort clean. The
+running uvicorn's child had already restarted at 20:37 and `/health` was green, so the
+reload picked the change up. **Not yet verified:** a real webcam session showing
+`AI-REWRITTEN` again — only HY can do that, and it is the true gate on this entry.
+
+**Deliberately not done:** no file-based logging, rotation, or structured/JSON logs
+added — stdout is what `--reload` development and `startup.sh`'s existing redirect both
+already consume, and anything more is unjustified scope here. `_TIMEOUT_S = 8.0` left
+unchanged pending evidence it is actually too tight (see the three unattributed
+failures above — with logging now live, a recurrence will finally name itself).
+
 ### Stage 5.10 — Option B: documented, not built _(for Chapter 3)_
 
 - [ ] `docs/module_b_option_b_alternative.md` — the methodology alternative, written to be examiner-facing:

@@ -58,6 +58,46 @@ export interface SmoothableLandmark {
   visibility: number;
 }
 
+/** Causal port of backend `preprocessing._release_persistent_occlusions`.
+ *
+ * `LandmarkSmoother` hold-lasts any landmark below MIN_VISIBILITY. That is right for a
+ * brief occlusion, but a single side-view camera violates the assumption structurally:
+ * a limb can sit below the threshold for an entire set, and hold-last then freezes it at
+ * its standing pose — turning "uncertain but usable" into "confidently stale". The
+ * backend releases runs longer than `interpolation_max_gap_frames` by raising visibility
+ * to exactly MIN_VISIBILITY, so the raw estimate is smoothed instead of frozen. This is
+ * the same visibility-bump lever, applied live.
+ *
+ * ⚠ Causal approximation, not an exact port: the backend sees the whole stream and
+ * releases the run retroactively from its first frame. Live, a run is only known to be
+ * long once it exceeds the threshold, so the first `maxGapFrames` frames of each run
+ * still hold-last. The lag is bounded (5 frames ≈ 0.2 s at 25 fps) and self-corrects.
+ *
+ * Opt-in — callers that never use it keep the previous hold-last behaviour exactly.
+ * Mutates the visibility field of the landmarks it is given.
+ */
+export function createOcclusionReleaser(maxGapFrames: number) {
+  const lowRunLength = new Map<number, number>();
+  return {
+    apply<T extends SmoothableLandmark>(landmarks: T[]): T[] {
+      return landmarks.map((lm, i) => {
+        const isLow = (lm.visibility ?? 0) < MIN_VISIBILITY;
+        if (!isLow) {
+          lowRunLength.set(i, 0);
+          return lm;
+        }
+        const run = (lowRunLength.get(i) ?? 0) + 1;
+        lowRunLength.set(i, run);
+        if (run <= maxGapFrames) return lm;
+        return { ...lm, visibility: MIN_VISIBILITY };
+      });
+    },
+    reset() {
+      lowRunLength.clear();
+    },
+  };
+}
+
 /** Runs one OneEuroFilter per landmark index per axis (x, y, z). Landmarks below
  * MIN_VISIBILITY hold their last smoothed value instead of being filtered, so a
  * brief occlusion doesn't inject noise -- mirrors backend LandmarkSmoother exactly. */

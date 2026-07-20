@@ -10,11 +10,16 @@ from app.api import (
     user_routes,
 )
 from app.core.config import settings
+from app.core.logging_config import configure_logging
 from app.db.database import check_database_connection
 from app.module_a.core.router import router as module_a_router
 from app.module_a.sls.router import router as sls_router
 from app.module_a.wblt.router import router as wblt_router
 from app.module_b.core.router import router as module_b_router
+
+# Before the app is built, so any logger.info emitted during router import or startup
+# is already captured rather than dropped by the default WARNING root level.
+configure_logging(settings.log_level)
 
 app = FastAPI(
     title="FYP Pose Rehab API",

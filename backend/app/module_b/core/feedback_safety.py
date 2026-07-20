@@ -20,7 +20,16 @@ from dataclasses import dataclass
 
 from app.core.safety_phrases import FORBIDDEN_PHRASES
 from app.module_b.core.feedback import StructuredFeedback
+from app.module_b.core.feedback_contract import joined_text
+from app.module_b.core.feedback_contract import parse as parse_feedback_contract
 from app.module_b.squat.tags import SQUAT_TAG_TAXONOMY
+
+# Stage 5.17: reject any markdown formatting the model added despite being told not to
+# (asterisk/underscore emphasis, headings, code spans) plus a leading bullet/number on
+# any individual tip -- the concrete symptom that motivated this stage was literal "* "
+# characters rendering inline in the report.
+_MARKDOWN_CHARS_RE = re.compile(r"[*_#`]")
+_LEADING_BULLET_RE = re.compile(r"^\s*(?:[-*+•]|\d+[.)])\s+")
 
 # Generous enough for a short coaching paragraph, tight enough to block a runaway or
 # injected wall of text. Matches the "Length cap" bullet in task.md Stage 6.3.
@@ -51,13 +60,28 @@ class SafetyCheckResult:
 def check_llm_feedback(
     candidate: str, *, structured: StructuredFeedback
 ) -> SafetyCheckResult:
-    """Run every Stage 6.3 check; the first failure rejects the whole candidate."""
+    """Run every Stage 6.3 (+5.17) check; the first failure rejects the whole candidate.
+
+    `candidate` is the `feedback_contract` JSON string (see that module) -- this function
+    parses it independently of `llm_client`'s own parse, rather than trusting a pre-parsed
+    object, so this remains a standalone gate any candidate string must pass regardless of
+    which layer produced it (unchanged from Stage 6.3's original design intent).
+    """
     if not candidate or not candidate.strip():
         return SafetyCheckResult(accepted=False, reason="empty")
-    if len(candidate) > MAX_REWRITE_LENGTH:
+
+    parsed = parse_feedback_contract(candidate)
+    if parsed is None:
+        return SafetyCheckResult(accepted=False, reason="invalid_json")
+
+    full_text = joined_text(parsed)
+    if len(full_text) > MAX_REWRITE_LENGTH:
         return SafetyCheckResult(accepted=False, reason="too_long")
 
-    lowered = candidate.lower()
+    if _contains_markdown(parsed):
+        return SafetyCheckResult(accepted=False, reason="markdown_formatting")
+
+    lowered = full_text.lower()
 
     forbidden = _find_forbidden_phrase(lowered)
     if forbidden is not None:
@@ -74,6 +98,22 @@ def check_llm_feedback(
         return SafetyCheckResult(accepted=False, reason=f"invented_tag:{invented_tag}")
 
     return SafetyCheckResult(accepted=True)
+
+
+def _contains_markdown(parsed) -> bool:
+    """True if the summary or any tip carries markdown formatting or a leading bullet.
+
+    Checked here, not in `feedback_contract.parse` -- that module validates JSON SHAPE
+    only; whether the CONTENT is acceptable prose is a content-policy question, and this
+    module is where every other content policy (forbidden phrases, grade/tag integrity)
+    already lives.
+    """
+    if _MARKDOWN_CHARS_RE.search(parsed.summary):
+        return True
+    for tip in parsed.tips:
+        if _MARKDOWN_CHARS_RE.search(tip) or _LEADING_BULLET_RE.match(tip):
+            return True
+    return False
 
 
 def _find_forbidden_phrase(lowered_text: str) -> str | None:

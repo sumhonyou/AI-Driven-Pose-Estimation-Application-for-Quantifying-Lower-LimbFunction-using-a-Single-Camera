@@ -1,9 +1,31 @@
 import type { SessionDTO, TrendPoint } from "../../types/api";
 
+export type ScoreBandThresholds = { poorMax: number; fairMax: number };
+
 // Shared 0-10 score bands (Table 6: Poor 0-4, Fair 4-7, Good 7-10), the same
-// cutoffs used by every exercise's score_to_band on the backend
+// cutoffs used by every Module A exercise's score_to_band on the backend
 // (app/module_a/core/config.py, app/module_b/core/config.py).
-export const SCORE_BAND_THRESHOLDS = { poorMax: 4, fairMax: 7 } as const;
+export const SCORE_BAND_THRESHOLDS: ScoreBandThresholds = { poorMax: 4, fairMax: 7 };
+
+// Squat is the one exception, and always has been (this was a real mismatch before
+// Stage 5.22, not a new one -- a squat point could already sit in the green 7-10 zone
+// while its own badge said "Poor", since squat committed to a binary Good/Poor vote at
+// Stage 5.11). Stage 5.18 made the score `10 * counted/attempts` with a strict-majority
+// band vote, so the cut is a clean 5.0 with no Fair band at all. `poorMax === fairMax`
+// collapses the middle ReferenceArea to zero height rather than needing a second chart
+// variant -- it renders nothing, leaving exactly two zones.
+const EXERCISE_SCORE_BAND_THRESHOLDS: Record<string, ScoreBandThresholds> = {
+  squat: { poorMax: 5, fairMax: 5 },
+};
+
+export function scoreBandThresholdsFor(
+  exerciseType: string | null | undefined,
+): ScoreBandThresholds {
+  if (exerciseType && exerciseType in EXERCISE_SCORE_BAND_THRESHOLDS) {
+    return EXERCISE_SCORE_BAND_THRESHOLDS[exerciseType];
+  }
+  return SCORE_BAND_THRESHOLDS;
+}
 
 export type BandKey = "good" | "fair" | "poor";
 

@@ -15,7 +15,6 @@ import { moduleBService, type ModuleBResult, type SquatTrend } from "../services
 import { wbltApi, type WbltLegTrend } from "../services/wblt/wbltApi";
 import type { SlsLeg } from "../services/sls/slsApi";
 import type { SessionDTO } from "../types/api";
-import { useReveal } from "../useReveal";
 
 // Formats a seconds value to one decimal place, or "—" when unavailable.
 function fmtSec(value: number | null | undefined) {
@@ -65,6 +64,23 @@ function wbltTrendText(
 // on a "meaningful" flag -- the plain delta is shown whenever it's available,
 // with no suppressed "about the same" claim (task.md Stage 7.2: never invent a
 // clinical threshold that doesn't exist).
+/** One "vs last session" delta, worded by DIRECTION rather than by a signed number.
+ *
+ * The previous form interpolated a sign into "score {{sign}}{{value}}/10", so a delta of
+ * -1.0 rendered as "score -1.0/10" — which reads as an absolute score of minus one, not
+ * as a drop of one point. Direction words also cannot be composed from a sign across
+ * languages, so each direction gets its own key. */
+function deltaPart(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  baseKey: string,
+  delta: number,
+  digits: number,
+) {
+  const magnitude = Math.abs(delta).toFixed(digits);
+  if (Number(magnitude) === 0) return t(`${baseKey}Same`);
+  return t(delta > 0 ? `${baseKey}Up` : `${baseKey}Down`, { value: magnitude });
+}
+
 function stsTrendText(
   t: (key: string, opts?: Record<string, unknown>) => string,
   trend: StsTrend | null | undefined,
@@ -72,20 +88,10 @@ function stsTrendText(
   if (!trend) return t("report.trendNoPrevious");
   const parts: string[] = [];
   if (trend.score_delta != null) {
-    parts.push(
-      t("report.trendScoreChanged", {
-        sign: trend.score_delta >= 0 ? "+" : "",
-        value: trend.score_delta.toFixed(1),
-      }),
-    );
+    parts.push(deltaPart(t, "report.trendScore", trend.score_delta, 1));
   }
   if (trend.completion_time_delta_sec != null) {
-    parts.push(
-      t("report.trendTimeChanged", {
-        sign: trend.completion_time_delta_sec >= 0 ? "+" : "",
-        value: trend.completion_time_delta_sec.toFixed(1),
-      }),
-    );
+    parts.push(deltaPart(t, "report.trendTime", trend.completion_time_delta_sec, 1));
   }
   return parts.length
     ? `${t("report.trendVsLast")}: ${parts.join(" · ")}`
@@ -99,20 +105,10 @@ function slsLegTrendText(
   if (!trend) return t("report.trendNoPrevious");
   const parts: string[] = [];
   if (trend.hold_delta_sec != null) {
-    parts.push(
-      t("report.trendHoldChanged", {
-        sign: trend.hold_delta_sec >= 0 ? "+" : "",
-        value: trend.hold_delta_sec.toFixed(1),
-      }),
-    );
+    parts.push(deltaPart(t, "report.trendHold", trend.hold_delta_sec, 1));
   }
   if (trend.score_delta != null) {
-    parts.push(
-      t("report.trendScoreChanged", {
-        sign: trend.score_delta >= 0 ? "+" : "",
-        value: trend.score_delta.toFixed(1),
-      }),
-    );
+    parts.push(deltaPart(t, "report.trendScore", trend.score_delta, 1));
   }
   return parts.length
     ? `${t("report.trendVsLast")}: ${parts.join(" · ")}`
@@ -129,20 +125,10 @@ function squatTrendText(
   if (!trend) return t("report.trendNoPrevious");
   const parts: string[] = [];
   if (trend.score_delta != null) {
-    parts.push(
-      t("report.trendScoreChanged", {
-        sign: trend.score_delta >= 0 ? "+" : "",
-        value: trend.score_delta.toFixed(1),
-      }),
-    );
+    parts.push(deltaPart(t, "report.trendScore", trend.score_delta, 1));
   }
   if (trend.rep_count_delta != null) {
-    parts.push(
-      t("report.trendRepsChanged", {
-        sign: trend.rep_count_delta >= 0 ? "+" : "",
-        value: trend.rep_count_delta.toFixed(0),
-      }),
-    );
+    parts.push(deltaPart(t, "report.trendReps", trend.rep_count_delta, 0));
   }
   return parts.length
     ? `${t("report.trendVsLast")}: ${parts.join(" · ")}`
@@ -206,6 +192,9 @@ export default function Report() {
   const [session, setSession] = useState<SessionDTO | null>(null);
   const [result, setResult] = useState<ModuleAResult | null>(null);
   const [moduleBResult, setModuleBResult] = useState<ModuleBResult | null>(null);
+  // The score a set must reach to band Good. Read from the exercise's own band_policy
+  // so the report can never disagree with the backend's actual cut (X7).
+  const [passMark, setPassMark] = useState<number | null>(null);
   const [loading, setLoading] = useState(!!sessionId);
   const [error, setError] = useState("");
   // §11 Stage 6: not part of the persisted metrics_json -- computed live from
@@ -214,8 +203,9 @@ export default function Report() {
     Partial<Record<"left" | "right", WbltLegTrend | null>>
   >({});
 
-  // Re-run reveal animation after async data loads (elements don't exist on initial nav)
-  useReveal([result, moduleBResult]);
+  // Stage 5.20: no scroll-reveal on the report. The fade-in left sections invisible
+  // until scrolled into view, which reads as "the page has ended" on a long report --
+  // and it is the same animation that made earlier screenshot verification unreliable.
 
   useEffect(() => {
     if (!sessionId) return;
@@ -233,6 +223,16 @@ export default function Report() {
           if (cancelled) return;
           setModuleBResult(moduleBData);
           console.log(`[Report] Loaded Module B session ${sessionId} — band=${moduleBData.band}`);
+          try {
+            const config = await moduleBService.config(sessionData.exercise_type);
+            const policy = (config.exercise as Record<string, unknown>)?.band_policy as
+              { decision_threshold?: number } | undefined;
+            if (!cancelled && typeof policy?.decision_threshold === "number") {
+              setPassMark(policy.decision_threshold);
+            }
+          } catch {
+            // Non-fatal: the report simply renders without the pass-mark sentence.
+          }
         } else {
           const resultData = await moduleAService.get(sessionId);
           if (cancelled) return;
@@ -272,6 +272,24 @@ export default function Report() {
     c = 2 * Math.PI * r,
     pct = Math.max(0, Math.min(1, score / 10));
 
+  // Stage 5.14 per-rep verdicts: how many reps counted, and why the rest didn't.
+  const repSummaries = moduleBResult?.metrics.per_rep_summaries ?? [];
+  const hasRepVerdicts = repSummaries.some((rep) => rep.counted_good !== undefined);
+  const countedReps = repSummaries.filter((rep) => rep.counted_good).length;
+  const rejectedReps = repSummaries.length - countedReps;
+  // One entry per fault kind with a count, e.g. "heels lifted ×3".
+  const rejectionCounts = repSummaries.reduce<Record<string, number>>((acc, rep) => {
+    for (const tag of rep.failed_gates ?? []) acc[tag] = (acc[tag] ?? 0) + 1;
+    return acc;
+  }, {});
+  // A rep counts only if it clears the gates AND the model's threshold, so a rep can be
+  // rejected with no named fault at all. Those were previously invisible: the header said
+  // "8 didn't count" above only 6 reasons. Counted by REP (a rep can trip two gates, which
+  // would double-count in `rejectionCounts`).
+  const modelOnlyRejections = repSummaries.filter(
+    (rep) => rep.counted_good === false && (rep.failed_gates ?? []).length === 0,
+  ).length;
+
   const isSls = session?.exercise_type?.includes("single_leg");
   const isWblt = session?.exercise_type === "weight_bearing_lunge_test";
   // Migration signal: only SLS rows from the both-legs rebuild carry `perLeg`.
@@ -291,12 +309,23 @@ export default function Report() {
   // Module B: the three rule sub-scores broken out, plus the ML/confidence/capture
   // figures the checklist asks for — reuses the same "sub-score" row shape as
   // Module A's metricRows below, just from moduleBResult instead of result.
-  const moduleBRows = moduleBResult
+  const moduleBRows: { label: string; value: string; info?: string }[] = moduleBResult
     ? [
         {
-          label: t("report.reps"),
+          // Stage 5.20: "Reps" read as "reps you completed", but this is every rep the
+          // backend segmented — attempts, including the ones that didn't count.
+          label: t("report.attempts"),
           value: session?.rep_count != null ? `${session.rep_count}` : "—",
+          info: t("report.attemptsMeaning"),
         },
+        ...(session?.target_rep_count != null
+          ? [
+              {
+                label: t("report.repTarget"),
+                value: t("report.repTargetValue", { target: session.target_rep_count }),
+              },
+            ]
+          : []),
         ...moduleBResult.metrics.rule_subscores.map((s) => ({
           label: t(("moduleB.subscore_" + s.code) as never, { defaultValue: s.code }),
           value: s.score != null ? `${s.score.toFixed(1)}/10` : "—",
@@ -314,6 +343,12 @@ export default function Report() {
             moduleBResult.confidence != null
               ? `${Math.round(moduleBResult.confidence * 100)}%`
               : "—",
+          // Stage 5.20: without this, Confidence and ML prediction look like two
+          // independent checks agreeing. They are the same value in two formats —
+          // `confidence = max(P(Good), P(Poor))` only diverges from `10 × P(Good)` when
+          // the model leans "Needs Improvement", which it has not done on any of the 47
+          // recorded repetitions (lowest P(Good) observed: 0.780).
+          info: t("report.confidenceMeaning"),
         },
         {
           label: t("report.captureQualityBand"),
@@ -418,7 +453,7 @@ export default function Report() {
       {(result || moduleBResult) && (
         <>
           {!isModuleB && result && result.session_status !== "complete" && (
-            <div className="dash-note reveal" style={{ marginBottom: 18 }}>
+            <div className="dash-note" style={{ marginBottom: 18 }}>
               <Alert />
               <span>
                 {result.session_status === "low_confidence"
@@ -444,7 +479,7 @@ export default function Report() {
           )}
 
           {isModuleB && moduleBResult?.metrics.placeholder_model_notice && (
-            <div className="dash-note reveal" style={{ marginBottom: 18 }}>
+            <div className="dash-note" style={{ marginBottom: 18 }}>
               <Alert />
               <span>
                 {t("report.moduleBPlaceholderNotice", {
@@ -455,7 +490,7 @@ export default function Report() {
             </div>
           )}
 
-          <div className="report-hero reveal" style={{ marginBottom: 18 }}>
+          <div className="report-hero" style={{ marginBottom: 18 }}>
             <div className="score-dial">
               <svg width="150" height="150" viewBox="0 0 150 150">
                 <circle
@@ -517,13 +552,30 @@ export default function Report() {
               <p className="muted" style={{ maxWidth: "40em", marginBottom: 10 }}>
                 {t(bandMeaningKey(band))}
               </p>
+              {/* Say WHY, in one line. The score and the band can legitimately disagree:
+                  heel rise is a rule-only signal that is not in the ML feature vector, so
+                  the model literally cannot see it. Explaining that beats faking
+                  agreement by adjusting the number. */}
+              {isModuleB && hasRepVerdicts && (
+                <p className="muted" style={{ maxWidth: "40em", marginBottom: 10 }}>
+                  {passMark != null && (
+                    <>{t("report.passMarkNote", { passMark: passMark.toFixed(1) })} </>
+                  )}
+                  {rejectedReps > 0
+                    ? t("report.bandReasonWithFaults", {
+                        counted: countedReps,
+                        total: repSummaries.length,
+                      })
+                    : t("report.bandReasonAllClean", { total: repSummaries.length })}
+                </p>
+              )}
               <p className="muted" style={{ maxWidth: "40em" }}>
                 {session?.exercise_name}
               </p>
             </div>
           </div>
 
-          <div className="dash-note reveal" style={{ marginBottom: 18 }}>
+          <div className="dash-note" style={{ marginBottom: 18 }}>
             <Alert />
             <span>{t("report.nonDiagnosticReminder")}</span>
           </div>
@@ -546,14 +598,53 @@ export default function Report() {
             <>
               <div className="sub-scores" style={{ marginBottom: 8 }}>
                 {moduleBRows.map((row) => (
-                  <div className="sub-score reveal" key={row.label}>
+                  <div className="sub-score" key={row.label}>
                     <div className="ss-top">
-                      <b>{row.label}</b>
+                      <b>
+                        {row.label}
+                        {row.info && <InfoTooltip text={row.info} label={row.label} />}
+                      </b>
                       <span>{row.value}</span>
                     </div>
                   </div>
                 ))}
               </div>
+              {/* Rep breakdown: which reps counted and, for those that didn't, the named
+                  fault. Reuses the report's own tag i18n keys so the wording matches the
+                  Error tags panel and the live "didn't count" note verbatim. */}
+              {hasRepVerdicts && rejectedReps > 0 && (
+                <div className="rep-breakdown" style={{ marginBottom: 18 }}>
+                  <b>
+                    {t("report.repBreakdown", {
+                      counted: countedReps,
+                      rejected: rejectedReps,
+                    })}
+                  </b>
+                  <ul>
+                    {Object.entries(rejectionCounts)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([tag, count]) => (
+                        <li key={tag}>
+                          {t(("moduleB.tag_" + tag) as never, { defaultValue: tag })}
+                          {" ×"}
+                          {count}
+                        </li>
+                      ))}
+                    {/* Without this the counts don't add up: reps the model rejected with
+                        no named fault were simply missing from the list. */}
+                    {modelOnlyRejections > 0 && (
+                      <li>
+                        {t("report.modelOnlyRejection")}
+                        {" ×"}
+                        {modelOnlyRejections}
+                      </li>
+                    )}
+                  </ul>
+                  <p className="muted" style={{ fontSize: "0.82rem", marginTop: 10 }}>
+                    {t("report.liveCountProvisional")}
+                  </p>
+                </div>
+              )}
               <TrendLine
                 t={t}
                 text={squatTrendText(t, moduleBResult?.trend)}
@@ -567,7 +658,7 @@ export default function Report() {
                   const m = wbltLegs?.[leg];
                   if (!m) return null;
                   return (
-                    <div className="panel reveal" key={leg}>
+                    <div className="panel" key={leg}>
                       <div className="panel-head" style={{ marginBottom: 18 }}>
                         <h3>{t(leg === "right" ? "wblt.legRight" : "wblt.legLeft")}</h3>
                         {m.band && (
@@ -600,7 +691,7 @@ export default function Report() {
                     </div>
                   );
                 })}
-                <div className="panel reveal">
+                <div className="panel">
                   <div className="panel-head" style={{ marginBottom: 18 }}>
                     <h3>{t("wblt.symmetryTitle")}</h3>
                   </div>
@@ -620,7 +711,7 @@ export default function Report() {
                 </div>
               </div>
 
-              <div className="panel reveal" style={{ marginBottom: 18 }}>
+              <div className="panel" style={{ marginBottom: 18 }}>
                 <div className="panel-head" style={{ marginBottom: 14 }}>
                   <h3>{t("wblt.attemptsTableTitle")}</h3>
                 </div>
@@ -675,7 +766,7 @@ export default function Report() {
                 const m = perLeg?.[leg];
                 if (!m) return null;
                 return (
-                  <div className="panel reveal" key={leg}>
+                  <div className="panel" key={leg}>
                     <div className="panel-head" style={{ marginBottom: 18 }}>
                       <h3>{t(leg === "right" ? "sls.legRight" : "sls.legLeft")}</h3>
                       <span className={"band " + m.band}>{t("common." + m.band)}</span>
@@ -703,7 +794,7 @@ export default function Report() {
                   </div>
                 );
               })}
-              <div className="panel reveal">
+              <div className="panel">
                 <div className="panel-head" style={{ marginBottom: 18 }}>
                   <h3>{t("sls.perLegHeading")}</h3>
                 </div>
@@ -740,7 +831,7 @@ export default function Report() {
             <>
               <div className="sub-scores" style={{ marginBottom: !isSls && !isWblt ? 8 : 18 }}>
                 {metricRows.map((row) => (
-                  <div className="sub-score reveal" key={row.label}>
+                  <div className="sub-score" key={row.label}>
                     <div className="ss-top">
                       <b>{row.label}</b>
                       <span>{row.value}</span>
@@ -763,7 +854,7 @@ export default function Report() {
 
           {isModuleB ? (
             <div className="dash-grid-2" style={{ marginBottom: 18 }}>
-              <div className="panel reveal">
+              <div className="panel">
                 <div className="panel-head" style={{ marginBottom: 16 }}>
                   <div>
                     <h3>{t("report.coaching")}</h3>
@@ -789,10 +880,30 @@ export default function Report() {
                       ? t("report.feedbackSourceLlm")
                       : t("report.feedbackSourceTemplate")}
                   </div>
-                  {moduleBResult?.feedback?.rewritten_feedback ?? t("report.feedbackUnavailable")}
+                  {/* Stage 5.17: native <p> + <ul>, never a raw string — this is what
+                      replaces the literal "* " asterisks rendering inline. Falls back to
+                      "feedback unavailable" only when the row itself is missing (a fresh
+                      analyze always produces one); a present-but-empty-tips row still
+                      renders its summary with no bullet list. */}
+                  {moduleBResult?.feedback?.rewritten_feedback_structured ? (
+                    <>
+                      <p>{moduleBResult.feedback.rewritten_feedback_structured.summary}</p>
+                      {moduleBResult.feedback.rewritten_feedback_structured.tips.length > 0 && (
+                        <ul>
+                          {moduleBResult.feedback.rewritten_feedback_structured.tips.map(
+                            (tip, index) => (
+                              <li key={index}>{tip}</li>
+                            ),
+                          )}
+                        </ul>
+                      )}
+                    </>
+                  ) : (
+                    <p>{t("report.feedbackUnavailable")}</p>
+                  )}
                 </div>
               </div>
-              <div className="panel reveal">
+              <div className="panel">
                 <div className="panel-head" style={{ marginBottom: 16 }}>
                   <h3>{t("report.errorTags")}</h3>
                 </div>
@@ -814,7 +925,7 @@ export default function Report() {
             </div>
           ) : (
             result && (
-              <div className="panel reveal" style={{ marginBottom: 18 }}>
+              <div className="panel" style={{ marginBottom: 18 }}>
                 <div className="panel-head" style={{ marginBottom: 16 }}>
                   <div>
                     <h3>{t("report.coaching")}</h3>
@@ -861,7 +972,7 @@ export default function Report() {
       )}
 
       {!result && !moduleBResult && (
-        <div className="dash-note reveal">
+        <div className="dash-note">
           <Alert />
           <span>{t("report.disclaimer")}</span>
         </div>

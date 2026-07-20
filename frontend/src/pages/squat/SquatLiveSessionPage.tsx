@@ -1,8 +1,13 @@
-// Squat live session: an unlimited-rep continuous set (no clinical rep target
-// exists for squat, unlike STS's 5 reps). The whole buffered set is posted once
-// to POST /api/module-b/analyze when the user clicks "Finish Set" -- the backend
-// segments reps and grades the set server-side; the live rep counter here is a
-// client-side UX estimate only (squatLiveEstimate.ts), never authoritative.
+// Squat live session. The user picks a rep target and the set auto-finishes once that
+// many reps have COUNTED; the whole buffered set is then posted to
+// POST /api/module-b/analyze, and the backend re-segments and grades it server-side.
+//
+// A rep only counts if it clears the three fault gates (squatFaultGates.ts, a port of
+// backend squat/fault_gates.py). A rejected rep is called out immediately with its
+// reason and does not advance the target, so the user corrects and repeats -- but it is
+// still recorded, still sent, and still graded, so the report stays honest about
+// everything attempted. The live counter remains a UX estimate; the backend's response
+// is the only persisted, official result.
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -11,7 +16,7 @@ import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import StartSetCountdown from "../../components/squat/StartSetCountdown";
-import { Close, Target } from "../../components/Icons";
+import { Close, Target, Check, Alert, Play } from "../../components/Icons";
 import { sessionService } from "../../services/sessionService";
 import { moduleBService } from "../../services/moduleBService";
 import { useSessionFlow } from "../../session";
@@ -28,14 +33,27 @@ import {
   type SquatBandEstimate,
   type SquatLiveConfig,
 } from "../../utils/squat/squatLiveEstimate";
+import type { SquatFaultTag } from "../../utils/squat/squatFaultGates";
 import goodRepSrc from "../../assets/sound effect/Rep correct sound effect.mp3";
 
 type Stage = "setup" | "countdown" | "recording" | "posting";
 
 const COUNTDOWN_START_SEC = 5;
 
-/** Motivational-only target choices; never sent to the backend or grading (§ user decision 2026-07-16). */
+/** Rep-target choices. The target drives the session: reaching it auto-finishes the set.
+ * Stage 5.20 also sends it with the analyze call so the report can show what was aimed
+ * for; it is stored on the session row but still never influences segmentation or
+ * grading — the backend derives those from the frames alone. */
 const TARGET_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80];
+
+/** Hard ceiling on total attempts, as a multiple of the target.
+ *
+ * A rep that trips a fault gate does not count, so a user who cannot clear a gate would
+ * otherwise be asked to repeat forever. The depth gate in particular is a CLINICAL floor
+ * (78.04°), not a threshold learned from this cohort, so someone with restricted mobility
+ * may genuinely never pass it. The set finishes at this cap regardless, and "Finish Set"
+ * stays available at all times (rules.md #3, #18). */
+const ATTEMPT_CAP_MULTIPLIER = 2;
 
 /** How long without a meaningful flexion change counts as "no movement". */
 const INACTIVITY_TIMEOUT_MS = 9000;
@@ -50,11 +68,17 @@ export default function SquatLiveSessionPage() {
   const [stage, setStage] = useState<Stage>("setup");
   const [targetReps, setTargetReps] = useState<number | null>(null);
   const [repCount, setRepCount] = useState(0);
+  const [attemptCount, setAttemptCount] = useState(0);
+  // Stage 5.21: why the MOST RECENT rep didn't count, or [] if the most recent event
+  // was a counted rep (or none has happened yet). Deliberately persistent -- this is
+  // what the live-feedback panel reads to decide idle/counted/rejected, and it changes
+  // only on the next rep, never on a timer (HY's call: never blank, always show the
+  // last verdict).
+  const [rejectedGates, setRejectedGates] = useState<SquatFaultTag[]>([]);
   const [sec, setSec] = useState(0);
   const [error, setError] = useState("");
   const [ending, setEnding] = useState(false);
   const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
-  const [showTargetHitPrompt, setShowTargetHitPrompt] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(COUNTDOWN_START_SEC);
   const countdownTimerRef = useRef<number | null>(null);
 
@@ -79,7 +103,7 @@ export default function SquatLiveSessionPage() {
   const finishingRef = useRef(false);
   const lastMotionMsRef = useRef(0);
   const previousFlexionRef = useRef(0);
-  const hasPromptedTargetHitRef = useRef(false);
+  const hasAutoFinishedRef = useRef(false);
   const goodRepAudio = useRef(new Audio(goodRepSrc));
   // Last *rendered* (rounded) angle values — guards the per-frame setState calls
   // below so a frame whose rounded display value hasn't changed never re-renders.
@@ -104,8 +128,9 @@ export default function SquatLiveSessionPage() {
     setRepCount(0);
     setSec(0);
     setShowInactivityPrompt(false);
-    setShowTargetHitPrompt(false);
-    hasPromptedTargetHitRef.current = false;
+    setAttemptCount(0);
+    setRejectedGates([]);
+    hasAutoFinishedRef.current = false;
     lastMotionMsRef.current = performance.now();
     setKneeFlexionDeg(0);
     setTrunkLeanDeg(0);
@@ -165,7 +190,7 @@ export default function SquatLiveSessionPage() {
   // squat to the threshold-based estimator, so nothing is recorded or fed to
   // it until the user is actually back to exercising.
   useEffect(() => {
-    if (!landmarks || stage !== "recording" || showTargetHitPrompt || showInactivityPrompt) {
+    if (!landmarks || stage !== "recording" || showInactivityPrompt) {
       return;
     }
     const now = performance.now();
@@ -199,17 +224,26 @@ export default function SquatLiveSessionPage() {
         setRepPeakFlexionDeg(update.currentRepPeakFlexionDeg);
       }
 
-      if (update.repJustCompleted) {
+      if (update.repJustCompleted || update.repJustRejected) {
         setRepCount(update.repCount);
+        setAttemptCount(update.attemptCount);
         setLastRepPeakDeg(update.lastRepPeakDeg);
         setLastRepPeakTrunkLeanDeg(update.lastRepPeakTrunkLeanDeg);
         setLastRepBand(update.lastRepBandEstimate);
+      }
+      if (update.repJustCompleted) {
+        setRejectedGates([]);
         goodRepAudio.current.currentTime = 0;
         goodRepAudio.current.play().catch(() => {});
+      } else if (update.repJustRejected) {
+        // No success chime — the rep didn't count. The reason is shown instead, so the
+        // user knows what to change rather than just seeing the counter stay put.
+        console.log("[SquatLiveSessionPage] Rep rejected:", update.lastRepFailedGates);
+        setRejectedGates(update.lastRepFailedGates);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [landmarks, stage, showTargetHitPrompt, showInactivityPrompt]);
+  }, [landmarks, stage, showInactivityPrompt]);
 
   // Session timer.
   useEffect(() => {
@@ -229,13 +263,23 @@ export default function SquatLiveSessionPage() {
     return () => window.clearInterval(id);
   }, [stage, repCount, showInactivityPrompt]);
 
-  // Optional target-hit prompt: fires once, never auto-finishes.
+  // Auto-finish: the target now controls the session, so "10 reps" yields exactly 10
+  // counted reps. Also finishes at the attempt cap, so a user who cannot clear a fault
+  // gate is never left repeating indefinitely (see ATTEMPT_CAP_MULTIPLIER).
   useEffect(() => {
-    if (targetReps && repCount >= targetReps && !hasPromptedTargetHitRef.current) {
-      hasPromptedTargetHitRef.current = true;
-      setShowTargetHitPrompt(true);
+    if (stage !== "recording" || !targetReps || hasAutoFinishedRef.current) return;
+    const hitTarget = repCount >= targetReps;
+    const hitCap = attemptCount >= targetReps * ATTEMPT_CAP_MULTIPLIER;
+    if (hitTarget || hitCap) {
+      hasAutoFinishedRef.current = true;
+      console.log(
+        `[SquatLiveSessionPage] Auto-finishing — ${hitTarget ? "target reached" : "attempt cap reached"} ` +
+          `(counted ${repCount}/${targetReps}, attempts ${attemptCount})`,
+      );
+      void finishSet();
     }
-  }, [repCount, targetReps]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repCount, attemptCount, targetReps, stage]);
 
   function dismissInactivityPrompt() {
     lastMotionMsRef.current = performance.now();
@@ -246,11 +290,10 @@ export default function SquatLiveSessionPage() {
     if (finishingRef.current || !sessionId) return;
     finishingRef.current = true;
     setShowInactivityPrompt(false);
-    setShowTargetHitPrompt(false);
     setStage("posting");
     try {
       const { frames, score, validFrameRatio } = recorder.summary();
-      await moduleBService.analyze(sessionId, "squat", frames);
+      await moduleBService.analyze(sessionId, "squat", frames, targetReps);
       await sessionService.end(sessionId, {
         capture_quality: score,
         valid_frame_ratio: validFrameRatio,
@@ -297,6 +340,12 @@ export default function SquatLiveSessionPage() {
   const deepPct = (liveConfig.romDeepStartDeg / liveConfig.romDeepFullScoreDeg) * 100;
   const currentZone = depthZoneFor(kneeFlexionDeg, liveConfig);
 
+  // Stage 5.21: the promoted live-feedback panel's state, derived rather than tracked
+  // separately -- `rejectedGates` already holds exactly "the reasons for the most
+  // recent rejection, or none" (see its declaration above), so no new state needed.
+  const feedbackKind: "idle" | "counted" | "rejected" =
+    attemptCount === 0 ? "idle" : rejectedGates.length > 0 ? "rejected" : "counted";
+
   return (
     <>
       {stage === "posting" && <GeneratingReportOverlay />}
@@ -321,35 +370,6 @@ export default function SquatLiveSessionPage() {
           </div>,
           document.body,
         )}
-      {showTargetHitPrompt &&
-        createPortal(
-          <div className="sls-modal-overlay" role="dialog" aria-modal="true">
-            <div className="sls-modal-card">
-              <h3>{t("squat.targetHitTitle", { target: targetReps })}</h3>
-              <p className="muted">{t("squat.targetHitBody")}</p>
-              <div className="sls-modal-actions">
-                <button
-                  className="btn btn-ghost btn-block"
-                  onClick={() => {
-                    // Tracking was paused for this prompt (see the recording
-                    // effect above) -- reset the motion clock so time spent
-                    // reading the prompt isn't mistaken for post-dismissal
-                    // inactivity.
-                    lastMotionMsRef.current = performance.now();
-                    setShowTargetHitPrompt(false);
-                  }}
-                >
-                  {t("squat.continueSet")}
-                </button>
-                <button className="btn btn-primary btn-block" onClick={() => void finishSet()}>
-                  {t("squat.finishSet")}
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-
       <div className="topbar">
         <div>
           <h1>{t("squat.reportTitle")}</h1>
@@ -389,10 +409,65 @@ export default function SquatLiveSessionPage() {
               </div>
             </div>
             <div className="hud-card reveal">
+              {/* Stage 5.21: the shared `live.reps` LABEL is untouched (used by
+                  STS/SLS/WBLT too) -- only this page's rendered VALUE changes, via a
+                  squat-scoped key, to show progress toward a target when one is set. */}
               <div className="hl2">{t("live.reps")}</div>
-              <div className="hv">{repCount}</div>
+              <div className="hv">
+                {targetReps
+                  ? t("squat.repsOfTargetValue", { rep: repCount, target: targetReps })
+                  : repCount}
+              </div>
             </div>
           </div>
+
+          {/* Stage 5.21: promoted directly under the HUD, replacing the deleted
+              "Rep 5 of 10" status box -- corrective/positive feedback is the single
+              most important thing to read while exercising at a distance from the
+              screen. Persistent (see `feedbackKind`'s derivation above): it shows the
+              LAST rep's verdict until the next one, never blanking on a timer. */}
+          {stage === "recording" && (
+            <div className={"live-feedback-panel " + feedbackKind} role="status" aria-live="polite">
+              {feedbackKind === "idle" && (
+                <div className="live-feedback-head">
+                  <span className="live-feedback-icon">
+                    <Play width={20} height={20} />
+                  </span>
+                  <span className="live-feedback-title">{t("squat.startFirstRep")}</span>
+                </div>
+              )}
+              {feedbackKind === "counted" && (
+                <>
+                  <div className="live-feedback-head">
+                    <span className="live-feedback-icon">
+                      <Check width={22} height={22} />
+                    </span>
+                    <span className="live-feedback-title">{t("squat.repCountedTitle")}</span>
+                  </div>
+                  {lastRepPeakDeg != null && (
+                    <p className="live-feedback-detail">
+                      {t("squat.repCountedDetail", { deg: Math.round(lastRepPeakDeg) })}
+                    </p>
+                  )}
+                </>
+              )}
+              {feedbackKind === "rejected" && (
+                <>
+                  <div className="live-feedback-head">
+                    <span className="live-feedback-icon">
+                      <Alert width={20} height={20} />
+                    </span>
+                    <span className="live-feedback-title">{t("squat.repDidNotCount")}</span>
+                  </div>
+                  <ul className="live-feedback-reasons">
+                    {rejectedGates.map((tag) => (
+                      <li key={tag}>{t(("moduleB.tag_" + tag) as never, { defaultValue: tag })}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
 
           {stage === "recording" && (
             <div className="panel">
@@ -508,13 +583,18 @@ export default function SquatLiveSessionPage() {
               </>
             ) : (
               <>
-                <div className="sls-live-status-box">
-                  <span className="sls-live-status-text">
-                    {targetReps
-                      ? t("squat.repOfTarget", { rep: repCount, target: targetReps })
-                      : t("squat.repCounted", { rep: repCount })}
-                  </span>
-                </div>
+                {/* Stage 5.21: the per-rep verdict ("Rep 5 of 10" / the rejection reason)
+                    moved to the promoted live-feedback panel above -- the HUD's Reps card
+                    already shows progress, so this panel is left as cumulative controls:
+                    the attempts summary, progress bar and Finish button. */}
+                {attemptCount > repCount && (
+                  <p className="muted" style={{ fontSize: "0.82rem", marginTop: 8 }}>
+                    {t("squat.attemptsSummary", {
+                      attempts: attemptCount,
+                      rejected: attemptCount - repCount,
+                    })}
+                  </p>
+                )}
                 <div className="track" style={{ height: 12 }}>
                   <div
                     className="fill good"
@@ -522,7 +602,7 @@ export default function SquatLiveSessionPage() {
                   />
                 </div>
                 <p className="muted" style={{ fontSize: "0.82rem", marginTop: 10 }}>
-                  {t("squat.finishWhenReady")}
+                  {targetReps ? t("squat.finishWhenReadyTargeted") : t("squat.finishWhenReady")}
                 </p>
                 <div style={{ marginTop: 20 }}>
                   <button

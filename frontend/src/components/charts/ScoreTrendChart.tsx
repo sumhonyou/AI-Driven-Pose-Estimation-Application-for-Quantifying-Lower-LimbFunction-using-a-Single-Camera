@@ -10,7 +10,11 @@ import {
 } from "recharts";
 import { useTranslation } from "react-i18next";
 import type { TrendPoint } from "../../types/api";
-import { SCORE_BAND_THRESHOLDS, formatShortDate } from "./dashboardChartUtils";
+import {
+  SCORE_BAND_THRESHOLDS,
+  formatShortDate,
+  type ScoreBandThresholds,
+} from "./dashboardChartUtils";
 
 // Colors are passed as CSS custom-property references (not resolved values) so
 // the chart re-themes on light/dark toggle without a React re-render.
@@ -57,11 +61,14 @@ function ScoreTooltip({ active, payload }: any) {
   );
 }
 
-function ZoneLegend() {
+function ZoneLegend({ thresholds }: { thresholds: ScoreBandThresholds }) {
   const { t } = useTranslation();
+  // Skip the Fair swatch when the zone is zero-width (squat) -- a legend entry for a
+  // band that never appears on the chart is misleading, not just unnecessary.
+  const hasFairZone = thresholds.fairMax > thresholds.poorMax;
   const items: Array<{ key: "good" | "fair" | "poor"; color: string }> = [
     { key: "good", color: GOOD_ZONE },
-    { key: "fair", color: FAIR_ZONE },
+    ...(hasFairZone ? [{ key: "fair" as const, color: FAIR_ZONE }] : []),
     { key: "poor", color: POOR_ZONE },
   ];
   return (
@@ -96,9 +103,14 @@ function ZoneLegend() {
 export default function ScoreTrendChart({
   points,
   variant = "full",
+  thresholds = SCORE_BAND_THRESHOLDS,
 }: {
   points: TrendPoint[];
   variant?: "mini" | "full";
+  // Which exercise's score cuts to draw. Defaults to the shared Module A bands so
+  // every existing call site (including the "mini" variant, which never renders
+  // these at all) is unaffected unless it opts in.
+  thresholds?: ScoreBandThresholds;
 }) {
   const isMini = variant === "mini";
   return (
@@ -119,22 +131,22 @@ export default function ScoreTrendChart({
               <CartesianGrid vertical={false} stroke="var(--border-soft)" />
               <ReferenceArea
                 y1={0}
-                y2={SCORE_BAND_THRESHOLDS.poorMax}
+                y2={thresholds.poorMax}
                 fill={POOR_ZONE}
                 stroke="var(--coral)"
                 strokeOpacity={0.25}
                 ifOverflow="extendDomain"
               />
               <ReferenceArea
-                y1={SCORE_BAND_THRESHOLDS.poorMax}
-                y2={SCORE_BAND_THRESHOLDS.fairMax}
+                y1={thresholds.poorMax}
+                y2={thresholds.fairMax}
                 fill={FAIR_ZONE}
                 stroke="var(--amber)"
                 strokeOpacity={0.25}
                 ifOverflow="extendDomain"
               />
               <ReferenceArea
-                y1={SCORE_BAND_THRESHOLDS.fairMax}
+                y1={thresholds.fairMax}
                 y2={10}
                 fill={GOOD_ZONE}
                 stroke="var(--good)"
@@ -174,7 +186,7 @@ export default function ScoreTrendChart({
           />
         </AreaChart>
       </ResponsiveContainer>
-      {!isMini && <ZoneLegend />}
+      {!isMini && <ZoneLegend thresholds={thresholds} />}
     </>
   );
 }

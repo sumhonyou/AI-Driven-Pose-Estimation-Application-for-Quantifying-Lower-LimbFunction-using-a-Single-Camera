@@ -14,7 +14,8 @@
     "scheme": "binary",
     "decision_threshold": 8.447974,
     "w_rule": 0.0,
-    "w_ml": 1.0
+    "w_ml": 1.0,
+    "aggregation": "majority_vote"
   },
   "squat_fault_gates": {
     "depth": {
@@ -46,9 +47,10 @@
       "measured": {
         "n_reps": 3,
         "band": "Poor",
-        "score": 9.4212,
+        "good_rep_count": 0,
+        "score": 0.0,
         "rule_score": 7.4203,
-        "confidence": 0.9421,
+        "confidence": 0.9437,
         "q": 0.98,
         "flags": [],
         "fault_gate_tags": [
@@ -77,9 +79,10 @@
       "measured": {
         "n_reps": 3,
         "band": "Good",
-        "score": 9.2563,
+        "good_rep_count": 3,
+        "score": 10.0,
         "rule_score": 7.9582,
-        "confidence": 0.9256,
+        "confidence": 0.9269,
         "q": 0.95,
         "flags": [],
         "fault_gate_tags": [],
@@ -106,9 +109,10 @@
       "measured": {
         "n_reps": 3,
         "band": "Poor",
-        "score": 8.0806,
+        "good_rep_count": 0,
+        "score": 0.0,
         "rule_score": 8.6046,
-        "confidence": 0.8081,
+        "confidence": 0.8107,
         "q": 0.92,
         "flags": [
           "low_confidence"
@@ -137,7 +141,8 @@
       "measured": {
         "n_reps": 3,
         "band": "Poor",
-        "score": 6.7873,
+        "good_rep_count": 0,
+        "score": 0.0,
         "rule_score": 8.7238,
         "confidence": 0.6787,
         "q": 0.9,
@@ -170,9 +175,10 @@
       "measured": {
         "n_reps": 3,
         "band": "Poor",
-        "score": 5.0309,
+        "good_rep_count": 0,
+        "score": 0.0,
         "rule_score": 6.6667,
-        "confidence": 0.5031,
+        "confidence": 0.5394,
         "q": 0.88,
         "flags": [
           "low_confidence"
@@ -203,9 +209,10 @@
       "measured": {
         "n_reps": 4,
         "band": "Poor",
-        "score": 5.768,
+        "good_rep_count": 0,
+        "score": 0.0,
         "rule_score": 6.0296,
-        "confidence": 0.5768,
+        "confidence": 0.5734,
         "q": 0.86,
         "flags": [
           "low_confidence"
@@ -236,9 +243,10 @@
       "measured": {
         "n_reps": 3,
         "band": "Poor",
-        "score": 9.4212,
+        "good_rep_count": 0,
+        "score": 0.0,
         "rule_score": 7.4199,
-        "confidence": 0.9421,
+        "confidence": 0.9429,
         "q": 0.45,
         "flags": [
           "low_capture_quality",

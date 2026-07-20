@@ -119,5 +119,49 @@ class SquatSegmentationTests(unittest.TestCase):
         self.assertEqual(segment_squat_frames(frames), segment_squat_frames(frames))
 
 
+class TrailingRepFlushTests(unittest.TestCase):
+    """The capture stops before the last rep crosses back below the exit threshold.
+
+    Real cause of the "picked 10, got 9" report: the FSM only confirms a rep on the
+    return below 20 deg, so a set that ends anywhere in the 20-30 deg deadband silently
+    lost its final rep.
+    """
+
+    def test_capture_ending_in_the_hysteresis_deadband_still_counts_the_rep(
+        self,
+    ) -> None:
+        frames = _five_clean_reps()
+        # A sixth rep that ends at 25 deg — past the bottom, back near standing, but
+        # never below the 20 deg exit threshold.
+        _append_flexions(
+            frames, len(frames) * 100.0, [0.0, 31.0, 60.0, 100.0, 60.0, 31.0, 25.0]
+        )
+
+        self.assertEqual(len(segment_squat_frames(frames)), 6)
+
+    def test_capture_cut_off_mid_rep_is_still_discarded(self) -> None:
+        frames = _five_clean_reps()
+        # Stopped at the bottom: the user never finished this rep, so it must not count.
+        _append_flexions(frames, len(frames) * 100.0, [0.0, 31.0, 60.0, 100.0])
+
+        self.assertEqual(len(segment_squat_frames(frames)), 5)
+
+    def test_trailing_candidate_below_min_duration_is_discarded(self) -> None:
+        frames: list[dict] = []
+        # Enters and returns to the deadband within 0.2 s — under min_rep_duration_s.
+        _append_flexions(frames, 0.0, [0.0, 31.0, 25.0])
+
+        self.assertEqual(segment_squat_frames(frames), [])
+
+    def test_flushed_rep_carries_the_same_boundaries_as_a_normal_rep(self) -> None:
+        frames: list[dict] = []
+        _append_flexions(frames, 0.0, [0.0, 31.0, 60.0, 100.0, 60.0, 31.0, 25.0])
+
+        (rep,) = segment_squat_frames(frames)
+        self.assertAlmostEqual(rep.start_timestamp_s, 0.1)
+        self.assertAlmostEqual(rep.end_timestamp_s, 0.6)
+        self.assertAlmostEqual(rep.peak_signal_value, 100.0)
+
+
 if __name__ == "__main__":
     unittest.main()

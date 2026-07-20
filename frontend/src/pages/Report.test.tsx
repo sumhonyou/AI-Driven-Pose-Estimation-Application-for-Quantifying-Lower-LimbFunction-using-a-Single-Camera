@@ -42,6 +42,7 @@ function renderReport(sessionId: string) {
 }
 
 const baseSession: SessionDTO = {
+  target_rep_count: 10,
   id: "s1",
   mode: "rehab",
   exercise_code: "squat",
@@ -77,6 +78,19 @@ const moduleBResult: ModuleBResult = {
     per_rep_summaries: [],
   },
   error_tags: [],
+  feedback: {
+    structured_feedback: '{"summary": "Grade: Good.", "tips": ["Nice steady pace."]}',
+    rewritten_feedback: '{"summary": "Grade: Good.", "tips": ["Nice steady pace."]}',
+    rewritten_feedback_structured: {
+      summary: "Grade: Good.",
+      tips: ["Nice steady pace."],
+    },
+    feedback_source: "template",
+    llm_attempted: false,
+    provider: null,
+    model_version: null,
+    disclaimer_version: "v1",
+  },
   created_at: "2026-07-16T00:05:00Z",
 };
 
@@ -128,6 +142,41 @@ describe("Report", () => {
     // Module A's merged coaching panel (labelled "General tip" when no flags fired)
     // must not render on the Module B branch.
     expect(screen.queryByText(/general tip/i)).not.toBeInTheDocument();
+    // Stage 5.17: the coaching card renders the structured summary as its own text
+    // node and each tip as a real <li>, not a raw JSON/markdown string.
+    expect(screen.getByText("Grade: Good.")).toBeInTheDocument();
+    const tip = screen.getByText("Nice steady pace.");
+    expect(tip.tagName).toBe("LI");
+    expect(screen.queryByText(/"summary"/)).not.toBeInTheDocument();
+  });
+
+  // Stage 5.20: the breakdown used to list only gate failures, so a set with reps the
+  // model rejected on its own showed "8 didn't count" above just 6 reasons. The counts
+  // must reconcile: named faults + model-only rejections == total rejected.
+  it("accounts for reps the model rejected with no named fault", async () => {
+    vi.mocked(sessionService.get).mockResolvedValue(baseSession);
+    vi.mocked(moduleBService.get).mockResolvedValue({
+      ...moduleBResult,
+      metrics: {
+        ...moduleBResult.metrics,
+        per_rep_summaries: [
+          // 2 clean, 1 depth-gated, 2 rejected by the model with no gate.
+          { counted_good: true, failed_gates: [] },
+          { counted_good: true, failed_gates: [] },
+          { counted_good: false, failed_gates: ["insufficient_depth"] },
+          { counted_good: false, failed_gates: [] },
+          { counted_good: false, failed_gates: [] },
+        ],
+      },
+    } as unknown as ModuleBResult);
+
+    renderReport("s1");
+
+    expect(await screen.findByText(/2 reps counted · 3 didn't count/i)).toBeInTheDocument();
+    expect(screen.getByText(/no specific fault identified/i)).toBeInTheDocument();
+    expect(screen.getByText(/no specific fault identified/i).textContent).toContain("×2");
+    // And the live-vs-final discrepancy is explained rather than left mysterious.
+    expect(screen.getByText(/live counter is provisional/i)).toBeInTheDocument();
   });
 
   it("renders the Module A panel (not Module B) for a sit-to-stand session", async () => {

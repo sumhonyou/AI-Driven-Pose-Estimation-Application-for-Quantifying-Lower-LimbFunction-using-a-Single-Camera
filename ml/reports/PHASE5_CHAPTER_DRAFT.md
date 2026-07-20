@@ -1130,7 +1130,121 @@ classifier which learned a confounded proxy is not to retrain it against labels 
 carry the same confound, but to add interpretable checks whose provenance can be stated
 exactly.
 
+### 8.7 Grading the whole set: per-repetition verdicts aggregated by majority
+
+Every deployed result described to this point was formed from a single repetition. The
+classifier received the first repetition's feature vector and no other, so a user
+performing ten repetitions was graded on the first and the remaining nine influenced only
+the rule sub-scores, whose weight the fusion search had already driven to zero. The
+consequence was not subtle: the reported score described one repetition while the reported
+band, once the fault gates were introduced, described the whole set, and the two could
+disagree visibly. The deployed output was therefore revised so that the classifier scores
+every segmented repetition and the set's verdict is aggregated from the per-repetition
+results.
+
+The aggregation rule was chosen deliberately, and the choice is the substantive part. The
+decision threshold had been selected by maximising macro-F1 over the out-of-fold
+predictions of _individual_ repetitions. Averaging a set's repetition scores and then
+applying that same threshold would silently alter its meaning, because the mean of several
+repetitions has a materially narrower distribution than a single repetition; the
+threshold's calibrated operating point would no longer correspond to the quantity being
+compared against it. Aggregating the _decisions_ rather than the _scores_ avoids this: the
+threshold is applied exactly where it was calibrated, and only the resulting verdicts are
+combined. This also removes any requirement to re-calibrate, which matters because the
+available labels are per-repetition and no set-level ground truth exists against which a
+set-level threshold could have been tuned.
+
+The rule is also the appropriate response to the operating point selected earlier. That
+operating point knowingly accepts labelling 31% of correct repetitions as incorrect
+(limitation 19). Over a ten-repetition set, at least one spurious flag is therefore close
+to certain, and the aggregation rule determines whether that near-certainty becomes a
+wrong verdict. Under a rule that condemns the set if any repetition is flagged, a set of
+ten genuinely correct repetitions would be misgraded with probability 1 − 0.69¹⁰ ≈ 0.98.
+Under a strict majority, the same set is misgraded with probability ≈ 0.055, obtained from
+the binomial tail P(X ≥ 6), X ~ B(10, 0.31). The single-repetition scheme it replaces sits
+at 0.31 by construction. These figures assume per-repetition errors are independent, which
+they are not — repetitions within a set share subject, camera placement and lighting — so
+the true majority-vote rate is higher than 0.055, though it remains far below the
+any-repetition alternative. Ties resolve to incorrect, preserving the safety-first posture
+adopted when the binary verdict was introduced.
+
+The fault gates were relocated into the same structure. Previously a failed gate on any
+repetition overrode the band for the entire set while leaving the reported score
+untouched, which both condemned a long set for one lapse and produced the score/band
+disagreement noted above. A gate failure now invalidates the repetition on which it
+occurred, and the majority determines the set. The reported score continues to report what
+the classifier measured, and is not adjusted to agree with a gate-determined band: the two
+quantities genuinely measure different things, since heel rise is a rule-only signal that
+is absent from the frozen feature vector and therefore invisible to the classifier. A live
+end-to-end verification illustrated exactly this — a nine-repetition set in which three
+repetitions failed the depth gate while scoring 9.42–9.45 from the classifier was graded
+correct on a 6/9 majority, with the depth fault still reported as a named tag.
+
+One verification limitation deserves recording. The committed replay corpus could not
+exercise this change, because its synthetic samples contain near-identical repetitions
+within each set; every set is unanimous, and unanimous sets behave identically under the
+old and new rules. Regenerating the corpus changed the recorded scores, which are now
+means over repetitions rather than first-repetition values, but changed no band. The
+aggregation logic is therefore covered by purpose-built mixed-verdict tests rather than by
+the corpus, and the corpus's continued agreement is evidence of non-regression rather than
+of correctness.
+
 ---
+
+### 8.8 Deployment evidence that the classifier cannot carry the reported score
+
+Every result to this point was obtained under cross-validation or on a held-out public
+dataset. Once the system was exercised through its own webcam capture path by a live
+participant, three measurements emerged that bear directly on what the deployed score should
+report, and they are recorded here because they were obtained from the shipped product rather
+than from an offline analysis.
+
+**The reported score ran anti-correlated with the faults the system itself detected.** In a
+sixteen-repetition set, the six repetitions rejected by a fault gate carried a mean classifier
+output of **8.845**, against **8.807** for the eight repetitions that passed every check. The
+single highest-scoring repetition of the set, at **9.458**, was one the depth gate rejected.
+The classifier therefore did not merely fail to detect insufficient depth — it rated the
+shallow repetitions marginally _better_ than the acceptable ones. This is the construct
+inversion established against the independent dataset (Section 9), reproduced in deployment on
+a participant and a camera that formed no part of any dataset used in this work.
+
+**The consequence was a score that barely responded to performance.** Across recorded sessions
+the reported value spanned **8.02 to 9.27** while the underlying proportion of acceptable
+repetitions spanned the full range from none to all. Approximately one eighth of the nominal
+zero-to-ten scale was used to express the entire observable range of movement quality, which is
+insufficient for the longitudinal tracking the application exists to support.
+
+**The two model-derived figures shown to the user were one quantity in two presentations.** The
+reported model score is `10 × P(Good)`, a directional quantity, whereas the reported confidence
+is `max(P(Good), P(Poor))`, a symmetric one; the two diverge only when the classifier favours
+the incorrect class. Across all forty-seven stored per-repetition records the two were
+numerically identical, and the lowest `P(Good)` observed in live capture was **0.780** — the
+classifier never once favoured the incorrect class. Section 8.2's finding that the model does
+not reach a confident incorrect verdict is thus confirmed a third time, now in deployment.
+
+Taken together these measurements motivated a change to what the reported score means. The
+value is now the proportion of repetitions in the set that satisfied both the interpretable
+fault gates and the classifier's own per-repetition threshold, expressed on the same
+zero-to-ten scale. Because the band was already decided by a strict majority of exactly those
+per-repetition verdicts, the reported score and the reported band became two presentations of
+one quantity, and the contradiction that motivated the investigation — a score of 8.0 displayed
+beside a verdict of "Needs Improvement" — became arithmetically impossible rather than merely
+unlikely. The classifier's mean output and confidence are retained and displayed as secondary
+figures, and the classifier continues to decide each repetition's verdict; what changed is that
+a quantity shown to be anti-correlated with the detected faults no longer determines the
+headline number.
+
+The change is a deliberate trade. Graded information is discarded: a repetition narrowly below
+the decision threshold and one far below it now contribute equally. That grading is only worth
+preserving if it is trustworthy, and the measurements above indicate it is not. The resulting
+figure is properly described as a rate of acceptable repetitions rather than a continuous
+quality index, which is a weaker claim than the previous presentation implied and a more
+accurate one: the system possesses per-repetition criteria with traceable thresholds, not a
+validated continuous scale of movement quality. Its resolution is bounded by the number of
+repetitions performed, so short sets are coarse — a three-repetition set can report only four
+distinct values. Retraining was considered and rejected on the grounds established in Section 9:
+the label construct is itself population-specific, so a model retrained on the same labels
+reproduces the same confound.
 
 ## 9. External Validation Against an Independent Dataset
 
@@ -1436,17 +1550,55 @@ rather than assumed, and should inform the discussion of this system's validity:
     inverted (limitation 3) — and it detects no fault this dataset actually contains. The
     heel-lift gate rests on a new measurement validated on the same nine subjects as
     everything else in this phase, so its threshold inherits the small-sample and
-    single-cohort limits already stated. And the gates only compensate for the
-    classifier's first-repetition-only scoring in respect of the faults they name; the
-    classifier's own verdict continues to be formed from the first repetition alone.
+    single-cohort limits already stated. The third caveat — that the gates only
+    compensated for first-repetition-only scoring in respect of the faults they name —
+    no longer applies: the classifier now scores every repetition (Section 8.7).
+21. **The set-level aggregation rule is a reasoned choice, not a measured optimum
+    (Section 8.7).** A strict majority of per-repetition verdicts was adopted because the
+    decision threshold was calibrated on individual repetitions and the available labels
+    are per-repetition. No set-level ground truth exists in this dataset, so the rule
+    could not be selected empirically the way the threshold itself was, and the quoted
+    error rates (≈0.055 for a majority against ≈0.98 for an any-repetition rule, on ten
+    correct repetitions) are binomial calculations from the measured per-repetition
+    false-alarm rate, not observed set-level frequencies. They further assume independent
+    per-repetition errors, which repetitions sharing a subject, camera placement and
+    lighting will not satisfy; the true rate is higher than stated. Relatedly, moving the
+    fault gates to per-repetition scope deliberately relaxes the guarantee introduced
+    with them — a set containing a minority of faulty repetitions can now be graded
+    correct, whereas previously any single failed gate condemned it. The faults remain
+    reported as named tags, but they no longer determine the band on their own.
+22. **The reported score is a rate of acceptable repetitions, not a continuous quality
+    index (Section 8.8).** It is the proportion of repetitions satisfying both the fault
+    gates and the classifier's per-repetition threshold. Two consequences follow. Its
+    resolution is bounded by set length — a three-repetition set can report only four
+    distinct values — so short sets are coarse, and the application's rep targets begin at
+    ten partly for this reason. And it discards graded information: a repetition marginally
+    below the decision threshold and one far below it contribute equally. That grading was
+    discarded deliberately, on the evidence of Section 8.8 that it ran anti-correlated with
+    the detected faults, but it is a real loss of information and the resulting figure
+    should not be described as a measure of movement quality on a continuous scale.
+23. **The classifier no longer determines the reported score, only which repetitions enter
+    it (Section 8.8).** Its influence is confined to the per-repetition pass/fail decision
+    and to two secondary figures displayed alongside the result. This is a defensible role
+    for a model with the external-validity limitations of 15–16, but it should be stated
+    plainly that the headline figure a user sees is now produced by the rule layer, and
+    that the contribution of Phase 5's trained classifier to that figure is indirect.
 
 These limitations do not undermine the validity of the trained classifier for its stated
 purpose, but they define the boundary of what can honestly be claimed from this dataset and
-should be stated explicitly rather than discovered by an examiner. Limitations 15–17 and 19
-in particular should be read together: the deployed squat model now warns rather than
-abstains, at the false-alarm cost quantified in limitation 19; its learned notion of
-correctness did not transfer to the one cohort available to test it; and no evidence exists
-either way as to whether it would transfer to a comparable one.
+should be stated explicitly rather than discovered by an examiner. Limitations 15–17, 19, 21
+and 23 in particular should be read together, and they describe a single trajectory. The
+deployed model warns rather than abstains, at the false-alarm cost quantified in limitation 19;
+that cost is what makes the set-level aggregation rule of limitation 21 consequential rather
+than cosmetic, since it determines how often a near-certain spurious per-repetition flag
+becomes a wrong verdict; its learned notion of correctness did not transfer to the one cohort
+available to test it, and no evidence exists either way as to whether it would transfer to a
+comparable one; and deployment measurement (Section 8.8) showed that notion running
+anti-correlated with the faults the product detects, which is why limitation 23 now records
+that the classifier informs but no longer produces the figure the user is shown. The
+progression from "the model is the score" to "the model decides what the score counts" is the
+central methodological finding of this phase, and it was forced by measurement at each step
+rather than chosen in advance.
 
 ---
 

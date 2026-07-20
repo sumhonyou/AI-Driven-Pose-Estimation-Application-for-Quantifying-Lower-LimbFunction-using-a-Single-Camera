@@ -36,6 +36,7 @@ def _session_response(session: SessionModel) -> SessionRead:
         score=_decimal_to_float(session.score),
         band=session.band,
         rep_count=session.rep_count,
+        target_rep_count=session.target_rep_count,
     )
 
 

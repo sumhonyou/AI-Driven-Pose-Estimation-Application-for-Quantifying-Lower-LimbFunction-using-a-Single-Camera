@@ -63,12 +63,14 @@ class HysteresisRepFSM:
         self._peak_signal_frame_index: int | None = None
         self._refractory_until_s = 0.0
         self._last_timestamp_s: float | None = None
+        self._last_signal: float | None = None
 
     def update(self, timestamp_s: float, signal: float, frame: Any) -> Rep | None:
         """Advance the FSM with one frame and return a completed rep, if any."""
         if self._last_timestamp_s is not None and timestamp_s < self._last_timestamp_s:
             raise ValueError("Rep frames must be ordered by non-decreasing timestamp")
         self._last_timestamp_s = timestamp_s
+        self._last_signal = signal
 
         if self.state is HysteresisState.REFRACTORY:
             if timestamp_s < self._refractory_until_s:
@@ -88,6 +90,24 @@ class HysteresisRepFSM:
             return None
 
         return self._close_candidate(timestamp_s)
+
+    def flush(self, *, max_signal_to_close: float) -> Rep | None:
+        """Close a still-open candidate at end of stream, if it already looks finished.
+
+        `update` only confirms a rep on the return below `exit_threshold`. A capture
+        that stops while the signal is still inside the hysteresis deadband therefore
+        drops a rep the user actually completed. Closing here needs both the normal
+        `min_rep_duration_s` and a last signal below `max_signal_to_close`, so a
+        capture cut off mid-rep (still deep in the movement) is discarded as before.
+        Opt-in: callers that never call this keep the original behaviour exactly.
+        """
+        if self.state is not HysteresisState.ACTIVE:
+            return None
+        if self._last_timestamp_s is None or self._last_signal is None:
+            return None
+        if self._last_signal >= max_signal_to_close:
+            return None
+        return self._close_candidate(self._last_timestamp_s)
 
     def _begin_candidate(self, timestamp_s: float, signal: float, frame: Any) -> None:
         self.state = HysteresisState.ACTIVE

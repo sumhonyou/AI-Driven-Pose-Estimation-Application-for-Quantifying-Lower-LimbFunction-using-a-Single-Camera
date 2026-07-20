@@ -16,11 +16,18 @@ SQUAT_CONFIG = {
     # pulls a deep/Poor rep's score toward Good. See tune_squat_binary_band.py and
     # ml/reports/SQUAT_EVALUATION_REPORT_2BAND.md. "Poor" is displayed as "Needs
     # Improvement" in the UI (i18n only; the stored band value stays "Poor").
+    # Stage 5.13: the threshold above is applied to EVERY rep, then the set's band is a
+    # strict majority of the per-rep verdicts (a rep is Good only if the model passes it
+    # and no fault gate fired on it). Voting keeps the cut where it was calibrated -- a
+    # mean over reps has a much narrower spread, so the same cut would mean something
+    # different -- and it survives the accepted ~31% per-rep false-alarm rate, which over
+    # 10 reps would otherwise make a spurious flag near-certain. See core/set_scoring.py.
     "band_policy": {
         "scheme": "binary",
         "decision_threshold": 8.447974,
         "w_rule": 0.0,
         "w_ml": 1.0,
+        "aggregation": "majority_vote",
     },
     # [dataset-derived, R5.3] Stage 5.4 bake-off winner, replacing the thigh_length
     # placeholder: trunk_length left less cross-subject spread in both normalised
@@ -36,6 +43,9 @@ SQUAT_CONFIG = {
         "refractory_s": 0.5,
         # [proposed heuristic, R9] Rejects very brief threshold-noise candidates.
         "min_rep_duration_s": 0.5,
+        # Counts a final rep whose capture stopped inside the 20-30 deg hysteresis
+        # deadband: without this the set loses a rep the user actually completed.
+        "flush_trailing_rep": True,
     },
     "rules": {
         "rom": {
@@ -84,7 +94,16 @@ SQUAT_CONFIG = {
             # stays below this for the whole rep.
             "min_knee_flex_peak_deg": 78.04,
             "tag": "insufficient_depth",
-            "message": "Didn't reach enough depth — aim for closer to parallel.",
+            # Stage 5.20: quotes the threshold above so the advice is actionable against
+            # the same angle the live gauge shows. ⚠ The number must stay in step with
+            # `min_knee_flex_peak_deg` -- `test_module_b_fault_gates.py` asserts it does.
+            # ⚠ Known cosmetic mismatch: `rules.rom` labels 60-90° "Shallow" and 90°+
+            # "Parallel", because those bands are raw clinical norms that were never
+            # corrected for the -11.96° under-read this gate WAS corrected for. So 78°
+            # still sits inside the gauge's amber band. Deliberately not fixed here --
+            # re-basing the ROM bands would change `rom_subscore` and the rule score, which
+            # needs its own validation stage (HY's call, 2026-07-20).
+            "message": "Didn't reach enough depth — aim for a knee bend of at least 78° (thighs close to parallel).",
         },
         "lean": {
             "enabled": True,

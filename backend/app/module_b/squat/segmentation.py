@@ -65,6 +65,21 @@ class SquatSegmentationFSM:
             self._previous_flexion = None
         return None
 
+    def flush(self) -> Rep | None:
+        """Close a final rep the capture ended on, before it crossed back to standing.
+
+        Config-gated so the behaviour is a deliberate, revertible choice; the ceiling
+        is the existing enter threshold, so no new tuned number is introduced.
+        """
+        config = SQUAT_CONFIG["segmentation"]
+        if not config.get("flush_trailing_rep", False):
+            return None
+        rep = self._rep_fsm.flush(max_signal_to_close=config["enter_descending_deg"])
+        if rep is not None:
+            self.state = SquatState.STANDING
+            self._previous_flexion = None
+        return rep
+
 
 def segment_squat_frames(frames: list[dict[str, Any]]) -> list[Rep]:
     """Return all confirmed squat reps from a chronologically ordered frame stream."""
@@ -74,6 +89,9 @@ def segment_squat_frames(frames: list[dict[str, Any]]) -> list[Rep]:
         rep = fsm.update(frame)
         if rep is not None:
             reps.append(rep)
+    trailing_rep = fsm.flush()
+    if trailing_rep is not None:
+        reps.append(trailing_rep)
     return reps
 
 

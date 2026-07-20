@@ -1,4 +1,8 @@
-"""Stage 6.2: the deterministic template fallback, built and proven before any LLM code."""
+"""Stage 6.2: the deterministic template fallback, built and proven before any LLM code.
+
+Stage 5.17: `compose_template` returns a `feedback_contract.RewrittenFeedback`
+(summary + tips), not a single string -- assertions read `.summary`/`.tips` directly.
+"""
 
 from __future__ import annotations
 
@@ -29,22 +33,24 @@ def _summary(band="Poor", tags=None, **overrides):
 
 class BandLabelTests(unittest.TestCase):
     def test_poor_relabels_to_needs_improvement(self) -> None:
-        text = compose_template(build_structured_feedback(_summary(band="Poor")))
-        self.assertTrue(text.startswith("Grade: Needs Improvement."))
+        result = compose_template(build_structured_feedback(_summary(band="Poor")))
+        self.assertEqual(result.summary, "Grade: Needs Improvement.")
 
     def test_good_stays_good(self) -> None:
-        text = compose_template(build_structured_feedback(_summary(band="Good")))
-        self.assertTrue(text.startswith("Grade: Good."))
+        result = compose_template(build_structured_feedback(_summary(band="Good")))
+        self.assertEqual(result.summary, "Grade: Good.")
 
     def test_missing_band_is_unavailable(self) -> None:
-        text = compose_template(build_structured_feedback(_summary(band=None)))
-        self.assertTrue(text.startswith("Grade: Unavailable."))
+        result = compose_template(build_structured_feedback(_summary(band=None)))
+        self.assertEqual(result.summary, "Grade: Unavailable.")
 
 
 class TagMessageTests(unittest.TestCase):
     def test_no_tags_uses_fallback_sentence(self) -> None:
-        text = compose_template(build_structured_feedback(_summary(tags=[])))
-        self.assertIn("No specific issues were flagged for this set.", text)
+        result = compose_template(build_structured_feedback(_summary(tags=[])))
+        self.assertEqual(
+            result.tips, ("No specific issues were flagged for this set.",)
+        )
 
     def test_top_two_tags_quoted_in_severity_order(self) -> None:
         tags = [
@@ -67,20 +73,17 @@ class TagMessageTests(unittest.TestCase):
                 "message": "conf",
             },
         ]
-        text = compose_template(build_structured_feedback(_summary(tags=tags)))
-        self.assertIn("depth", text)
-        self.assertIn("conf", text)
-        self.assertNotIn(
-            "pace", text
-        )  # third-ranked tag is dropped by the 2-message cap
+        result = compose_template(build_structured_feedback(_summary(tags=tags)))
+        self.assertEqual(result.tips, ("depth", "conf"))  # severity order, capped at 2
 
     def test_tag_without_message_is_skipped_not_blank(self) -> None:
         tags = [
             {"tag": "mystery", "severity": "high", "source": "rule", "message": None}
         ]
-        text = compose_template(build_structured_feedback(_summary(tags=tags)))
-        self.assertIn("No specific issues were flagged for this set.", text)
-        self.assertNotIn("None", text)
+        result = compose_template(build_structured_feedback(_summary(tags=tags)))
+        self.assertEqual(
+            result.tips, ("No specific issues were flagged for this set.",)
+        )
 
 
 class DeterminismTests(unittest.TestCase):
@@ -133,12 +136,12 @@ class TemplateGateTests(unittest.TestCase):
         structured = build_structured_feedback(summary)
         rendered = compose_template(structured)
 
-        self.assertTrue(rendered.startswith("Grade: Needs Improvement."))
+        self.assertEqual(rendered.summary, "Grade: Needs Improvement.")
         self.assertIn(
-            "Didn't reach enough depth", rendered
+            "Didn't reach enough depth", rendered.tips[0]
         )  # highest-severity tag leads
-        self.assertNotIn("None", rendered)
-        self.assertGreater(len(rendered), 0)
+        self.assertNotIn("None", rendered.summary)
+        self.assertGreater(len(rendered.tips), 0)
         # No import of any LLM/config module was needed to produce this — pure function
         # of already-persisted data. Stage 6.4 has not been built yet at this point in
         # the plan and this test still passes, proving the report never depends on it.

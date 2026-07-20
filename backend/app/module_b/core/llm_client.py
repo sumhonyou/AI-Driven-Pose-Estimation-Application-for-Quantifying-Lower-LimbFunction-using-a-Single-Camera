@@ -30,6 +30,9 @@ from typing import Protocol
 import httpx
 
 from app.module_b.core.feedback import StructuredFeedback
+from app.module_b.core.feedback_contract import parse as parse_feedback_contract
+from app.module_b.core.feedback_contract import serialize as serialize_feedback_contract
+from app.module_b.core.feedback_templates import band_label
 
 # Re-verified against https://console.groq.com/docs/models and
 # https://console.groq.com/docs/rate-limits on 2026-07-19 (task.md Q7 -- free tiers
@@ -51,7 +54,14 @@ _SYSTEM_PROMPT = (
     "You rewrite a movement-quality coaching report for readability only. "
     "Rules: do not add any medical claim or diagnosis; do not change the grade, band, "
     "or score; do not introduce a fault or tag that is not in the input; keep it brief, "
-    "plain-language, and encouraging. Reply with the rewritten text only, no preamble."
+    "plain-language, and encouraging. Use the exact band word given in the input -- "
+    "never invent a different one.\n\n"
+    "Reply with ONLY a JSON object of this exact shape -- no markdown, no code fences, "
+    "no preamble or explanation before or after it:\n"
+    '{"summary": "<one short sentence stating the grade and overall impression>", '
+    '"tips": ["<short plain-text tip>", "..."]}\n'
+    "Each tip must be plain prose: no asterisks, no bullet characters, no bold/italic "
+    "markup, no numbering."
 )
 
 
@@ -112,12 +122,22 @@ class GroqClient:
                     timeout=self._timeout_s,
                 )
                 response.raise_for_status()
-                text = _extract_text(response.json())
-                if text:
-                    return LlmRewriteResult(
-                        text=text, provider=self.provider, model_version=self._model
-                    )
-                last_error = "empty_response"
+                raw_text = _extract_text(response.json())
+                if raw_text:
+                    # Stage 5.17: the model must reply with the {summary, tips} JSON
+                    # contract. A malformed reply is treated exactly like a timeout --
+                    # retried once, then surfaced as a failure so the caller falls back
+                    # to the template (never a partial/garbled rewrite shown to the user).
+                    parsed = parse_feedback_contract(raw_text)
+                    if parsed is not None:
+                        return LlmRewriteResult(
+                            text=serialize_feedback_contract(parsed),
+                            provider=self.provider,
+                            model_version=self._model,
+                        )
+                    last_error = "invalid_json"
+                else:
+                    last_error = "empty_response"
             except httpx.HTTPStatusError as exc:
                 last_error = f"http_{exc.response.status_code}"
                 if exc.response.status_code != 429:
@@ -136,7 +156,10 @@ def _chat_payload(model: str, structured: StructuredFeedback) -> dict:
     """Metrics + tags only -- never raw video, never health records (the app persists
     only metrics anyway; see `StructuredFeedback`, which never carries frames)."""
     user_content = {
-        "band": structured.band,
+        # Stage 5.17: the DISPLAY label ("Needs Improvement"), not the internal band
+        # value ("Poor") -- otherwise the model has no reason not to write "falls into
+        # the Poor band" verbatim, which then contradicts the UI's own relabelling.
+        "band": band_label(structured.band),
         "score": structured.score,
         "confidence": structured.confidence,
         "rep_count": structured.rep_count,

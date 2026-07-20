@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_model: str = "llama-3.3-70b-versatile"
     feedback_llm_enabled: bool = False
+    # Root log level (see core/logging_config.py). INFO keeps the diagnostics that
+    # explain a template fallback visible by default; set LOG_LEVEL=DEBUG in .env for a
+    # noisier session, or WARNING to quieten it.
+    log_level: str = "INFO"
 
 
 settings = Settings()

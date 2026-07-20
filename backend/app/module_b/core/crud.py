@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -13,6 +14,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models import FeedbackText, ModuleBErrorTag, ModuleBResult
 from app.db.models import Session as SessionModel
+from app.module_b.core import feedback_contract
 from app.module_b.core.features import FeatureVector
 from app.module_b.core.fsm import Rep
 from app.module_b.core.fusion import FusionResult
@@ -40,6 +42,8 @@ def save_result(
     reps: list[Rep],
     quality: dict[str, float | str],
     error_tags: list[ErrorTagWrite],
+    rep_verdicts: Sequence[Any] = (),
+    target_rep_count: int | None = None,
 ) -> ModuleBResult:
     """Upsert the exact analyzed snapshot without persisting browser frames/video."""
     result = get_result_by_session(db, session.id)
@@ -53,6 +57,10 @@ def save_result(
     session.capture_quality = float(quality["q"])
     session.valid_frame_ratio = float(quality["valid_frame_ratio"])
     session.rep_count = len(reps)
+    # Only overwrite when the client actually sent a goal -- a re-analyze without one
+    # must not silently erase the target already recorded for this session.
+    if target_rep_count is not None:
+        session.target_rep_count = target_rep_count
 
     result.exercise_code = exercise_code
     result.score = fusion.score
@@ -67,6 +75,7 @@ def save_result(
         feature_vectors=feature_vectors,
         reps=reps,
         quality=quality,
+        rep_verdicts=rep_verdicts,
     )
 
     db.execute(delete(ModuleBErrorTag).where(ModuleBErrorTag.session_id == session.id))
@@ -133,12 +142,29 @@ def feedback_summary(feedback: FeedbackText | None) -> dict[str, Any] | None:
     return {
         "structured_feedback": feedback.structured_feedback,
         "rewritten_feedback": feedback.rewritten_feedback,
+        # Stage 5.17: the frontend renders this, not the raw string above. Read-path
+        # guard for rows stored before this stage, which hold a plain sentence rather
+        # than the `feedback_contract` JSON shape -- those parse to None and are wrapped
+        # as a single-line summary with no tips, so old sessions still render (never a
+        # crash on history rows written by an earlier version of this endpoint).
+        "rewritten_feedback_structured": _parsed_or_legacy_wrap(
+            feedback.rewritten_feedback
+        ),
         "feedback_source": feedback.feedback_source,
         "llm_attempted": feedback.llm_attempted,
         "provider": feedback.provider,
         "model_version": feedback.model_version,
         "disclaimer_version": feedback.disclaimer_version,
     }
+
+
+def _parsed_or_legacy_wrap(rewritten_feedback: str | None) -> dict[str, Any] | None:
+    if rewritten_feedback is None:
+        return None
+    parsed = feedback_contract.parse(rewritten_feedback)
+    if parsed is not None:
+        return {"summary": parsed.summary, "tips": list(parsed.tips)}
+    return {"summary": rewritten_feedback, "tips": []}
 
 
 def get_result_by_session(db: DbSession, session_id: UUID) -> ModuleBResult | None:
@@ -241,9 +267,11 @@ def _metrics_json(
     feature_vectors: list[FeatureVector],
     reps: list[Rep],
     quality: dict[str, float | str],
+    rep_verdicts: Sequence[Any] = (),
 ) -> dict[str, Any]:
     if len(feature_vectors) != len(reps):
         raise ValueError("Each persisted Module B rep requires one FeatureVector")
+    verdicts_by_rep = {verdict.rep_index: verdict for verdict in rep_verdicts}
     return {
         "rule_score": rule_scores.score,
         "rule_subscores": [
@@ -269,6 +297,9 @@ def _metrics_json(
             }
             for features in feature_vectors
         ],
+        # Stage 5.13: each rep now carries its own verdict, so the report can explain
+        # why a set banded the way it did. `verdicts_by_rep` is empty for exercises that
+        # do not vote, leaving these entries exactly as they were before.
         "per_rep_summaries": [
             {
                 "start_timestamp_s": rep.start_timestamp_s,
@@ -276,9 +307,22 @@ def _metrics_json(
                 "duration_s": rep.duration_s,
                 "bottom_frame_index": rep.peak_signal_frame_index,
                 "bottom_knee_flexion_deg": rep.peak_signal_value,
+                **_rep_verdict_fields(verdicts_by_rep.get(index)),
             }
-            for rep in reps
+            for index, rep in enumerate(reps)
         ],
+    }
+
+
+def _rep_verdict_fields(verdict: Any) -> dict[str, Any]:
+    """Per-rep verdict fields, or nothing at all when the exercise does not vote."""
+    if verdict is None:
+        return {}
+    return {
+        "ml_score": verdict.ml_score,
+        "confidence": verdict.confidence,
+        "failed_gates": list(verdict.failed_gates),
+        "counted_good": verdict.counted_good,
     }
 
 

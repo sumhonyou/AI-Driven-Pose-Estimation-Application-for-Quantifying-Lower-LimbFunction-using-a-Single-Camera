@@ -64,6 +64,7 @@ def build_trends(sessions: Iterable[Any]) -> dict[str, ExerciseTrend]:
             band=s.band,
             capture_quality=_to_float(s.capture_quality),
             confidence=_to_float(mb.confidence) if mb is not None else None,
+            rep_count=s.rep_count,
         )
         grouped.setdefault(s.exercise_type, []).append(point)
     # mdc stays default "none": no published MDC on the 0-10 score (see schema).

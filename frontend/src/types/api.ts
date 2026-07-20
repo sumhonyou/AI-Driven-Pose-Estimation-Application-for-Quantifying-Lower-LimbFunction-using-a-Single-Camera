@@ -48,6 +48,8 @@ export type SessionDTO = {
   // null for exercises with no rep concept (SLS, WBLT) and for sessions
   // recorded before this field existed.
   rep_count: number | null;
+  /** The rep goal the user set before the set, if any. */
+  target_rep_count: number | null;
 };
 
 export type ExerciseLatest = {
@@ -74,6 +76,8 @@ export type TrendPoint = {
   capture_quality: number | null;
   // Module B only; always null for Module A exercise types.
   confidence: number | null;
+  // Denormalized like score/band. Null for exercises with no rep concept (SLS, WBLT).
+  rep_count: number | null;
 };
 
 export type ExerciseTrend = {
