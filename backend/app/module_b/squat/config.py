@@ -117,13 +117,22 @@ SQUAT_CONFIG = {
         },
         "heel_rise": {
             "enabled": True,
-            # [dataset-derived, Stage 5.12] Rule-only signal outside the frozen ML
-            # feature vector (no schema bump/retrain). Passed the heel-visibility
-            # go/no-go census and the standard KEEP/DROP validity check (AUC 0.728,
-            # Poor higher). Youden's-J cut on heel_rise_peak_norm = peak bilateral
-            # (toe_y − heel_y) rise from the rep's first frame, normalized by trunk
-            # length. Fires when the peak heel lift reaches this value.
-            "fault_heel_rise_peak_norm": 0.08399336939375095,
+            # [dataset-derived, Stage 5.12; re-derived Stage R1 2026-07-24] Rule-only
+            # signal outside the frozen ML feature vector (no schema bump/retrain).
+            # Passed the heel-visibility go/no-go census and the standard KEEP/DROP
+            # validity check (AUC 0.714, Poor higher). Youden's-J cut on
+            # heel_rise_peak_norm = peak NEAR-LEG (camera-side, chosen by visibility)
+            # (toe_y − heel_y) rise from a settle-window baseline, debounced over a
+            # sustained-frame window, normalized by trunk length. Re-derived under
+            # this construction (was 0.08399336939375095 under the old bilateral,
+            # single-frame-baseline construction) after UAT found it false-positiving
+            # on good-form squats (docs/PhysioFit_UserTesting_Analysis.md T8); the new
+            # construction trades a small AUC drop (0.728->0.714) for materially
+            # better specificity (0.569->0.625 in-sample, 0.583->0.597 out-of-fold) --
+            # i.e. fewer false alarms on Good reps, the actual defect being fixed. See
+            # ml/reports/SQUAT_FAULT_GATE_ANALYSIS.md. Fires when the peak heel lift
+            # reaches this value.
+            "fault_heel_rise_peak_norm": 0.07098522548163665,
             "tag": "heel_lift",
             "message": "Heels lifting off the floor — keep your weight through your heels.",
         },

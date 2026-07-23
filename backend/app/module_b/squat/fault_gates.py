@@ -29,6 +29,19 @@ Depth and lean read the already-extracted `FeatureVector` (no schema change). He
 reads the rep's raw frames directly (landmarks 29–32), since heel/ankle position is not
 part of the squat feature vector. Gates are computed on the same per-rep windows the
 features use, so a gate's scale matches the thresholds derived in Phase A.
+
+UAT remediation (Stage R1, 2026-07-24): the original heel-rise construction produced
+false positives on good-form squats (3/18 UAT sessions). Root cause was twofold: the
+baseline was a single first frame (noisy), and the bilateral (left+right) average
+weighted in the occluded far leg — Stage 5.3 measured the far knee at 0.59-0.78
+visibility vs 0.95-0.99 near, and the far heel is no better placed. `_heel_rise_peak_norm`
+now (a) selects the camera-side (near) leg by mean landmark visibility instead of
+averaging both, (b) baselines against the median of a short settle window instead of
+frame 0, (c) requires the rise to be sustained across a debounce window rather than
+firing on a single noisy frame, and (d) refuses to fire at all if even the chosen near
+leg is not reliably visible for the rep (fail safe: no verdict from a foot we can't see).
+This mirrors the pattern WBLT's `HeelLiftDetector` (`module_a/wblt/geometry.py`) already
+uses. See `ml/reports/SQUAT_FAULT_GATE_ANALYSIS.md` for the re-derived threshold.
 """
 
 from __future__ import annotations
@@ -37,6 +50,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from app.module_a.core.config import MIN_VISIBILITY
 from app.module_b.core.features import FeatureVector
 from app.module_b.core.geometry import distance, landmark_value, midpoint
 
@@ -45,6 +59,20 @@ from app.module_b.core.geometry import distance, landmark_value, midpoint
 _HEEL = {"left": 29, "right": 30}
 _TOE = {"left": 31, "right": 32}
 _MAX_HEEL_LANDMARK_INDEX = 32
+
+# Stage R1: short window at the start of the rep (still near-standing) used to median
+# the baseline instead of trusting a single, possibly noisy, first frame.
+_SETTLE_WINDOW_FRAMES = 3
+# A rise only counts once it holds for this many consecutive frames -- a single spiky
+# frame (a landmark glitch) can no longer set the whole rep's peak. Same idiom as
+# WBLT's `lift_debounce_frames`.
+_DEBOUNCE_FRAMES = 3
+# Below this mean visibility, even the camera-side foot isn't reliably tracked for the
+# rep; the gate must not manufacture a verdict from a foot it effectively can't see.
+_MIN_LEG_VISIBILITY = MIN_VISIBILITY
+# Sentinel below any real normalized rise, guaranteeing the gate never fires when the
+# near leg is unreliable.
+_OCCLUDED_SENTINEL = float("-1.0")
 
 
 @dataclass(frozen=True)
@@ -168,25 +196,54 @@ def evaluate_fault_gates(
 
 
 def _heel_rise_peak_norm(frames: list[Any]) -> float:
-    """Peak bilateral heel lift from the rep's first frame, normalized by trunk length.
+    """Peak near-leg heel lift, debounced, normalized by trunk length.
 
-    Identical construction to the Phase A analysis script the threshold was derived
-    from (X1 in spirit): bilateral (toe_y − heel_y) per frame, referenced to the first
-    frame, peak over the rep, divided by mean trunk length. A positive value means the
-    heel rose relative to the grounded toe.
+    Stage R1 construction: the camera-side (near) leg is chosen per rep by mean
+    landmark visibility rather than averaging both legs -- in a side view the far
+    foot is frequently occluded and a bilateral mean lets its noise manufacture a
+    phantom rise. The baseline is the median of a short settle window (not just
+    frame 0), and the reported peak must be sustained across a debounce window (not
+    a single-frame spike). If even the near leg isn't reliably visible for this rep,
+    the gate is refused entirely (fail safe) rather than guessed at.
     """
     if not frames:
         raise ValueError("Cannot evaluate heel rise on an empty rep")
-    bilateral = [
-        (_toe_heel_lift(frame, "left") + _toe_heel_lift(frame, "right")) / 2.0
-        for frame in frames
-    ]
-    baseline = bilateral[0]
-    peak_rise = max(value - baseline for value in bilateral)
+
+    near_leg = _select_near_leg(frames)
+    if _leg_visibility(frames, near_leg) < _MIN_LEG_VISIBILITY:
+        return _OCCLUDED_SENTINEL
+
+    lifts = [_toe_heel_lift(frame, near_leg) for frame in frames]
+    settle = lifts[: min(_SETTLE_WINDOW_FRAMES, len(lifts))]
+    baseline = sorted(settle)[len(settle) // 2]
+    rises = [value - baseline for value in lifts]
+
+    window = min(_DEBOUNCE_FRAMES, len(rises))
+    sustained_peak = max(
+        min(rises[i : i + window]) for i in range(len(rises) - window + 1)
+    )
+
     norm_ref = sum(_trunk_length(frame) for frame in frames) / len(frames)
     if norm_ref < 1e-9:
         raise ValueError("Cannot normalize heel rise with a zero trunk length")
-    return peak_rise / norm_ref
+    return sustained_peak / norm_ref
+
+
+def _select_near_leg(frames: list[Any]) -> str:
+    """Pick the camera-side leg by whichever heel/toe pair is better tracked."""
+    left_visibility = _leg_visibility(frames, "left")
+    right_visibility = _leg_visibility(frames, "right")
+    return "left" if left_visibility >= right_visibility else "right"
+
+
+def _leg_visibility(frames: list[Any], side: str) -> float:
+    """Mean heel+toe landmark visibility for one leg across the rep."""
+    values = []
+    for frame in frames:
+        landmarks = _frame_landmarks(frame)
+        values.append(landmark_value(landmarks[_HEEL[side]], "visibility"))
+        values.append(landmark_value(landmarks[_TOE[side]], "visibility"))
+    return sum(values) / len(values)
 
 
 def _toe_heel_lift(frame: Any, side: str) -> float:

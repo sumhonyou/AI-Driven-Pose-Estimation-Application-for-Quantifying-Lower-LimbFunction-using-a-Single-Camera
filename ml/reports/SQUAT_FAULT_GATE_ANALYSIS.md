@@ -32,9 +32,9 @@ The far heel behaves like squat's far ankle (mostly above the line), not like th
 
 | feature | Good median | Poor median | AUC | direction | subjects agreeing | p | verdict |
 | ------- | ----------- | ----------- | --- | --------- | ------------------ | - | ------- |
-| `heel_rise_peak_norm` | 0.0790 | 0.1058 | 0.728 | Poor higher | 4/5 | 0.000617 | **KEEP** |
+| `heel_rise_peak_norm` | 0.0593 | 0.0866 | 0.714 | Poor higher | 3/5 | 0.00127 | **KEEP** |
 
-**KEEP** -- separates (AUC 0.728, poor higher) and the direction holds in 4/5 subjects. Proceeding to threshold derivation below.
+**KEEP** -- separates (AUC 0.714, poor higher) and the direction holds in 3/5 subjects. Proceeding to threshold derivation below.
 
 ## 3. Threshold derivation
 
@@ -55,8 +55,8 @@ The far heel behaves like squat's far ankle (mostly above the line), not like th
 
 ### Heel-rise gate (data-driven, since census was GO and validity was KEEP)
 
-- **Deployed threshold (pooled): 0.0840 (normalized units).** In-sample sensitivity 0.885, specificity 0.569.
-- **Out-of-fold honesty check** (StratifiedGroupKFold(5, groups=person_id)): pooled out-of-fold sensitivity 0.808, specificity 0.583.
+- **Deployed threshold (pooled): 0.0710 (normalized units).** In-sample sensitivity 0.846, specificity 0.625.
+- **Out-of-fold honesty check** (StratifiedGroupKFold(5, groups=person_id)): pooled out-of-fold sensitivity 0.808, specificity 0.597.
 
 ## Summary
 
@@ -64,6 +64,6 @@ The far heel behaves like squat's far ankle (mostly above the line), not like th
 | ---- | ---------- | ------------------- |
 | lean | [dataset-derived, Stage 5.12] | trunk_lean_peak_deg >= 41.42 deg |
 | depth | [clinical norm, Stage 5.12] | knee_flex_peak_deg < 78.04 deg |
-| heel-rise | [dataset-derived, Stage 5.12] | heel_rise_peak_norm >= 0.0840 |
+| heel-rise | [dataset-derived, Stage 5.12] | heel_rise_peak_norm >= 0.0710 |
 
 Next: Phase B wires these into `backend/app/module_b/squat/fault_gates.py` and `SQUAT_CONFIG["fault_gates"]`, per the approved plan.

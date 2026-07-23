@@ -18,8 +18,12 @@ from app.module_b.core.router import _fault_gate_tags
 from app.module_b.squat.config import SQUAT_CONFIG
 from app.module_b.squat.exercise import SquatExercise
 from app.module_b.squat.fault_gates import (
+    _DEBOUNCE_FRAMES,
+    _SETTLE_WINDOW_FRAMES,
     FaultGateResult,
     GateCheck,
+    _leg_visibility,
+    _select_near_leg,
     depth_gate,
     evaluate_fault_gates,
     heel_rise_gate,
@@ -50,8 +54,10 @@ def _feature_vector(**overrides: float) -> FeatureVector:
     )
 
 
-def _landmark(x: float, y: float, z: float = 0.0) -> dict[str, float]:
-    return {"x": x, "y": y, "z": z, "visibility": 1.0}
+def _landmark(
+    x: float, y: float, z: float = 0.0, visibility: float = 1.0
+) -> dict[str, float]:
+    return {"x": x, "y": y, "z": z, "visibility": visibility}
 
 
 def _frame(
@@ -59,11 +65,19 @@ def _frame(
     flexion_deg: float,
     trunk_lean: float = 0.0,
     heel_lift: float = 0.0,
+    *,
+    left_heel_lift: float | None = None,
+    right_heel_lift: float | None = None,
+    left_foot_visibility: float = 1.0,
+    right_foot_visibility: float = 1.0,
 ) -> dict:
     """Metric bilateral pose with requested knee flexion, trunk lean, and heel lift.
 
     ``heel_lift`` raises both heels (landmarks 29/30) above the grounded toes (31/32);
-    since world-y increases downward, a lifted heel sits at ``-heel_lift``.
+    since world-y increases downward, a lifted heel sits at ``-heel_lift``. Pass
+    ``left_heel_lift``/``right_heel_lift`` to give the two feet different lift (e.g. a
+    noisy occluded far leg vs a flat near leg), and ``left_foot_visibility``/
+    ``right_foot_visibility`` to simulate one foot being poorly tracked.
     """
     landmarks = [_landmark(0.0, 0.0) for _ in range(33)]
     flexion_rad = math.radians(flexion_deg)
@@ -80,9 +94,14 @@ def _frame(
         landmarks[ankle_index] = _landmark(
             x + math.sin(flexion_rad), 1.0 + math.cos(flexion_rad)
         )
-    for heel_index, toe_index, x in ((29, 31, -0.15), (30, 32, 0.15)):
-        landmarks[toe_index] = _landmark(x, 0.0)
-        landmarks[heel_index] = _landmark(x, -heel_lift)
+    left_lift = heel_lift if left_heel_lift is None else left_heel_lift
+    right_lift = heel_lift if right_heel_lift is None else right_heel_lift
+    for heel_index, toe_index, x, lift, visibility in (
+        (29, 31, -0.15, left_lift, left_foot_visibility),
+        (30, 32, 0.15, right_lift, right_foot_visibility),
+    ):
+        landmarks[toe_index] = _landmark(x, 0.0, visibility=visibility)
+        landmarks[heel_index] = _landmark(x, -lift, visibility=visibility)
     return {"timestampMs": timestamp_ms, "worldLandmarks": landmarks}
 
 
@@ -142,19 +161,81 @@ class LeanGateTests(unittest.TestCase):
 
 
 class HeelRiseGateTests(unittest.TestCase):
-    def test_heel_lift_fails(self) -> None:
-        # trunk_length ~= 1.0 in this rig, so heel_lift ~= the normalized metric.
-        rep = SimpleNamespace(
-            frames=[
-                _frame(0.0, 0.0, heel_lift=0.0),
-                _frame(100.0, 100.0, heel_lift=HEEL_MAX + 0.05),
-                _frame(200.0, 0.0, heel_lift=0.0),
-            ]
-        )
-        check = heel_rise_gate(rep, GATES["heel_rise"], rep_index=2)
+    """Stage R1: near-leg selection, settle-window baseline, debounce, occlusion guard.
+
+    Regression coverage for the UAT false-positive fix
+    (docs/PhysioFit_UserTesting_Analysis.md T8) — good-form squats were flagged
+    heel_lift because the old construction averaged in a noisy, occluded far foot off
+    a single-frame baseline. Each test below isolates one part of the fix.
+    """
+
+    def _rep(self, frames: list[dict]) -> SimpleNamespace:
+        return SimpleNamespace(frames=frames)
+
+    def test_sustained_heel_lift_fails(self) -> None:
+        # A lift held for the full debounce window is a real fault: settle flat, then
+        # rise for _DEBOUNCE_FRAMES in a row, then return to flat.
+        frames = [_frame(0.0, 0.0, heel_lift=0.0) for _ in range(_SETTLE_WINDOW_FRAMES)]
+        frames += [
+            _frame(100.0 + i, 100.0, heel_lift=HEEL_MAX + 0.05)
+            for i in range(_DEBOUNCE_FRAMES)
+        ]
+        frames.append(_frame(200.0, 0.0, heel_lift=0.0))
+        check = heel_rise_gate(self._rep(frames), GATES["heel_rise"], rep_index=2)
         self.assertIsNotNone(check)
         self.assertEqual(check.tag, "heel_lift")
         self.assertGreaterEqual(check.metric_value, HEEL_MAX)
+
+    def test_single_frame_spike_passes(self) -> None:
+        # The concrete regression proof of the debounce fix: one noisy frame (a
+        # landmark glitch) surrounded by flat frames must NOT trip the gate, because
+        # it never survives a full debounce-window minimum.
+        frames = [_frame(0.0, 0.0, heel_lift=0.0) for _ in range(_SETTLE_WINDOW_FRAMES)]
+        frames.append(_frame(100.0, 100.0, heel_lift=HEEL_MAX + 0.10))
+        frames += [
+            _frame(150.0, 50.0, heel_lift=0.0),
+            _frame(200.0, 0.0, heel_lift=0.0),
+        ]
+        self.assertIsNone(
+            heel_rise_gate(self._rep(frames), GATES["heel_rise"], rep_index=0)
+        )
+
+    def test_far_leg_noise_does_not_fire(self) -> None:
+        # The core R1 regression: a poorly-tracked far leg spiking wildly must not
+        # contaminate the verdict once the gate reads only the near (better-tracked)
+        # leg. The old bilateral average would have averaged this spike straight in.
+        frames = [
+            _frame(
+                0.0 + i,
+                80.0,
+                left_heel_lift=0.0,
+                right_heel_lift=HEEL_MAX + 0.20,
+                left_foot_visibility=1.0,
+                right_foot_visibility=0.3,
+            )
+            for i in range(_SETTLE_WINDOW_FRAMES + _DEBOUNCE_FRAMES)
+        ]
+        self.assertEqual(_select_near_leg(frames), "left")
+        self.assertIsNone(
+            heel_rise_gate(self._rep(frames), GATES["heel_rise"], rep_index=0)
+        )
+
+    def test_occluded_near_leg_refuses_to_fire(self) -> None:
+        # Fail-safe: if even the chosen near leg isn't reliably visible for the rep,
+        # the gate must refuse to fire rather than guess from a foot it can't see.
+        frames = [
+            _frame(
+                0.0 + i,
+                80.0,
+                heel_lift=HEEL_MAX + 0.20,
+                left_foot_visibility=0.3,
+                right_foot_visibility=0.3,
+            )
+            for i in range(_SETTLE_WINDOW_FRAMES + _DEBOUNCE_FRAMES)
+        ]
+        self.assertIsNone(
+            heel_rise_gate(self._rep(frames), GATES["heel_rise"], rep_index=0)
+        )
 
     def test_heels_down_passes(self) -> None:
         self.assertIsNone(heel_rise_gate(_clean_rep(), GATES["heel_rise"], rep_index=0))
@@ -168,6 +249,35 @@ class HeelRiseGateTests(unittest.TestCase):
             heel_rise_gate(
                 SimpleNamespace(frames=[short_frame]), GATES["heel_rise"], rep_index=0
             )
+
+
+class NearLegSelectionTests(unittest.TestCase):
+    """Whitebox coverage for the visibility-based near-leg selection itself."""
+
+    def test_picks_more_visible_left_leg(self) -> None:
+        frames = [
+            _frame(0.0, 80.0, left_foot_visibility=1.0, right_foot_visibility=0.4)
+        ]
+        self.assertEqual(_select_near_leg(frames), "left")
+
+    def test_picks_more_visible_right_leg(self) -> None:
+        frames = [
+            _frame(0.0, 80.0, left_foot_visibility=0.4, right_foot_visibility=1.0)
+        ]
+        self.assertEqual(_select_near_leg(frames), "right")
+
+    def test_tie_prefers_left(self) -> None:
+        frames = [
+            _frame(0.0, 80.0, left_foot_visibility=0.8, right_foot_visibility=0.8)
+        ]
+        self.assertEqual(_select_near_leg(frames), "left")
+
+    def test_leg_visibility_averages_heel_and_toe_across_frames(self) -> None:
+        frames = [
+            _frame(0.0, 80.0, left_foot_visibility=1.0),
+            _frame(1.0, 80.0, left_foot_visibility=0.5),
+        ]
+        self.assertAlmostEqual(_leg_visibility(frames, "left"), 0.75)
 
 
 class EvaluateFaultGatesTests(unittest.TestCase):

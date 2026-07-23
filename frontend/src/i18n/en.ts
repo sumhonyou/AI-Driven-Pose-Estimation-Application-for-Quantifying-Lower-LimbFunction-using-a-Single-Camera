@@ -157,7 +157,7 @@ const en = {
   },
   dash: {
     greeting: "Good Day, Sarah",
-    greetingName: "Good Day, {{name}}ß",
+    greetingName: "Good Day, {{name}}",
     dateline: "{{date}} · Here's how your lower-limb function is trending.",
     avgScore: "Average score · last 14 days",
     latestBand: "Latest band",

@@ -1246,6 +1246,60 @@ distinct values. Retraining was considered and rejected on the grounds establish
 the label construct is itself population-specific, so a model retrained on the same labels
 reproduces the same confound.
 
+### 8.9 A false-positive fault revealed by usability testing, and its correction
+
+Moderated usability testing surfaced a defect the offline evaluation had not: the
+heel-lift gate of Section 8.6 fired on repetitions independently judged, and later
+confirmed, to be good form. Three participants of eighteen observed sessions reported
+it, one explicitly noting the flag appeared "even though in good form." Because a
+false-positive fault silently damages the credibility of a grading system without any
+accompanying complaint about accuracy — participants trust a system's verdict about
+their own body rather than question it — this defect was invisible to every accuracy
+measure reported earlier in this chapter and was found only by watching a naive user
+attempt the movement.
+
+The original measurement baselined heel elevation against a single first frame of the
+repetition and averaged the toe-relative heel height of both legs together. Both
+choices were faults. A single frame is a noisy reference point, vulnerable to whatever
+the tracker happened to output at that instant; and averaging both legs let the far
+leg, already shown in Section 5.3 to be poorly tracked from a single side-on camera
+during a squat, contribute noise indistinguishable from a genuine lift. The correction
+addresses both causes together with a third safeguard against the same failure mode
+recurring: the measurement now identifies the camera-side leg per repetition by
+comparing the mean tracking visibility of each leg's heel and toe landmarks, rather
+than assuming a fixed facing direction, since a deployed user — unlike a controlled
+recording — is not guaranteed to face the camera the same way from one session to the
+next; it baselines against the median of a short settling window at the start of the
+repetition rather than one frame; it requires an elevation to be sustained across a
+short window of consecutive frames rather than accepting a single-frame peak; and it
+declines to render any verdict at all when even the chosen near leg falls below the
+same visibility floor used throughout this pipeline to decide whether a landmark is
+trustworthy, rather than guessing from a foot the system cannot reliably see. This
+mirrors, and was directly modelled on, the equivalent heel-lift check already proven
+reliable for the weight-bearing lunge test elsewhere in this system, which uses the
+same calibrated-baseline, single-leg, debounced construction.
+
+The threshold was re-derived under the corrected measurement using the identical
+procedure applied to every other rule threshold in this chapter — a pooled Youden's-J
+cut, honesty-checked with the same subject-grouped out-of-fold protocol — rather than
+simply retuning the old cut-point, since the underlying quantity had changed. The
+corrected feature still passes the class-separation validity check applied to every
+candidate feature in this work, though the margin narrowed slightly: area under the
+curve fell from 0.728 to 0.714, and the direction of separation held in three of five
+subjects rather than four. Specificity improved from 0.569 to 0.625 in-sample and from
+0.583 to 0.597 out-of-fold, at essentially unchanged sensitivity (0.885 to 0.846
+in-sample; 0.808 out-of-fold, unchanged). This is the correct trade for the defect
+being corrected: specificity is precisely the rate at which a correct repetition is
+left unflagged, so the improvement is a direct, measured reduction in the false-alarm
+behaviour usability testing reported, obtained at a small and honestly-reported cost to
+overall separation rather than by loosening the check.
+
+This finding is recorded as a limitation of the earlier construction rather than
+concealed by the correction: the deployed system produced false-positive fault flags
+for a period of usability testing, and the corrected measurement, while improved, was
+derived from the same nine-subject population as every other threshold in this
+chapter and carries the same generalisation caveats stated in Section 9.
+
 ## 9. External Validation Against an Independent Dataset
 
 Every result reported to this point derives from a single dataset. Because the training

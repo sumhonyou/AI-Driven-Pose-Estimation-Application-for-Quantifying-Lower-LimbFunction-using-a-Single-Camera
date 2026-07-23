@@ -49,25 +49,17 @@ from pathlib import Path
 
 import check_feature_validity as cfv
 import numpy as np
-from app.module_a.core.config import MIN_VISIBILITY
-from app.module_b.core.geometry import (
-    distance,
-    knee_flexion_deg,
-    landmark_value,
-    midpoint,
-)
-from app.module_b.squat.config import SQUAT_CONFIG
-from build_features import (
-    LABEL_MAP,
-    SIDE_VIEW_ORIENTATION,
-    TARGET_EXERCISE_ID,
-    _load_config,
-    _preprocessed_stream,
-    _raw_full_stream,
-    _read_segmentation,
-)
+from build_features import (LABEL_MAP, SIDE_VIEW_ORIENTATION,
+                            TARGET_EXERCISE_ID, _load_config,
+                            _preprocessed_stream, _raw_full_stream,
+                            _read_segmentation)
 from sklearn.metrics import roc_curve
 from train_squat import _choose_cv
+
+from app.module_a.core.config import MIN_VISIBILITY
+from app.module_b.core.geometry import (distance, knee_flexion_deg,
+                                        landmark_value, midpoint)
+from app.module_b.squat.config import SQUAT_CONFIG
 
 ML_ROOT = Path(__file__).resolve().parent.parent
 REPORT_MD = ML_ROOT / "reports" / "SQUAT_FAULT_GATE_ANALYSIS.md"
@@ -96,6 +88,11 @@ PEAK_FLEXION_BIAS_DEG = -11.96
 
 AUC_KEEP_MARGIN = cfv.AUC_KEEP_MARGIN
 DIRECTION_CONSISTENCY_MIN = cfv.DIRECTION_CONSISTENCY_MIN
+
+# Stage R1: kept identical to `module_b/squat/fault_gates.py`'s constants of the same
+# name so the threshold derived here matches what production computes.
+_SETTLE_WINDOW_FRAMES = 3
+_DEBOUNCE_FRAMES = 3
 
 
 def _bilateral_knee_flexion(frame: dict) -> float:
@@ -224,12 +221,42 @@ def _toe_heel_lift(frame: dict, side: str) -> float:
     return landmark_value(lm[TOE[side]], "y") - landmark_value(lm[HEEL[side]], "y")
 
 
+def _leg_visibility(frames: list[dict], side: str) -> float:
+    values = []
+    for f in frames:
+        lm = f["worldLandmarks"]
+        values.append(float(landmark_value(lm[HEEL[side]], "visibility")))
+        values.append(float(landmark_value(lm[TOE[side]], "visibility")))
+    return float(np.mean(values))
+
+
+def _select_near_leg(frames: list[dict]) -> str:
+    left_visibility = _leg_visibility(frames, "left")
+    right_visibility = _leg_visibility(frames, "right")
+    return "left" if left_visibility >= right_visibility else "right"
+
+
 def _heel_rise_peak_norm(frames: list[dict]) -> float:
-    bilateral = [
-        (_toe_heel_lift(f, "left") + _toe_heel_lift(f, "right")) / 2.0 for f in frames
-    ]
-    baseline = bilateral[0]
-    peak_rise = max(v - baseline for v in bilateral)
+    """Stage R1 construction (mirrors `module_b/squat/fault_gates.py`, kept in
+    lockstep so the threshold derived here matches what production computes):
+    camera-side leg picked by visibility (not bilateral average), baseline is the
+    median of a short settle window (not frame 0), and the reported peak must be
+    sustained across a debounce window (not a single-frame spike). Callers of this
+    script (`build_heel_rise_rows`) already filter to visibility-census-passing reps,
+    so the occlusion guard here is a no-op in practice, not silently masking anything.
+    """
+    near_leg = _select_near_leg(frames)
+    if _leg_visibility(frames, near_leg) < MIN_VISIBILITY:
+        return -1.0
+
+    lifts = [_toe_heel_lift(f, near_leg) for f in frames]
+    settle = lifts[: min(_SETTLE_WINDOW_FRAMES, len(lifts))]
+    baseline = float(np.median(settle))
+    rises = [v - baseline for v in lifts]
+
+    window = min(_DEBOUNCE_FRAMES, len(rises))
+    peak_rise = max(min(rises[i : i + window]) for i in range(len(rises) - window + 1))
+
     norm_ref = float(np.mean([_trunk_length(f) for f in frames]))
     if norm_ref < 1e-9:
         raise ValueError(

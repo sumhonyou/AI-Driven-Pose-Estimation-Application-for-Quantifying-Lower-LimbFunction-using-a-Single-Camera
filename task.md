@@ -3116,7 +3116,7 @@ Mirrors squat's Stage 4.2 — `task.md:454-490`.
 
 **Three design decisions taken with HY (the stage's "ask HY" note), all confirmed as recommended:**
 
-1. **Feature structure = front/back split (lead-leg-invariant).** A lunge is asymmetric — the front (lead) and back leg do different jobs — so squat's both-legs-mean structure would blur them. Features are defined in `front_`*/`back_`* terms where "front" = the lead leg, so a left-lead and an identical right-lead rep produce a **bit-identical** vector (proven by `test_features_are_lead_leg_invariant`). The model never sees left vs right.
+1. **Feature structure = front/back split (lead-leg-invariant).** A lunge is asymmetric — the front (lead) and back leg do different jobs — so squat's both-legs-mean structure would blur them. Features are defined in `front_`_/`back_`_ terms where "front" = the lead leg, so a left-lead and an identical right-lead rep produce a **bit-identical** vector (proven by `test_features_are_lead_leg_invariant`). The model never sees left vs right.
 2. **Lead-leg tag = metadata, not a numeric feature.** Added an optional `lead_leg: str | None` field to the shared `FeatureVector` (`core/features.py`), validated to `{"left","right",None}`, kept **out of** `names`/`values`. Squat leaves it `None` (unchanged); lunge sets it. This keeps the numeric vector lead-leg-invariant while still recording the anatomical side for Stage 4.4's cross-rep symmetry, the report, and the `knee_passes_toe` front-leg pick.
 3. `knee_passes_toe` **= included (front leg).** Live uses MediaPipe `foot_index` (31/32) — confirmed streamed unsliced through `useMediaPipePose.ts` → `preprocessing.py`; EC3D carries `BigToe` (19/22) per `ml/docs/ec3d_joint_mapping.md`. So **no ankle approximation is needed** — the joint exists on both sides. (Left/right EC3D handedness is still open per Q3, but the lead leg is resolved from `exercise_subtype`/geometry, not from EC3D's L/R joint labels, so it doesn't block this feature.)
 
@@ -4180,3 +4180,47 @@ Found while merging `task_phases_4_to_7.md` into this document. **All 5 resolved
 - Evaluation section evidence
 - Final report screenshots
 - Improvement evidence
+
+---
+
+## Phase 10: UAT Remediation
+
+**Goal:** Turn the moderated UAT backlog (`PhysioFit_UserTesting_Analysis.md`, 22
+participants / 21 questionnaires) into discrete, screenshot-able fixes. Curated
+high-impact scope; correctness defects first, then page-by-page UX. See the approved
+plan (`users-sumhonyou-downloads-physiofit-use-idempotent-dawn.md`) for the full staged
+backlog and the future-work list.
+
+### Phase 10 — Stage R1: Squat heel-lift false positive fix (2026-07-24)
+
+- [x] Root cause confirmed: `backend/app/module_b/squat/fault_gates.py::_heel_rise_peak_norm`
+      baselined against the rep's first frame only and averaged both legs, letting the
+      occluded far foot (side-view squat, far knee measured 0.59-0.78 visibility vs
+      0.95-0.99 near, Stage 5.3) manufacture phantom heel-rise. Confirmed exactly as UAT's
+      T8 hypothesised (3/18 sessions, incl. one "even though in good form").
+- [x] Fixed by switching the gate to **near-leg-only** (camera-side leg selected per rep
+      by mean heel+toe landmark visibility, `_select_near_leg`/`_leg_visibility`), a
+      **settle-window median baseline** (first 3 frames) instead of frame 0, a **debounce**
+      requiring the rise to be sustained across a 3-frame sliding window instead of a
+      single-frame max, and an **occlusion guard** that refuses to fire at all if even the
+      near leg's visibility falls below `MIN_VISIBILITY` (0.6) for the rep (fail-safe).
+      Mirrors the pattern already proven correct in `module_a/wblt/geometry.py::HeelLiftDetector`.
+- [x] `ml/scripts/analyze_fault_gate_thresholds.py` updated in lockstep (same near-leg
+      selection, settle window, debounce constants) so the re-derived threshold matches
+      what production now computes; re-run against the real REHAB24-6 dataset
+      (`/Users/sumhonyou/fypDataset`), confirmed byte-identical across two runs (X8).
+      `fault_heel_rise_peak_norm` in `backend/app/module_b/squat/config.py` updated
+      0.08399336939375095 → **0.07098522548163665**. Validity check still KEEPs (AUC
+      0.728→0.714, direction-consistency 4/5→3/5 subjects), but **specificity improved**
+      0.569→0.625 in-sample (0.583→0.597 out-of-fold) at a similar sensitivity (0.885→0.846
+      in-sample, 0.808 out-of-fold unchanged) — i.e. materially fewer false alarms on Good
+      reps, which is the actual defect being fixed, at a small, honestly-reported precision
+      cost. See `ml/reports/SQUAT_FAULT_GATE_ANALYSIS.md`.
+- [x] Regression tests added/rewritten in `backend/tests/test_module_b_squat_fault_gates.py`
+      (`HeelRiseGateTests` + new `NearLegSelectionTests`): sustained lift still fires,
+      a single-frame spike no longer fires (the direct debounce regression proof), a noisy
+      low-visibility far leg no longer contaminates a clean near leg, and a rep where even
+      the near leg is occluded refuses to fire at all. Full backend suite: **329/329
+      passing** (28/28 in the fault-gates file). Black + isort applied.
+- [ ] Live end-to-end re-verification against a real recorded squat session (browser +
+      running backend) deferred to the next working session — not yet run in this pass.
