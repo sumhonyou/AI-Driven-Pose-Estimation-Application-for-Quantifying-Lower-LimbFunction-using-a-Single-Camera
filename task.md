@@ -4224,3 +4224,38 @@ backlog and the future-work list.
       passing** (28/28 in the fault-gates file). Black + isort applied.
 - [ ] Live end-to-end re-verification against a real recorded squat session (browser +
       running backend) deferred to the next working session — not yet run in this pass.
+
+### Phase 10 — Stage R2: SLS lift-detection over-sensitivity fix (2026-07-24)
+
+- [x] Root cause confirmed: `backend/app/module_a/sls/fsm.py::LiftHoldFSM` gated a lift
+      confirmation on `SLS_LIFT_PERSIST_FRAMES = 3` **consecutive frames**, not a real
+      elapsed time. Since MediaPipe runs via `requestAnimationFrame` (rate varies with
+      the browser/device rather than a fixed 30fps), 3 frames could be well under 0.1s
+      on a fast machine — inside normal foot jitter. Confirmed as the mechanism behind
+      UAT T1/S5 ("the lifting too sensitive").
+- [x] Fixed by converting both the lift-confirm and drop-confirm dwell from a frame
+      count to a **real minimum elapsed time**, using the timestamp already threaded
+      through `update(t, ...)`: `SLS_LIFT_MIN_DWELL_SEC = 0.15`,
+      `SLS_DROP_MIN_DWELL_SEC = 0.10` (`backend/app/module_a/sls/config.py`). The FSM now
+      tracks `_above_since`/`_below_since` timestamps instead of streak counters
+      (`fsm.py`). Geometry thresholds (lift-line height, hysteresis margin) left
+      unchanged — the defect was dwell timing, not the height/margin.
+- [x] Mirrored the identical fix into the frontend live estimate
+      (`frontend/src/services/sls/liveGeometry.ts::createSlsLiveTracker`,
+      `frontend/src/config/moduleAThresholds.ts`) so the on-screen hold timer users see
+      live matches the backend's authoritative recompute — the old frame-count constants
+      were removed outright (no longer read anywhere) rather than left as dead exports.
+- [x] Regression tests: `backend/tests/test_module_a_sls.py::FsmTests` rewritten for
+      dwell-based timing, incl. a direct regression proof (`test_a_lift_shorter_than_the
+    _dwell_never_confirms`) that a lift shorter than the dwell window never starts a
+      timer. New `frontend/src/services/sls/liveGeometry.test.ts` (4 tests) covers the
+      same dwell/drop-dwell behaviour client-side — no prior test file existed for this
+      module. Full backend suite **330/330**; frontend `tsc --noEmit` clean, full
+      `vitest` suite **31/31**. Black + isort + Prettier applied.
+- [x] Re-ran `python -m app.module_a.scripts.run_sls_evaluation` (the committed replay
+      corpus, `backend/app/module_a/replay_corpus/sls/`) to confirm the dwell change
+      doesn't regress measurement agreement: **ICC(2,1)=0.995, kappa=0.857,
+      Bland-Altman bias=-0.753s, LoA=[-4.08s, 2.57s]** — byte-identical to the pre-fix
+      Phase 3B baseline (`SLS_EVALUATION_REPORT.md` diff is empty).
+- [ ] Live end-to-end re-verification (browser + running backend, a genuinely brief
+      accidental foot-twitch vs. a real held lift) deferred to the next working session.

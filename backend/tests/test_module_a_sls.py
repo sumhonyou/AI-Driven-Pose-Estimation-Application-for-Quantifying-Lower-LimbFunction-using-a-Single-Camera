@@ -117,30 +117,50 @@ class ScoringTests(unittest.TestCase):
 
 
 class FsmTests(unittest.TestCase):
-    def test_timer_starts_on_confirmed_lift_and_stops_on_drop(self):
-        fsm = LiftHoldFSM(max_hold_sec=45, lift_persist_frames=3, drop_persist_frames=3)
-        # 3 above frames confirm the lift; hold starts at the 3rd (t=0.2)
-        for i in range(3):
-            fsm.update(i * 0.1, True, True)
+    """UAT remediation (T1, S5 "the lifting too sensitive"): the dwell is now a real
+    minimum elapsed time, not a frame count, so it can't collapse to a near-instant
+    confirmation on a fast browser frame rate."""
+
+    def test_timer_starts_after_min_dwell_and_stops_after_drop_dwell(self):
+        fsm = LiftHoldFSM(
+            max_hold_sec=45, lift_min_dwell_sec=0.2, drop_min_dwell_sec=0.2
+        )
+        # Below the dwell requirement -> still WAITING.
+        fsm.update(0.0, True, True)
+        fsm.update(0.1, True, True)
+        self.assertEqual(fsm.state, WAITING)
+        # Crosses the dwell requirement -> confirmed.
+        fsm.update(0.2, True, True)
         self.assertEqual(fsm.state, HOLDING)
         # Hold until t=10.0
-        t = 0.3
-        while t <= 10.0 + 1e-9:
-            fsm.update(t, True, True)
-            t += 0.1
-        # Then 3 below frames -> drop
-        for i in range(1, 4):
-            fsm.update(10.0 + i * 0.1, False, False)
+        t = 10.0
+        fsm.update(t, True, True)
+        # Drop starts at t+0.1; hasn't held the 0.2s drop dwell yet at t+0.2.
+        fsm.update(t + 0.1, False, False)
+        fsm.update(t + 0.2, False, False)
+        self.assertEqual(fsm.state, HOLDING)
+        # Drop dwell satisfied (0.2s since it started at t+0.1) -> stopped.
+        fsm.update(t + 0.3, False, False)
         self.assertEqual(fsm.state, STOPPED)
         self.assertEqual(fsm.stop_reason, "foot_dropped_below_line")
-        self.assertAlmostEqual(fsm.hold_seconds, 9.8, delta=0.2)
+        self.assertAlmostEqual(fsm.hold_seconds, 9.8, delta=0.05)
+
+    def test_a_lift_shorter_than_the_dwell_never_confirms(self):
+        # The direct regression proof of the over-sensitivity fix: a brief lift that
+        # never holds for the full dwell window must not start a timer.
+        fsm = LiftHoldFSM(lift_min_dwell_sec=0.2, drop_min_dwell_sec=0.2)
+        fsm.update(0.0, True, True)
+        fsm.update(0.1, True, True)
+        fsm.update(0.15, False, False)  # drops back before the dwell completes
+        self.assertEqual(fsm.state, WAITING)
 
     def test_single_frame_dips_do_not_stop(self):
-        fsm = LiftHoldFSM(lift_persist_frames=3, drop_persist_frames=3)
-        for i in range(3):
-            fsm.update(i * 0.1, True, True)
+        fsm = LiftHoldFSM(lift_min_dwell_sec=0.2, drop_min_dwell_sec=0.2)
+        fsm.update(0.0, True, True)
+        fsm.update(0.2, True, True)
         self.assertEqual(fsm.state, HOLDING)
-        # Alternate a single below frame with above frames -> streak never reaches 3
+        # Alternate a single below frame with above frames -> the drop dwell never
+        # accumulates enough elapsed time before the foot is confirmed up again.
         t = 0.3
         for i in range(40):
             below = i % 4 == 0
@@ -149,7 +169,9 @@ class FsmTests(unittest.TestCase):
         self.assertEqual(fsm.state, HOLDING)
 
     def test_cap_at_max(self):
-        fsm = LiftHoldFSM(max_hold_sec=5, lift_persist_frames=3, drop_persist_frames=3)
+        fsm = LiftHoldFSM(
+            max_hold_sec=5, lift_min_dwell_sec=0.2, drop_min_dwell_sec=0.2
+        )
         t = 0.0
         for _ in range(200):
             fsm.update(t, True, True)

@@ -10,10 +10,10 @@ import {
   SLS_CALIBRATION_SEC,
   SLS_CIRCLE_PERSIST_FRAMES,
   SLS_CIRCLE_RADIUS_NORM,
-  SLS_DROP_PERSIST_FRAMES,
+  SLS_DROP_MIN_DWELL_SEC,
   SLS_LIFT_HYSTERESIS_NORM,
   SLS_LIFT_LINE_NORM,
-  SLS_LIFT_PERSIST_FRAMES,
+  SLS_LIFT_MIN_DWELL_SEC,
   SLS_MAX_HOLD_SEC,
 } from "../../config/moduleAThresholds";
 import { COMBO_POINTS_PER_SEC, COMBO_TIERS } from "../../config/slsUi";
@@ -91,8 +91,8 @@ export function createSlsLiveTracker(leg: SlsLeg) {
   let lineY: number | null = null;
   let dropMargin = 0;
 
-  let aboveStreak = 0;
-  let belowStreak = 0;
+  let aboveSinceSec: number | null = null;
+  let belowSinceSec: number | null = null;
   let holdStartSec: number | null = null;
   let holdSeconds = 0;
   let cappedAtMax = false;
@@ -114,7 +114,7 @@ export function createSlsLiveTracker(leg: SlsLeg) {
     baselineAnkleY = null;
     lineY = null;
     dropMargin = 0;
-    aboveStreak = belowStreak = 0;
+    aboveSinceSec = belowSinceSec = null;
     holdStartSec = null;
     holdSeconds = 0;
     cappedAtMax = false;
@@ -183,15 +183,19 @@ export function createSlsLiveTracker(leg: SlsLeg) {
     const liftProgress = liftSpan > 1e-9 ? ((baselineAnkleY as number) - ankleY) / liftSpan : 0;
 
     if (phase === "waiting") {
-      aboveStreak = aboveLift ? aboveStreak + 1 : 0;
-      if (aboveStreak >= SLS_LIFT_PERSIST_FRAMES) {
-        phase = "holding";
-        holdStartSec = t;
-        belowStreak = 0;
+      if (aboveLift) {
+        if (aboveSinceSec === null) aboveSinceSec = t;
+        if (t - aboveSinceSec >= SLS_LIFT_MIN_DWELL_SEC) {
+          phase = "holding";
+          holdStartSec = t;
+          belowSinceSec = null;
+        }
+      } else {
+        aboveSinceSec = null;
       }
     } else if (phase === "holding") {
       if (aboveHold) {
-        belowStreak = 0;
+        belowSinceSec = null;
         holdSeconds = t - (holdStartSec ?? t);
         if (holdSeconds >= SLS_MAX_HOLD_SEC) {
           holdSeconds = SLS_MAX_HOLD_SEC;
@@ -199,8 +203,8 @@ export function createSlsLiveTracker(leg: SlsLeg) {
           phase = "stopped";
         }
       } else {
-        belowStreak += 1;
-        if (belowStreak >= SLS_DROP_PERSIST_FRAMES) phase = "stopped";
+        if (belowSinceSec === null) belowSinceSec = t;
+        if (t - belowSinceSec >= SLS_DROP_MIN_DWELL_SEC) phase = "stopped";
       }
 
       // Combo: accrue points scaled by the dwell multiplier while inside; reset on exit.

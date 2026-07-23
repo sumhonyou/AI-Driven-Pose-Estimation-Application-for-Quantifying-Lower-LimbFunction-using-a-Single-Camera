@@ -18,8 +18,14 @@ SLS_LEG_ORDER = ("right", "left")  # prompted lift order (right first, then left
 # Lift-line height as a fraction of the stance leg length (hip->ankle). Scale-invariant.
 SLS_LIFT_LINE_NORM = 0.15
 SLS_LIFT_HYSTERESIS_NORM = 0.03  # margin below the line before a drop is confirmed
-SLS_LIFT_PERSIST_FRAMES = 3  # consecutive frames above line to confirm a lift
-SLS_DROP_PERSIST_FRAMES = 3  # consecutive frames below line to confirm a drop
+# UAT remediation (T1, S5 "the lifting too sensitive"): a frame-count dwell makes the
+# debounce depend on the browser's actual frame rate. MediaPipe runs via
+# requestAnimationFrame, so real rates vary well past the ~30fps the old 3-frame
+# count assumed -- on a fast machine 3 frames can be well under 0.1s, inside normal
+# foot jitter. A time-based minimum guarantees a genuine dwell regardless of frame
+# rate. See fsm.LiftHoldFSM.
+SLS_LIFT_MIN_DWELL_SEC = 0.15  # minimum time above the lift-line to confirm a lift
+SLS_DROP_MIN_DWELL_SEC = 0.10  # minimum time below the hold-line to confirm a drop
 # Tolerance-circle radius as a fraction of hip width (|left_hip - right_hip|).
 # Provisional: tightened from 0.55 (too generous -- visible wobble never left the
 # circle). Pending live-webcam validation; may need to move either direction once
