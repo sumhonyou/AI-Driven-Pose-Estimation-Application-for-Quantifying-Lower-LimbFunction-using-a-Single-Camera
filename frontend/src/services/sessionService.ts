@@ -27,3 +27,17 @@ export const sessionService = {
     return apiRequest<SessionDTO>(`/api/sessions/${sessionId}`);
   },
 };
+
+// Dedupes double-click / remount cancel POSTs — Set, not a queue (no FIFO needed).
+const pendingCancelIds = new Set<string>();
+
+/** Fire-and-forget cancel. Does not block navigation. Safe to call twice for the same id. */
+export function enqueueCancel(sessionId: string) {
+  if (pendingCancelIds.has(sessionId)) return;
+  pendingCancelIds.add(sessionId);
+  console.log("[Session] Cancel enqueued", sessionId);
+  sessionService
+    .cancel(sessionId)
+    .catch((err) => console.error("[Session] Cancel failed", err))
+    .finally(() => pendingCancelIds.delete(sessionId));
+}

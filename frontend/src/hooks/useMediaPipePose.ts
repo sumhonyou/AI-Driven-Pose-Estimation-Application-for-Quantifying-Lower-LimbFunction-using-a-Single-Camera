@@ -53,6 +53,8 @@ export interface UsePoseResult {
   fps: number;
   ready: boolean;
   error: string | null;
+  /** Stop the rAF loop immediately (before navigate) so Cancel/Back are not blocked by CPU detect. */
+  stopDetection: () => void;
 }
 
 /**
@@ -74,6 +76,8 @@ export function useMediaPipePose(
   const frameCountRef = useRef(0);
   const fpsTimerRef = useRef<number>(0);
   const smoother = useRef(createLandmarkSmoother(4));
+  // Set by stopDetection so an in-flight detect() does not schedule another frame.
+  const stoppedRef = useRef(false);
   const debugPose = import.meta.env.VITE_ENABLE_DEBUG_POSE === "true";
 
   const stopLoop = useCallback(() => {
@@ -83,23 +87,37 @@ export function useMediaPipePose(
     }
   }, []);
 
+  // Free the main thread before nav — do not wait for React unmount cleanup.
+  const stopDetection = useCallback(() => {
+    stoppedRef.current = true;
+    stopLoop();
+    setLandmarks(null);
+    setWorldLandmarks(null);
+    console.log("[useMediaPipePose] Detection stopped early");
+  }, [stopLoop]);
+
   useEffect(() => {
     if (!webcamReady) return;
 
     let cancelled = false;
+    stoppedRef.current = false;
 
     async function init() {
       try {
         const landmarker = await getLandmarker();
-        if (cancelled) return;
+        if (cancelled || stoppedRef.current) return;
 
         setReady(true);
         console.log("[useMediaPipePose] Detection loop started");
 
         function detect() {
+          if (cancelled || stoppedRef.current) return;
+
           const video = videoRef.current;
           if (!video || video.readyState < 2) {
-            rafRef.current = requestAnimationFrame(detect);
+            if (!cancelled && !stoppedRef.current) {
+              rafRef.current = requestAnimationFrame(detect);
+            }
             return;
           }
 
@@ -107,12 +125,16 @@ export function useMediaPipePose(
 
           // MediaPipe requires monotonically increasing timestamps
           if (nowMs <= lastTsRef.current) {
-            rafRef.current = requestAnimationFrame(detect);
+            if (!cancelled && !stoppedRef.current) {
+              rafRef.current = requestAnimationFrame(detect);
+            }
             return;
           }
           lastTsRef.current = nowMs;
 
           const result = landmarker.detectForVideo(video, nowMs);
+
+          if (cancelled || stoppedRef.current) return;
 
           if (result.landmarks && result.landmarks.length > 0) {
             const smoothed = smoother.current(
@@ -153,7 +175,9 @@ export function useMediaPipePose(
             fpsTimerRef.current = nowMs;
           }
 
-          rafRef.current = requestAnimationFrame(detect);
+          if (!cancelled && !stoppedRef.current) {
+            rafRef.current = requestAnimationFrame(detect);
+          }
         }
 
         rafRef.current = requestAnimationFrame(detect);
@@ -173,5 +197,5 @@ export function useMediaPipePose(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webcamReady]);
 
-  return { landmarks, worldLandmarks, fps, ready, error };
+  return { landmarks, worldLandmarks, fps, ready, error, stopDetection };
 }

@@ -5,7 +5,7 @@ import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import { Close } from "../../components/Icons";
-import { sessionService } from "../../services/sessionService";
+import { sessionService, enqueueCancel } from "../../services/sessionService";
 import { useSessionFlow } from "../../session";
 import { useWebcam } from "../../hooks/useWebcam";
 import { useMediaPipePose } from "../../hooks/useMediaPipePose";
@@ -43,7 +43,7 @@ function reasonCodeToI18nKey(code: InvalidReasonCode): string {
 export default function StsLiveSessionPage() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { mode, exerciseCode, sessionId } = useSessionFlow();
+  const { mode, exerciseCode, sessionId, setSessionId } = useSessionFlow();
   const isSts = exerciseCode === "sit_to_stand";
 
   const [sec, setSec] = useState(0);
@@ -55,7 +55,6 @@ export default function StsLiveSessionPage() {
   // chained (coalesced) call in the same tick never compares against a stale closure.
   const validRepsRef = useRef(0);
   const [running, setRunning] = useState(true);
-  const [ending, setEnding] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
 
   // Live Sit-to-Stand guidance (knee angle + why a rep wasn't counted) — display only.
@@ -80,7 +79,7 @@ export default function StsLiveSessionPage() {
 
   // Real webcam + pose
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
-  const { landmarks, worldLandmarks } = useMediaPipePose(videoRef, webcamReady);
+  const { landmarks, worldLandmarks, stopDetection } = useMediaPipePose(videoRef, webcamReady);
 
   // Live rep-boundary detector (UX only) — the authoritative count comes back from
   // POST /analyze, called once per boundary below.
@@ -237,22 +236,16 @@ export default function StsLiveSessionPage() {
   const ss = String(sec % 60).padStart(2, "0");
   const pct = (validReps / STS_TARGET_REPS) * 100;
 
-  // Cancel: bails out of an incomplete session. Never scored, never saved as completed.
-  // Navigates away immediately — never makes "Cancel" wait on the network. The
-  // cancel request still fires and keeps running in the background (this is an
-  // SPA route swap, not a page unload), so the session is reliably marked
-  // cancelled server-side without blocking the user from leaving right away.
+  // Cancel: stop pose first (frees main thread), enqueue cancel, then navigate.
   const handleCancel = () => {
     if (finishingRef.current) return;
     finishingRef.current = true;
     setRunning(false);
-    setEnding(true);
-    if (sessionId) {
-      sessionService
-        .cancel(sessionId)
-        .catch((err) => console.error("[LiveSession] Cancel failed", err));
-    }
-    nav("/exercise");
+    stopDetection();
+    if (sessionId) enqueueCancel(sessionId);
+    setSessionId(null);
+    console.log("[LiveSession] Cancel navigating");
+    nav(`/exercise?mode=${mode}`);
   };
 
   const liveTitle = exerciseCode ? humanizeLabel(exerciseCode) : t("landing.s2sName");
@@ -306,9 +299,9 @@ export default function StsLiveSessionPage() {
           </p>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-cancel" onClick={handleCancel} disabled={ending}>
+          <button className="btn btn-cancel" onClick={handleCancel}>
             <Close />
-            {ending ? t("common.loading") : t("live.cancel")}
+            {t("live.cancel")}
           </button>
         </div>
       </div>

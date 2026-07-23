@@ -17,7 +17,7 @@ import ComboScore from "../../components/sls/ComboScore";
 import SupportSelfReportModal from "../../components/sls/SupportSelfReportModal";
 import StartHoldCountdown from "../../components/sls/StartHoldCountdown";
 import { Close } from "../../components/Icons";
-import { sessionService } from "../../services/sessionService";
+import { sessionService, enqueueCancel } from "../../services/sessionService";
 import { slsApi, type SlsLegMetrics, type UsedSupport } from "../../services/sls/slsApi";
 import {
   createSlsLiveTracker,
@@ -51,7 +51,7 @@ const IDLE_UPDATE: SlsLiveUpdate = {
 export default function SlsLiveSessionPage() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { sessionId } = useSessionFlow();
+  const { mode, sessionId, setSessionId } = useSessionFlow();
 
   const [legIndex, setLegIndex] = useState(0);
   const leg = SLS_LEG_ORDER[legIndex] as SlsLeg;
@@ -60,13 +60,12 @@ export default function SlsLiveSessionPage() {
   const [liveUpdate, setLiveUpdate] = useState<SlsLiveUpdate>(IDLE_UPDATE);
   const [legResults, setLegResults] = useState<Partial<Record<SlsLeg, SlsLegMetrics>>>({});
   const [error, setError] = useState("");
-  const [ending, setEnding] = useState(false);
   const [supportSubmitting, setSupportSubmitting] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(COUNTDOWN_START_SEC);
   const countdownTimerRef = useRef<number | null>(null);
 
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
-  const { landmarks, worldLandmarks } = useMediaPipePose(videoRef, webcamReady);
+  const { landmarks, worldLandmarks, stopDetection } = useMediaPipePose(videoRef, webcamReady);
   const recorder = useSessionRecorder();
   const trackerRef = useRef(createSlsLiveTracker(leg));
   const finishingLegRef = useRef(false);
@@ -196,17 +195,11 @@ export default function SlsLiveSessionPage() {
   function handleCancel() {
     if (finishingSessionRef.current) return;
     finishingSessionRef.current = true;
-    setEnding(true);
-    // Navigate away immediately — never make "Cancel" wait on the network. The
-    // cancel request still fires and keeps running in the background (this is an
-    // SPA route swap, not a page unload), so the session is reliably marked
-    // cancelled server-side without blocking the user from leaving right away.
-    if (sessionId) {
-      sessionService
-        .cancel(sessionId)
-        .catch((err) => console.error("[SlsLiveSessionPage] Cancel failed", err));
-    }
-    nav("/exercise");
+    stopDetection();
+    if (sessionId) enqueueCancel(sessionId);
+    setSessionId(null);
+    console.log("[SlsLiveSessionPage] Cancel navigating");
+    nav(`/exercise?mode=${mode}`);
   }
 
   if (!sessionId) {
@@ -254,9 +247,9 @@ export default function SlsLiveSessionPage() {
           <p>{legPrompt}</p>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-cancel" onClick={handleCancel} disabled={ending}>
+          <button className="btn btn-cancel" onClick={handleCancel}>
             <Close />
-            {ending ? t("common.loading") : t("live.cancel")}
+            {t("live.cancel")}
           </button>
         </div>
       </div>

@@ -18,7 +18,7 @@ import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import { Close } from "../../components/Icons";
-import { sessionService } from "../../services/sessionService";
+import { sessionService, enqueueCancel } from "../../services/sessionService";
 import {
   wbltApi,
   type WbltAttemptResult,
@@ -83,7 +83,7 @@ const IDLE_UPDATE: WbltLiveUpdate = { calibrated: false, heelLifted: false, thet
 export default function WbltLiveSessionPage() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { sessionId } = useSessionFlow();
+  const { mode, sessionId, setSessionId } = useSessionFlow();
 
   const [legOrder, setLegOrder] = useState<WbltLeg[]>(DEFAULT_LEG_ORDER);
   const [attemptsPerLeg, setAttemptsPerLeg] = useState(DEFAULT_ATTEMPTS_PER_LEG);
@@ -98,7 +98,6 @@ export default function WbltLiveSessionPage() {
   const [lastResult, setLastResult] = useState<WbltAttemptResult | null>(null);
   const [sessionSummary, setSessionSummary] = useState<WbltSessionSummary | null>(null);
   const [error, setError] = useState("");
-  const [ending, setEnding] = useState(false);
   const [recordingSecondsLeft, setRecordingSecondsLeft] = useState(WBLT_RECORDING_DURATION_SEC);
   const recordingTimerRef = useRef<number | null>(null);
   const [getReadySecondsLeft, setGetReadySecondsLeft] = useState(WBLT_GET_READY_DURATION_SEC);
@@ -113,7 +112,7 @@ export default function WbltLiveSessionPage() {
   const calibrationDisplaySecRef = useRef(WBLT_CALIBRATION_DURATION_SEC);
 
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
-  const { landmarks, worldLandmarks } = useMediaPipePose(videoRef, webcamReady);
+  const { landmarks, worldLandmarks, stopDetection } = useMediaPipePose(videoRef, webcamReady);
   const recorder = useSessionRecorder();
   const trackerRef = useRef(createWbltLiveTracker(leg));
   const busyRef = useRef(false);
@@ -436,17 +435,11 @@ export default function WbltLiveSessionPage() {
   function handleCancel() {
     if (busyRef.current) return;
     busyRef.current = true;
-    setEnding(true);
-    // Navigate away immediately — never make "Cancel" wait on the network. The
-    // cancel request still fires and keeps running in the background (this is an
-    // SPA route swap, not a page unload), so the session is reliably marked
-    // cancelled server-side without blocking the user from leaving right away.
-    if (sessionId) {
-      sessionService
-        .cancel(sessionId)
-        .catch((err) => console.error("[WbltLiveSessionPage] Cancel failed", err));
-    }
-    nav("/exercise");
+    stopDetection();
+    if (sessionId) enqueueCancel(sessionId);
+    setSessionId(null);
+    console.log("[WbltLiveSessionPage] Cancel navigating");
+    nav(`/exercise?mode=${mode}`);
   }
 
   if (!sessionId) {
@@ -492,9 +485,9 @@ export default function WbltLiveSessionPage() {
           <p>{legPrompt}</p>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-cancel" onClick={handleCancel} disabled={ending}>
+          <button className="btn btn-cancel" onClick={handleCancel}>
             <Close />
-            {ending ? t("common.loading") : t("live.cancel")}
+            {t("live.cancel")}
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect, useRef } from "react";
 import stsDemoSrc from "../assets/videos/sit to stand.mp4";
@@ -11,7 +11,7 @@ import CaptureQualityBadge from "../components/CaptureQualityBadge";
 import AutoStartCountdown from "../components/AutoStartCountdown";
 import StartingSessionOverlay from "../components/StartingSessionOverlay";
 import { ArrowLeft, ArrowRight, Camera, Check, Alert, Lightbulb } from "../components/Icons";
-import { sessionService } from "../services/sessionService";
+import { sessionService, enqueueCancel } from "../services/sessionService";
 import { useSessionFlow } from "../session";
 import { useWebcam } from "../hooks/useWebcam";
 import { useMediaPipePose } from "../hooks/useMediaPipePose";
@@ -45,7 +45,7 @@ type GuidanceKey = "noBody" | "partial" | "lowQuality" | null;
 export default function CameraSetup() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { mode, exerciseCode, setSessionId } = useSessionFlow();
+  const { mode, exerciseCode, sessionId, setSessionId } = useSessionFlow();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
   const [hasAutoStarted, setHasAutoStarted] = useState(false);
@@ -61,6 +61,7 @@ export default function CameraSetup() {
     landmarks,
     ready: poseReady,
     fps,
+    stopDetection,
   } = useMediaPipePose(videoRef, webcamReady && !hasAutoStarted);
 
   // Full-body capture quality (head, torso, legs, feet) — stricter than the live-session badge.
@@ -111,6 +112,17 @@ export default function CameraSetup() {
 
   // Guards duplicate session starts from the manual button and the auto-start gate racing each other.
   const startedRef = useRef(false);
+
+  // Stop pose before leaving so Back is not blocked by CPU detectForVideo.
+  const handleBack = () => {
+    stopDetection();
+    if (sessionId) {
+      enqueueCancel(sessionId);
+      setSessionId(null);
+    }
+    console.log("[CameraSetup] Back navigating");
+    nav(`/exercise?mode=${mode}`);
+  };
 
   const beginSession = async () => {
     if (startedRef.current) return;
@@ -234,10 +246,10 @@ export default function CameraSetup() {
   return (
     <>
       {hasAutoStarted && <StartingSessionOverlay bodyQuality={frozenQuality} />}
-      <Link className="back-link" to={`/exercise?mode=${mode}`}>
+      <button type="button" className="back-link" onClick={handleBack}>
         <ArrowLeft />
         {t("common.back")}
-      </Link>
+      </button>
       <DashTopbar title={t("camera.title")} subtitle={t("camera.desc")} />
       <div className="cam-grid">
         <div className="stack" style={{ gap: 14 }}>

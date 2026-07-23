@@ -17,7 +17,7 @@ import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import StartSetCountdown from "../../components/squat/StartSetCountdown";
 import { Close, Target, Check, Alert, Play } from "../../components/Icons";
-import { sessionService } from "../../services/sessionService";
+import { sessionService, enqueueCancel } from "../../services/sessionService";
 import { moduleBService } from "../../services/moduleBService";
 import { useSessionFlow } from "../../session";
 import { useWebcam } from "../../hooks/useWebcam";
@@ -63,7 +63,7 @@ const MOTION_EPSILON_DEG = 2;
 export default function SquatLiveSessionPage() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { sessionId } = useSessionFlow();
+  const { mode, sessionId, setSessionId } = useSessionFlow();
 
   const [stage, setStage] = useState<Stage>("setup");
   const [targetReps, setTargetReps] = useState<number | null>(null);
@@ -77,7 +77,6 @@ export default function SquatLiveSessionPage() {
   const [rejectedGates, setRejectedGates] = useState<SquatFaultTag[]>([]);
   const [sec, setSec] = useState(0);
   const [error, setError] = useState("");
-  const [ending, setEnding] = useState(false);
   const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(COUNTDOWN_START_SEC);
   const countdownTimerRef = useRef<number | null>(null);
@@ -95,7 +94,7 @@ export default function SquatLiveSessionPage() {
   const [liveConfig, setLiveConfig] = useState<SquatLiveConfig>(FALLBACK_SQUAT_LIVE_CONFIG);
 
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
-  const { landmarks, worldLandmarks } = useMediaPipePose(videoRef, webcamReady);
+  const { landmarks, worldLandmarks, stopDetection } = useMediaPipePose(videoRef, webcamReady);
   const recorder = useSessionRecorder();
   const captureQuality = computeFrameQuality(landmarks ?? []);
 
@@ -310,17 +309,11 @@ export default function SquatLiveSessionPage() {
   function handleCancel() {
     if (finishingRef.current) return;
     finishingRef.current = true;
-    setEnding(true);
-    // Navigate away immediately — never make "Cancel" wait on the network. The
-    // cancel request still fires and keeps running in the background (this is an
-    // SPA route swap, not a page unload), so the session is reliably marked
-    // cancelled server-side without blocking the user from leaving right away.
-    if (sessionId) {
-      sessionService
-        .cancel(sessionId)
-        .catch((err) => console.error("[SquatLiveSessionPage] Cancel failed", err));
-    }
-    nav("/exercise");
+    stopDetection();
+    if (sessionId) enqueueCancel(sessionId);
+    setSessionId(null);
+    console.log("[SquatLiveSessionPage] Cancel navigating");
+    nav(`/exercise?mode=${mode}`);
   }
 
   if (!sessionId) {
@@ -376,9 +369,9 @@ export default function SquatLiveSessionPage() {
           <p>{t("squat.livePrompt")}</p>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-cancel" onClick={handleCancel} disabled={ending}>
+          <button className="btn btn-cancel" onClick={handleCancel}>
             <Close />
-            {ending ? t("common.loading") : t("live.cancel")}
+            {t("live.cancel")}
           </button>
         </div>
       </div>
