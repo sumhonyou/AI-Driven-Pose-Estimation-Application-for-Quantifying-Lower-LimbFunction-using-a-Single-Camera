@@ -66,8 +66,10 @@ type Stage =
 // attempt can never start on a frame the backend would have rejected anyway.
 const WBLT_POSITION_STABLE_MS = 1500;
 // Fixed countdown once framing is confirmed stable, giving the user a predictable
-// moment to settle into the lunge stance before recording actually starts.
-const WBLT_GET_READY_DURATION_SEC = 10;
+// moment to settle into the lunge stance before recording actually starts. UAT
+// remediation (Stage R5): standardised to the same 5s every other exercise's
+// get-ready countdown uses (was 10s).
+const WBLT_GET_READY_DURATION_SEC = 5;
 // "Stand still, foot flat" window at the very start of recording. The heel-lift
 // baseline is captured here, so it MUST match backend CALIBRATION_SECONDS — a
 // mismatch would let lunge frames poison the neutral baseline (see config.py).
@@ -498,7 +500,9 @@ export default function WbltLiveSessionPage() {
       )}
 
       <div className="cam-grid">
-        <div className="cam-stage reveal">
+        <div
+          className={"cam-stage reveal" + (stage === "recording" ? " cam-stage--recording" : "")}
+        >
           <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
           <PoseCanvas
             videoRef={videoRef}

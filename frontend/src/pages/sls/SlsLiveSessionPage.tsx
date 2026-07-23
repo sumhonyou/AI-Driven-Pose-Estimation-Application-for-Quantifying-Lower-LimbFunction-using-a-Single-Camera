@@ -302,7 +302,9 @@ export default function SlsLiveSessionPage() {
       )}
 
       <div className="cam-grid">
-        <div className="cam-stage reveal">
+        <div
+          className={"cam-stage reveal" + (stage === "recording" ? " cam-stage--recording" : "")}
+        >
           <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
           <PoseCanvas
             videoRef={videoRef}

@@ -23,8 +23,11 @@ import {
 } from "../utils/captureQuality";
 import cameraReadySound from "../assets/sound effect/Camera all good effect.mp3";
 
-/** How long the full body must be detected continuously before the session auto-starts. 1.8s */
-const AUTO_START_STABLE_MS = 1800;
+/** How long the full body must be detected continuously before the session
+ * auto-starts. UAT remediation (Stage R5): raised from 1.8s to a standard 5s across
+ * every start protocol in the app — 1.8s didn't give users enough time to read the
+ * checklist/guidance before the session took over. */
+const AUTO_START_STABLE_MS = 5000;
 
 /** Derive the required camera view from exercise code. */
 function getViewGuidance(exerciseCode: string | null): "side" | "front" {

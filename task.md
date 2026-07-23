@@ -4521,7 +4521,7 @@ flagged from live testing: SLS users aren't told when they lift the **wrong** le
       banner is kept as-is (still useful sitting in the panel), `LiveCueOverlay` is
       now shown _alongside_ it as the big glanceable pop-out, and both clear
       together on the next valid rep (`response.metrics.rep_count >
-    validRepsRef.current`). No subheading (STS's existing reason strings are
+  validRepsRef.current`). No subheading (STS's existing reason strings are
       already short/specific enough to stand alone as titles) and no new i18n keys
       needed — this stage only added the plumbing.
 - [x] New i18n keys `sls.cueWrongLeg` / `sls.cueWrongLegDetail` added to en/zh/ms.
@@ -4540,3 +4540,68 @@ flagged from live testing: SLS users aren't told when they lift the **wrong** le
       design pass, not just a copy of this pattern). Live end-to-end verification
       with a real webcam (including the wrong-leg cue specifically) remains on HY's
       own machine, as with every other R4 stage so far.
+
+### Phase 10 — Stage R5: One uniform start protocol + unmistakable RECORDING state (2026-07-24)
+
+Start was non-uniform across the 4 live pages (STS auto-recorded on mount with **no**
+countdown at all; squat/SLS used a button + 5s countdown; WBLT was auto-gated + a 10s
+countdown) — the single most under-reported UAT issue (12/18 sessions). Also, no page
+had an actually-unmistakable "you are being recorded right now" signal.
+
+- [x] **New shared `RecordingBadge`** (`components/RecordingBadge.tsx`): a small red
+      pulsing-dot pill ("Recording") rendered inside `.cam-stage` during the real
+      recording stage, paired with a new `.cam-stage--recording` CSS modifier (red
+      border glow) on the surrounding stage. Positioned **top-centre** deliberately —
+      `.q-badge` (capture quality) already owns top-left on every page, and WBLT's
+      recording HUD also uses top-right (heel-down + angle cards), so centre is the
+      only corner guaranteed clear everywhere. `index.css`: `.recording-badge`,
+      `.recording-badge-dot` (`recording-pulse` keyframe), `.cam-stage--recording`.
+- [x] **New synthesized recording-start tone** (`utils/recordingTone.ts`,
+      `playRecordingStartTone()`): a short Web Audio oscillator beep (880Hz, ~0.3s),
+      not a bundled asset — no exercise-specific "recording started" clip has been
+      supplied (X7), so this has no file dependency. Fires once, exactly when a page
+      transitions into its recording stage. Together with the badge + border this is
+      the "red dot + border + audio tone" unmistakable-state requirement.
+- [x] **Standardised every countdown to 5 seconds:**
+  - `pages/CameraSetup.tsx`: `AUTO_START_STABLE_MS` `1800 → 5000`.
+  - `pages/wblt/WbltLiveSessionPage.tsx`: `WBLT_GET_READY_DURATION_SEC` `10 → 5`
+    (its separate `WBLT_POSITION_STABLE_MS` framing-stability gate and the
+    `WBLT_RECORDING_DURATION_SEC` hold duration are untouched — different
+    mechanics, not start countdowns).
+  - Squat (`COUNTDOWN_START_SEC`) and SLS (`COUNTDOWN_START_SEC`) were already 5s —
+    no change needed there.
+- [x] **New: gave STS the countdown it lacked entirely.** Built a generic
+      `components/GetReadyCountdown.tsx` — reuses the existing shared
+      `.countdown-overlay` CSS/portal pattern already proven by
+      `squat/StartSetCountdown`, `sls/StartHoldCountdown`, `wblt/WbltGetReadyCountdown`
+      (all three stay as their own thin, exercise-specific wrappers; per the plan's
+      "unify, don't add a 5th variant", STS renders the generic component directly
+      instead of a new near-duplicate `StsGetReadyCountdown`). `StsLiveSessionPage.tsx`
+      restructured: new `stage: "countdown" | "recording"` state (was previously
+      recording unconditionally from mount); the recorder-start effect, frame/rep-FSM
+      effect, and the session timer effect are now all gated on `stage === "recording"`;
+      a new `startRecording()` starts the recorder, fires the tone, and flips the stage
+      once the 5s countdown reaches zero.
+  - **Bug found and fixed in passing:** the STS topbar had a permanently-visible
+    green pill reading "Recording" (`t("live.paused")` — the i18n key name and its
+    text had drifted apart at some point) regardless of whether recording had
+    actually started. Removed it outright now that the real `RecordingBadge` gives
+    an accurate, stage-aware signal; the orphaned `live.paused` key removed from
+    en/zh/ms and replaced with `live.recordingBadge`/`live.getReadyCaption`.
+- [x] `RecordingBadge` + `.cam-stage--recording` + `playRecordingStartTone()` wired
+      into all 4 pages: squat (`startSet()`), SLS (`startHold()`), WBLT
+      (`startHold()`, the calibrating→recording transition), STS (new
+      `startRecording()`).
+- [x] Verified: `tsc --noEmit` clean; full `vitest` **36/36**; Prettier clean;
+      visually checked the badge/border/countdown markup in the browser via the same
+      injected-markup technique used for R4 (real webcam stays blocked in the
+      sandboxed Browser pane) — badge sits clear of the quality badge and WBLT's
+      corner HUD cards, border glow reads clearly, countdown matches the existing
+      squat/SLS/WBLT countdown styling exactly (shared CSS, no visual drift).
+- [ ] Still outstanding: live end-to-end verification with a real webcam on all 4
+      pages (confirming the 5s countdowns actually fire in sequence, the tone plays
+      audibly, and STS's new gated recording doesn't drop any frames at the
+      countdown→recording boundary) remains on HY's own machine, as with every prior
+      stage. The plan's R5 scope stops at start-protocol/RECORDING-state — the
+      "instructions ack → camera check" steps upstream of this page are R9's scope,
+      not this stage's.

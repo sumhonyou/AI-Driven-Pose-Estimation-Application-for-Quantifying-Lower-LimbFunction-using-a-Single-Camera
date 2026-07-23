@@ -5,6 +5,7 @@ import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import LiveCueOverlay from "../../components/LiveCueOverlay";
+import GetReadyCountdown from "../../components/GetReadyCountdown";
 import { Close } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
 import { useSessionFlow } from "../../session";
@@ -29,6 +30,10 @@ import goodRepSrc from "../../assets/sound effect/Rep correct sound effect.mp3";
 import wrongRepSrc from "../../assets/sound effect/Wrong sound effect.mp3";
 
 const FAIL_REASON_DISPLAY_MS = 3500;
+// UAT remediation (Stage R5): STS previously auto-recorded on mount with no
+// countdown at all -- the most under-reported instruction/legibility issue in UAT.
+// Standardised on the same 5s "get ready" countdown every other exercise uses.
+const COUNTDOWN_START_SEC = 5;
 
 function reasonCodeToI18nKey(code: InvalidReasonCode): string {
   switch (code) {
@@ -46,6 +51,13 @@ export default function StsLiveSessionPage() {
   const nav = useNavigate();
   const { mode, exerciseCode, sessionId, setSessionId } = useSessionFlow();
   const isSts = exerciseCode === "sit_to_stand";
+
+  // UAT remediation (Stage R5): "countdown" is the 5s get-ready window, only entering
+  // "recording" (and therefore actually buffering frames / running the estimator)
+  // once it completes -- mirrors squat/SLS/WBLT's stage machine.
+  const [stage, setStage] = useState<"countdown" | "recording">("countdown");
+  const [countdownSecondsLeft, setCountdownSecondsLeft] = useState(COUNTDOWN_START_SEC);
+  const countdownTimerRef = useRef<number | null>(null);
 
   const [sec, setSec] = useState(0);
   // Attempted: every concluded rep-boundary the client's FSM detects. Valid: only
@@ -102,13 +114,40 @@ export default function StsLiveSessionPage() {
   const recorder = useSessionRecorder();
   const recorderStarted = useRef(false);
 
-  // Start recorder on mount
-  useEffect(() => {
+  // UAT remediation (Stage R5): recording (and therefore the recorder) now starts
+  // only once the get-ready countdown below completes, not on mount.
+  function startRecording() {
     if (!recorderStarted.current) {
       recorder.start();
       recorderStarted.current = true;
       console.log("[LiveSession] Session recorder started");
     }
+    setStage("recording");
+  }
+
+  // 5s get-ready countdown, run once on mount — CameraSetup already confirmed the
+  // full body is visible before navigating here, so this is purely the "settle into
+  // position" window, same as squat/SLS/WBLT's post-button countdown.
+  useEffect(() => {
+    countdownTimerRef.current = window.setInterval(() => {
+      setCountdownSecondsLeft((prev) => {
+        if (prev <= 1) {
+          if (countdownTimerRef.current != null) {
+            window.clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+          }
+          startRecording();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (countdownTimerRef.current != null) {
+        window.clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -182,8 +221,10 @@ export default function StsLiveSessionPage() {
   }
 
   // Record each frame when we have landmarks, run the rep-boundary FSM, and play sounds.
+  // Gated on stage === "recording" (Stage R5) -- nothing is buffered or estimated
+  // during the get-ready countdown.
   useEffect(() => {
-    if (landmarks) {
+    if (landmarks && stage === "recording") {
       const now = performance.now();
       recorder.record(
         { timestampMs: now, landmarks, worldLandmarks: worldLandmarks ?? [] },
@@ -214,14 +255,15 @@ export default function StsLiveSessionPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [landmarks]);
+  }, [landmarks, stage]);
 
-  // Session timer — stops immediately once the session is finishing or cancelled.
+  // Session timer — stops immediately once the session is finishing or cancelled, and
+  // (Stage R5) doesn't start ticking until recording actually begins.
   useEffect(() => {
-    if (!running) return;
+    if (!running || stage !== "recording") return;
     const id = setInterval(() => setSec((s) => s + 1), 1000);
     return () => clearInterval(id);
-  }, [running]);
+  }, [running, stage]);
 
   // A session that never reaches STS_TARGET_REPS valid reps must still end
   // eventually — force-finalize once, persisting whatever was captured.
@@ -296,6 +338,14 @@ export default function StsLiveSessionPage() {
   return (
     <>
       {generatingReport && <GeneratingReportOverlay />}
+      {stage === "countdown" && (
+        <GetReadyCountdown
+          secondsLeft={countdownSecondsLeft}
+          eyebrow={liveTitle}
+          caption={t("live.getReadyCaption")}
+          onCancel={handleCancel}
+        />
+      )}
       {running && liveCue && (
         <LiveCueOverlay
           title={liveCue.title}
@@ -306,12 +356,7 @@ export default function StsLiveSessionPage() {
       <div className="topbar">
         <div>
           <h1>{liveTitle}</h1>
-          <p>
-            <span className="band good" style={{ marginRight: 6 }}>
-              {t("live.paused")}
-            </span>
-            {t("common." + (mode === "rehab" ? "rehab" : "functional"))}
-          </p>
+          <p>{t("common." + (mode === "rehab" ? "rehab" : "functional"))}</p>
         </div>
         <div className="topbar-actions">
           <button className="btn btn-cancel" onClick={handleCancel}>
@@ -321,7 +366,20 @@ export default function StsLiveSessionPage() {
         </div>
       </div>
       <div className="cam-grid">
-        <div className="cam-stage reveal">
+        {/* Recording border via inline style (not a conditional className) so React
+            never rewrites the class attribute and wipes the `.in` that useReveal
+            adds — same bug class CameraSetup documents. */}
+        <div
+          className="cam-stage reveal"
+          style={
+            stage === "recording"
+              ? {
+                  borderColor: "var(--coral)",
+                  boxShadow: "0 0 0 4px color-mix(in srgb, var(--coral) 18%, transparent)",
+                }
+              : undefined
+          }
+        >
           <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
           <PoseCanvas
             videoRef={videoRef}

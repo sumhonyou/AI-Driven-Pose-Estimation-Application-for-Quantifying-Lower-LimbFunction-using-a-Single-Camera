@@ -3404,6 +3404,12 @@ html[data-theme="dark"] .ex-card .ex-img {
   border: 1px solid var(--border);
   color: var(--good);
 }
+
+/* Companion red border-glow on `.cam-stage` while a live hold/set is recording. */
+.cam-stage--recording {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--coral) 18%, transparent);
+}
 .check-list {
   display: flex;
   flex-direction: column;

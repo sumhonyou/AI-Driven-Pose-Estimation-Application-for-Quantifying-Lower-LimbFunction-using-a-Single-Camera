@@ -303,8 +303,10 @@ const en = {
     cue: "Keep your whole body visible",
     cueDismiss: "Dismiss",
     cancel: "Cancel",
-    paused: "Recording",
     repTarget: "of 5",
+    // UAT remediation (Stage R5): STS's 5s get-ready countdown (it previously
+    // auto-recorded on mount with no countdown at all).
+    getReadyCaption: "Get into position — recording starts automatically.",
     noSession: "No active session was found. Please start again from Camera Setup.",
     endError: "Could not end the session.",
     cancelError: "Could not cancel the session.",
