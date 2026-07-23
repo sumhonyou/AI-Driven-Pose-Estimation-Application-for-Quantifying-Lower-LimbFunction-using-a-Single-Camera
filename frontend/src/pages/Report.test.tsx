@@ -210,7 +210,7 @@ describe("Report", () => {
     });
     vi.mocked(moduleAService.get).mockResolvedValue({
       ...moduleAResult,
-      id: "s5",
+      session_id: "s5",
       warning_tags: ["very_slow_completion", "unstable_reps"],
     });
 
