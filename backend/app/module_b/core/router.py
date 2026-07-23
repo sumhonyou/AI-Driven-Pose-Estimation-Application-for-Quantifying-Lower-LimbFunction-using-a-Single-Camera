@@ -193,6 +193,21 @@ def get_module_b_result(
     return ModuleBResultResponse(**summary)
 
 
+def _fallback_reason_for_client_error(error: str | None) -> str:
+    """Map `LlmRewriteResult.error` onto the stored `fallback_reason` vocabulary."""
+    if error is None:
+        return "api_error"  # defensive: text=None should always carry an error string
+    if error == "http_429":
+        return "rate_limited"
+    if error == "timeout":
+        return "timeout"
+    if error == "invalid_json":
+        return "invalid_json"
+    if error == "empty_response":
+        return "empty_response"
+    return "api_error"  # other http_* statuses and transport_error:* messages
+
+
 def _build_and_save_feedback(
     db: DbSession, *, session_id: UUID, summary: dict
 ) -> dict | None:
@@ -201,6 +216,11 @@ def _build_and_save_feedback(
     only reachable from `/analyze`, which runs once the whole set is already scored), and
     persist whichever text survives Stage 6.3's safety filter. Every analyzed set always
     gets a working report even if the LLM is disabled, times out, or is rejected.
+
+    UAT remediation (Stage R3, T11, S5 "keeps showing template fallback"): the client
+    and the safety filter both already computed a precise reason whenever a rewrite
+    wasn't used, but it was only logged, never stored -- `fallback_reason` below is
+    that reason made queryable per row instead of requiring a log-file search.
     """
     structured = build_structured_feedback(summary)
     # Stage 5.17: template_text is now the canonical `feedback_contract` JSON string,
@@ -213,6 +233,7 @@ def _build_and_save_feedback(
     llm_attempted = False
     provider: str | None = None
     model_version: str | None = None
+    fallback_reason = "none"
 
     if settings.feedback_llm_enabled and settings.llm_api_key:
         llm_attempted = True
@@ -223,6 +244,7 @@ def _build_and_save_feedback(
         provider = result.provider
         model_version = result.model_version
         if result.text is None:
+            fallback_reason = _fallback_reason_for_client_error(result.error)
             logger.info(
                 "module-b feedback llm_failed session=%s error=%s",
                 session_id,
@@ -233,6 +255,7 @@ def _build_and_save_feedback(
             if safety.accepted:
                 rewritten_text = result.text
                 feedback_source = "llm"
+                fallback_reason = "llm_used"
                 # Stage 5.23: the failure/rejection paths above already logged
                 # themselves; without this, a successful rewrite was the one outcome
                 # that printed nothing at all, which read identically to "logging is
@@ -244,6 +267,7 @@ def _build_and_save_feedback(
                     model_version,
                 )
             else:
+                fallback_reason = f"guard_rejected:{safety.reason}"
                 logger.info(
                     "module-b feedback llm_rejected session=%s reason=%s",
                     session_id,
@@ -263,6 +287,7 @@ def _build_and_save_feedback(
             provider=provider,
             model_version=model_version,
             disclaimer_version=CURRENT_DISCLAIMER_VERSION,
+            fallback_reason=fallback_reason,
         ),
     )
     return crud.feedback_summary(row)

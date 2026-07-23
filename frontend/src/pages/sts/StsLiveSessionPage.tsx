@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
+import LiveCueOverlay from "../../components/LiveCueOverlay";
 import { Close } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
 import { useSessionFlow } from "../../session";
@@ -64,6 +65,10 @@ export default function StsLiveSessionPage() {
   // Optimistic client guess, shown instantly and reconciled once the backend responds.
   const [liveReasonGuess, setLiveReasonGuess] = useState<string | null>(null);
   const failReasonTimeoutRef = useRef<number | null>(null);
+  // UAT remediation (Stage R4): the transient full-viewport corrective-cue pop-out,
+  // shown alongside (not instead of) the persistent "live band" panel below -- same
+  // pattern as squat/SLS. null hides it; a new rejection replaces it outright.
+  const [liveCue, setLiveCue] = useState<{ title: string; tone: "warn" } | null>(null);
 
   // Guards against triggering the completion/navigation flow (or a cancel) more than once.
   const finishingRef = useRef(false);
@@ -144,6 +149,7 @@ export default function StsLiveSessionPage() {
 
       if (response.metrics.rep_count > validRepsRef.current) {
         setLiveReasonGuess(null);
+        setLiveCue(null);
         goodRepAudio.current.currentTime = 0;
         goodRepAudio.current.play().catch(() => {});
       }
@@ -193,7 +199,9 @@ export default function StsLiveSessionPage() {
           if (update.reasonCode) {
             wrongRepAudio.current.currentTime = 0;
             wrongRepAudio.current.play().catch(() => {});
-            setLiveReasonGuess(t(reasonCodeToI18nKey(update.reasonCode)));
+            const reasonText = t(reasonCodeToI18nKey(update.reasonCode));
+            setLiveReasonGuess(reasonText);
+            setLiveCue({ title: reasonText, tone: "warn" });
             if (failReasonTimeoutRef.current) window.clearTimeout(failReasonTimeoutRef.current);
             failReasonTimeoutRef.current = window.setTimeout(
               () => setLiveReasonGuess(null),
@@ -288,6 +296,13 @@ export default function StsLiveSessionPage() {
   return (
     <>
       {generatingReport && <GeneratingReportOverlay />}
+      {running && liveCue && (
+        <LiveCueOverlay
+          title={liveCue.title}
+          tone={liveCue.tone}
+          onDismiss={() => setLiveCue(null)}
+        />
+      )}
       <div className="topbar">
         <div>
           <h1>{liveTitle}</h1>

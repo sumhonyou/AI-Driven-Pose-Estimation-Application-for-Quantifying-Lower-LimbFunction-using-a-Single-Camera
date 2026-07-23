@@ -9,9 +9,17 @@
 // (which serves the whole SQUAT_CONFIG, fault_gates block included). See X7: the Phase 3E
 // lesson was that hand-synced constants drift silently.
 import { LM, type WorldLandmark } from "../../types/pose";
+import { LIVE_MIN_VISIBILITY } from "../../config/moduleAThresholds";
 
-/** Mirrors backend app/module_a/core/config.py's MIN_VISIBILITY. */
-const MIN_VISIBILITY = 0.5;
+/** Mirrors backend app/module_a/core/config.py's MIN_VISIBILITY (0.6). */
+const MIN_VISIBILITY = LIVE_MIN_VISIBILITY;
+// UAT remediation (Stage R1/R4): mirrors backend squat/fault_gates.py's Stage R1
+// construction. A short settle window at rep start (median baseline instead of the
+// first frame alone) and a debounce window (a rise must be sustained, not a single
+// spiky frame) -- kept numerically identical to the backend's constants of the same
+// name.
+const SETTLE_WINDOW_FRAMES = 3;
+const DEBOUNCE_FRAMES = 3;
 
 export type SquatFaultTag = "insufficient_depth" | "excessive_forward_lean" | "heel_lift";
 
@@ -58,12 +66,19 @@ export function evaluateSquatFaultGates(
   return failed;
 }
 
-/** Bilateral (toe_y - heel_y). y is DOWN in MediaPipe world space, so a positive value
- * means the heel sits higher than the grounded toe. Mirrors `_toe_heel_lift`. */
-export function bilateralToeHeelLift(w: WorldLandmark[]): number {
-  const left = w[LM.LEFT_FOOT_INDEX].y - w[LM.LEFT_HEEL].y;
-  const right = w[LM.RIGHT_FOOT_INDEX].y - w[LM.RIGHT_HEEL].y;
-  return (left + right) / 2;
+/** One side's (toe_y - heel_y). y is DOWN in MediaPipe world space, so a positive
+ * value means the heel sits higher than the grounded toe. Mirrors `_toe_heel_lift`. */
+function toeHeelLift(w: WorldLandmark[], side: "left" | "right"): number {
+  return side === "left"
+    ? w[LM.LEFT_FOOT_INDEX].y - w[LM.LEFT_HEEL].y
+    : w[LM.RIGHT_FOOT_INDEX].y - w[LM.RIGHT_HEEL].y;
+}
+
+/** Mean heel+toe landmark visibility for one leg. Mirrors `_leg_visibility`. */
+function legVisibility(w: WorldLandmark[], side: "left" | "right"): number {
+  const heel = w[side === "left" ? LM.LEFT_HEEL : LM.RIGHT_HEEL];
+  const toe = w[side === "left" ? LM.LEFT_FOOT_INDEX : LM.RIGHT_FOOT_INDEX];
+  return ((heel?.visibility ?? 0) + (toe?.visibility ?? 0)) / 2;
 }
 
 /** Shoulder-midpoint to hip-midpoint distance -- the normalisation reference, mirroring
@@ -78,55 +93,75 @@ export function trunkLength(w: WorldLandmark[]): number {
   return Math.sqrt((sx - hx) ** 2 + (sy - hy) ** 2 + (sz - hz) ** 2);
 }
 
-/** Whether all four heel/toe landmarks are confident enough to judge a heel lift.
- *
- * Heels and toes are the lowest-visibility landmarks in a side view, and a false
- * heel-lift rejection is the most frustrating possible failure -- it discards a rep the
- * user performed correctly. When they are not visible the live gate abstains and leaves
- * the call to the backend, which sees the whole smoothed stream. */
-export function heelLandmarksVisible(w: WorldLandmark[]): boolean {
-  return [LM.LEFT_HEEL, LM.RIGHT_HEEL, LM.LEFT_FOOT_INDEX, LM.RIGHT_FOOT_INDEX].every(
-    (index) => (w[index]?.visibility ?? 0) >= MIN_VISIBILITY,
-  );
+function mean(values: number[]): number {
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
 }
 
 /** Accumulates one rep's heel-rise measurement frame by frame.
  *
- * Mirrors `_heel_rise_peak_norm`: peak bilateral toe-heel lift relative to the rep's
- * FIRST frame, divided by the mean trunk length over the rep. Built incrementally
- * because the live path sees one frame at a time and never holds the rep's frames. */
+ * UAT remediation (Stage R1/R4): mirrors backend squat/fault_gates.py's corrected
+ * construction -- picks the camera-side (near) leg per rep by mean landmark
+ * visibility instead of averaging both (a side view's far foot is frequently
+ * occluded and noisy), baselines against the median of a short settle window
+ * instead of the first frame alone, and requires a rise to be sustained across a
+ * debounce window instead of a single-frame peak. Built incrementally because the
+ * live path sees one frame at a time and never holds the rep's raw landmark frames
+ * -- but small per-frame numeric arrays (not landmark data) are cheap to buffer for
+ * one rep, so the near-leg decision can still be made once, at `result()` time. */
 export function createHeelRiseTracker() {
-  let baseline: number | null = null;
-  let peakRise = 0;
+  const leftLifts: number[] = [];
+  const rightLifts: number[] = [];
+  const leftVisibility: number[] = [];
+  const rightVisibility: number[] = [];
   let trunkSum = 0;
   let frames = 0;
-  let everOccluded = false;
 
   return {
     record(w: WorldLandmark[]) {
-      if (!heelLandmarksVisible(w)) {
-        everOccluded = true;
-        return;
-      }
-      const lift = bilateralToeHeelLift(w);
-      if (baseline === null) baseline = lift;
-      peakRise = Math.max(peakRise, lift - baseline);
+      leftLifts.push(toeHeelLift(w, "left"));
+      rightLifts.push(toeHeelLift(w, "right"));
+      leftVisibility.push(legVisibility(w, "left"));
+      rightVisibility.push(legVisibility(w, "right"));
       trunkSum += trunkLength(w);
       frames += 1;
     },
-    /** null when the rep was never measurable -- see `heelLandmarksVisible`. */
+    /** null when the rep was never measurable, or the near leg wasn't reliably
+     * visible for the rep (fail-safe: never guess from a foot we can't see). */
     result(): number | null {
-      if (everOccluded || baseline === null || frames === 0) return null;
+      if (frames === 0) return null;
       const meanTrunk = trunkSum / frames;
       if (meanTrunk < 1e-9) return null;
-      return peakRise / meanTrunk;
+
+      const meanLeftVisibility = mean(leftVisibility);
+      const meanRightVisibility = mean(rightVisibility);
+      const nearIsLeft = meanLeftVisibility >= meanRightVisibility;
+      const nearVisibility = nearIsLeft ? meanLeftVisibility : meanRightVisibility;
+      if (nearVisibility < MIN_VISIBILITY) return null;
+
+      const nearLifts = nearIsLeft ? leftLifts : rightLifts;
+      const settle = nearLifts.slice(0, Math.min(SETTLE_WINDOW_FRAMES, nearLifts.length));
+      const baseline = median(settle);
+      const rises = nearLifts.map((v) => v - baseline);
+
+      const window = Math.min(DEBOUNCE_FRAMES, rises.length);
+      let sustainedPeak = -Infinity;
+      for (let i = 0; i <= rises.length - window; i += 1) {
+        sustainedPeak = Math.max(sustainedPeak, Math.min(...rises.slice(i, i + window)));
+      }
+      return sustainedPeak / meanTrunk;
     },
     reset() {
-      baseline = null;
-      peakRise = 0;
+      leftLifts.length = 0;
+      rightLifts.length = 0;
+      leftVisibility.length = 0;
+      rightVisibility.length = 0;
       trunkSum = 0;
       frames = 0;
-      everOccluded = false;
     },
   };
 }

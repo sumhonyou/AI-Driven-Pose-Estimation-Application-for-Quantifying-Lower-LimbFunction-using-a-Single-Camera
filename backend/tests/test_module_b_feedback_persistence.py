@@ -8,6 +8,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from app.module_b.core.crud import FeedbackWrite, feedback_summary, save_feedback
+from app.module_b.core.llm_client import LlmRewriteResult
 from app.module_b.core.router import _build_and_save_feedback
 
 
@@ -205,6 +206,87 @@ class LegacyPlainTextFeedbackFallbackTests(unittest.TestCase):
 
     def test_no_feedback_row_yields_no_structured_field_crash(self) -> None:
         self.assertIsNone(feedback_summary(None))
+
+
+class FallbackReasonTelemetryTests(unittest.TestCase):
+    """UAT remediation (Stage R3, T11): `fallback_reason` must record WHY a report
+    ended up template-sourced, not just THAT it did -- diagnosable per row instead of
+    requiring a log search."""
+
+    def setUp(self) -> None:
+        enabled = patch("app.module_b.core.router.settings.feedback_llm_enabled", True)
+        key = patch("app.module_b.core.router.settings.llm_api_key", "test-key")
+        enabled.start()
+        key.start()
+        self.addCleanup(enabled.stop)
+        self.addCleanup(key.stop)
+
+    def test_disabled_llm_records_none(self) -> None:
+        with patch("app.module_b.core.router.settings.feedback_llm_enabled", False):
+            feedback = _build_and_save_feedback(
+                _FakeDb(), session_id=uuid4(), summary=_summary()
+            )
+        self.assertEqual(feedback["fallback_reason"], "none")
+
+    def test_successful_rewrite_records_llm_used(self) -> None:
+        ok = LlmRewriteResult(
+            text='{"summary": "A good effort overall.", "tips": ["Nice tempo."]}',
+            provider="groq",
+            model_version="test-model",
+        )
+        with patch(
+            "app.module_b.core.router.GroqClient.rewrite_feedback", return_value=ok
+        ):
+            feedback = _build_and_save_feedback(
+                _FakeDb(), session_id=uuid4(), summary=_summary(band="Good", score=9.0)
+            )
+        self.assertEqual(feedback["feedback_source"], "llm")
+        self.assertEqual(feedback["fallback_reason"], "llm_used")
+
+    def test_timeout_records_timeout(self) -> None:
+        failed = LlmRewriteResult(
+            text=None, provider="groq", model_version="test-model", error="timeout"
+        )
+        with patch(
+            "app.module_b.core.router.GroqClient.rewrite_feedback", return_value=failed
+        ):
+            feedback = _build_and_save_feedback(
+                _FakeDb(), session_id=uuid4(), summary=_summary()
+            )
+        self.assertEqual(feedback["feedback_source"], "template")
+        self.assertTrue(feedback["llm_attempted"])
+        self.assertEqual(feedback["fallback_reason"], "timeout")
+
+    def test_rate_limit_records_rate_limited(self) -> None:
+        failed = LlmRewriteResult(
+            text=None, provider="groq", model_version="test-model", error="http_429"
+        )
+        with patch(
+            "app.module_b.core.router.GroqClient.rewrite_feedback", return_value=failed
+        ):
+            feedback = _build_and_save_feedback(
+                _FakeDb(), session_id=uuid4(), summary=_summary()
+            )
+        self.assertEqual(feedback["fallback_reason"], "rate_limited")
+
+    def test_guard_rejection_records_the_specific_reason(self) -> None:
+        # Band mismatch: text asserts "Good" while the true band is "Poor".
+        rejected = LlmRewriteResult(
+            text='{"summary": "Good effort, well done!", "tips": []}',
+            provider="groq",
+            model_version="test-model",
+        )
+        with patch(
+            "app.module_b.core.router.GroqClient.rewrite_feedback",
+            return_value=rejected,
+        ):
+            feedback = _build_and_save_feedback(
+                _FakeDb(), session_id=uuid4(), summary=_summary(band="Poor", score=3.0)
+            )
+        self.assertEqual(feedback["feedback_source"], "template")
+        self.assertEqual(
+            feedback["fallback_reason"], "guard_rejected:grade_mismatch_band"
+        )
 
 
 if __name__ == "__main__":

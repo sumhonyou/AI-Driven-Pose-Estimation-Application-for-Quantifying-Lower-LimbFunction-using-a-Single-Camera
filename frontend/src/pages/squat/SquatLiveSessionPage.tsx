@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
+import LiveCueOverlay from "../../components/LiveCueOverlay";
 import StartSetCountdown from "../../components/squat/StartSetCountdown";
 import { Close, Target, Check, Alert, Play } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
@@ -26,7 +27,6 @@ import { useSessionRecorder } from "../../hooks/useSessionRecorder";
 import { computeFrameQuality } from "../../utils/captureQuality";
 import {
   createSquatLiveEstimator,
-  depthGaugePct,
   depthZoneFor,
   fetchSquatLiveConfig,
   FALLBACK_SQUAT_LIVE_CONFIG,
@@ -35,10 +35,36 @@ import {
 } from "../../utils/squat/squatLiveEstimate";
 import type { SquatFaultTag } from "../../utils/squat/squatFaultGates";
 import goodRepSrc from "../../assets/sound effect/Rep correct sound effect.mp3";
+import wrongRepSrc from "../../assets/sound effect/Wrong sound effect.mp3";
 
 type Stage = "setup" | "countdown" | "recording" | "posting";
 
 const COUNTDOWN_START_SEC = 5;
+
+// UAT remediation (Stage R4): the big pop-out cue shows only the PRIMARY reason (one
+// cue at a time, per the plan) — this is the fixed priority order when a rep trips
+// more than one gate, matching the order the sidebar's fuller list is already built
+// in (squat/fault_gates.py evaluates depth -> lean -> heel_rise per rep).
+const CUE_TITLE_KEY: Record<SquatFaultTag, string> = {
+  insufficient_depth: "squat.cueInsufficientDepth",
+  excessive_forward_lean: "squat.cueExcessiveForwardLean",
+  heel_lift: "squat.cueHeelLift",
+};
+
+// Smaller, specific subheading under the big title — insufficient_depth's is
+// interpolated with the live config's actual threshold ({{deg}}) rather than a
+// hardcoded number, so it can never drift from what the gate is really checking.
+const CUE_SUBHEADING_KEY: Record<SquatFaultTag, string> = {
+  insufficient_depth: "squat.cueInsufficientDepthDetail",
+  excessive_forward_lean: "squat.cueExcessiveForwardLeanDetail",
+  heel_lift: "squat.cueHeelLiftDetail",
+};
+
+interface LiveCue {
+  title: string;
+  subheading?: string;
+  tone: "warn" | "good";
+}
 
 /** Rep-target choices. The target drives the session: reaching it auto-finishes the set.
  * Stage 5.20 also sends it with the analyze call so the report can show what was aimed
@@ -75,6 +101,11 @@ export default function SquatLiveSessionPage() {
   // only on the next rep, never on a timer (HY's call: never blank, always show the
   // last verdict).
   const [rejectedGates, setRejectedGates] = useState<SquatFaultTag[]>([]);
+  // UAT remediation (Stage R4): the transient full-viewport corrective-cue pop-out,
+  // shown on top of (not instead of) the persistent sidebar panel below. null hides
+  // it. Replacing it (rather than queueing) is the throttle — at most one cue shows
+  // at a time, and a new one simply restarts LiveCueOverlay's own countdown.
+  const [liveCue, setLiveCue] = useState<LiveCue | null>(null);
   const [sec, setSec] = useState(0);
   const [error, setError] = useState("");
   const [showInactivityPrompt, setShowInactivityPrompt] = useState(false);
@@ -104,6 +135,7 @@ export default function SquatLiveSessionPage() {
   const previousFlexionRef = useRef(0);
   const hasAutoFinishedRef = useRef(false);
   const goodRepAudio = useRef(new Audio(goodRepSrc));
+  const wrongRepAudio = useRef(new Audio(wrongRepSrc));
   // Last *rendered* (rounded) angle values — guards the per-frame setState calls
   // below so a frame whose rounded display value hasn't changed never re-renders.
   // Without this, ~30-60 setState calls/sec on 3 state variables can cascade into
@@ -129,6 +161,7 @@ export default function SquatLiveSessionPage() {
     setShowInactivityPrompt(false);
     setAttemptCount(0);
     setRejectedGates([]);
+    setLiveCue(null);
     hasAutoFinishedRef.current = false;
     lastMotionMsRef.current = performance.now();
     setKneeFlexionDeg(0);
@@ -232,13 +265,34 @@ export default function SquatLiveSessionPage() {
       }
       if (update.repJustCompleted) {
         setRejectedGates([]);
+        // HY's refinement: a good rep immediately closes any corrective cue still on
+        // screen from an earlier rejected rep, rather than leaving a stale "Go deeper"
+        // up after the user has already corrected and completed a valid rep.
+        setLiveCue(null);
         goodRepAudio.current.currentTime = 0;
         goodRepAudio.current.play().catch(() => {});
       } else if (update.repJustRejected) {
-        // No success chime — the rep didn't count. The reason is shown instead, so the
-        // user knows what to change rather than just seeing the counter stay put.
         console.log("[SquatLiveSessionPage] Rep rejected:", update.lastRepFailedGates);
         setRejectedGates(update.lastRepFailedGates);
+        wrongRepAudio.current.currentTime = 0;
+        wrongRepAudio.current.play().catch(() => {});
+        // UAT remediation (Stage R4): the big corrective pop-out shows only the
+        // PRIMARY reason, title + a specific subheading (e.g. "Go deeper" / "Aim for
+        // at least 78° knee bend") — the full list of every failed gate stays in the
+        // persistent sidebar panel below, so it isn't repeated here.
+        const primaryTag = update.lastRepFailedGates[0];
+        if (primaryTag) {
+          setLiveCue({
+            title: t(CUE_TITLE_KEY[primaryTag] as never),
+            subheading:
+              primaryTag === "insufficient_depth"
+                ? t(CUE_SUBHEADING_KEY[primaryTag] as never, {
+                    deg: Math.round(liveConfig.faultGates.minKneeFlexPeakDeg),
+                  })
+                : t(CUE_SUBHEADING_KEY[primaryTag] as never),
+            tone: "warn",
+          });
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -289,6 +343,7 @@ export default function SquatLiveSessionPage() {
     if (finishingRef.current || !sessionId) return;
     finishingRef.current = true;
     setShowInactivityPrompt(false);
+    setLiveCue(null);
     setStage("posting");
     try {
       const { frames, score, validFrameRatio } = recorder.summary();
@@ -326,11 +381,6 @@ export default function SquatLiveSessionPage() {
     ? Math.min(100, (repCount / targetReps) * 100)
     : Math.min(100, repCount * 10);
 
-  // Depth-gauge zone boundaries, as % of the gauge's full range — identical
-  // thresholds to squat/config.py's rules.rom (X7: config-driven, never inline).
-  const shallowPct = (liveConfig.romShallowStartDeg / liveConfig.romDeepFullScoreDeg) * 100;
-  const parallelPct = (liveConfig.romParallelStartDeg / liveConfig.romDeepFullScoreDeg) * 100;
-  const deepPct = (liveConfig.romDeepStartDeg / liveConfig.romDeepFullScoreDeg) * 100;
   const currentZone = depthZoneFor(kneeFlexionDeg, liveConfig);
 
   // Stage 5.21: the promoted live-feedback panel's state, derived rather than tracked
@@ -344,6 +394,14 @@ export default function SquatLiveSessionPage() {
       {stage === "posting" && <GeneratingReportOverlay />}
       {stage === "countdown" && (
         <StartSetCountdown secondsLeft={countdownSeconds} onCancel={cancelCountdown} />
+      )}
+      {stage === "recording" && liveCue && (
+        <LiveCueOverlay
+          title={liveCue.title}
+          subheading={liveCue.subheading}
+          tone={liveCue.tone}
+          onDismiss={() => setLiveCue(null)}
+        />
       )}
       {showInactivityPrompt &&
         createPortal(
@@ -369,6 +427,13 @@ export default function SquatLiveSessionPage() {
           <p>{t("squat.livePrompt")}</p>
         </div>
         <div className="topbar-actions">
+          {/* HY's refinement: Finish Set moved up here, beside Cancel, now that the
+              "Live status" panel that used to hold it is gone during recording. */}
+          {stage === "recording" && (
+            <button className="btn btn-primary" onClick={() => void finishSet()}>
+              {t("squat.finishSet")}
+            </button>
+          )}
           <button className="btn btn-cancel" onClick={handleCancel}>
             <Close />
             {t("live.cancel")}
@@ -411,6 +476,17 @@ export default function SquatLiveSessionPage() {
                   ? t("squat.repsOfTargetValue", { rep: repCount, target: targetReps })
                   : repCount}
               </div>
+              {/* HY's refinement: progress now lives inside the Reps card itself
+                  (dropped the separate "Live status" panel below) -- only meaningful
+                  with a target set, so it stays hidden without one. */}
+              {stage === "recording" && targetReps && (
+                <div className="track hud-progress">
+                  <div
+                    className="fill good"
+                    style={{ width: pct + "%", transition: "width .5s var(--ease)" }}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -464,151 +540,85 @@ export default function SquatLiveSessionPage() {
 
           {stage === "recording" && (
             <div className="panel">
-              <div className="panel-head" style={{ marginBottom: 14 }}>
+              <div className="panel-head" style={{ marginBottom: 10 }}>
                 <h3>{t("squat.liveAnglesTitle")}</h3>
               </div>
 
-              <div className="depth-gauge-head">
-                <span className="knee-metric-label" style={{ maxWidth: "none" }}>
-                  {t("squat.kneeDepthLabel")}
-                </span>
-                <span className="depth-gauge-value">
-                  {Math.round(kneeFlexionDeg)}°
-                  <span className="depth-gauge-zone-chip">
-                    {t("squat.depthZone_" + currentZone)}
+              {/* HY's refinement: one compact row of minimalist numbers instead of the
+                  gauge bar + ticks + two separate cards, so the whole live page (camera
+                  + HUD + feedback + angles) fits on screen without scrolling. */}
+              <div className="live-angle-row">
+                <div className="live-angle-stat">
+                  <span className="live-angle-label">{t("squat.kneeDepthLabel")}</span>
+                  <span className="live-angle-value">
+                    {Math.round(kneeFlexionDeg)}°
+                    <span className="depth-gauge-zone-chip">
+                      {t("squat.depthZone_" + currentZone)}
+                    </span>
                   </span>
-                </span>
-              </div>
-              {repPeakFlexionDeg != null && (
-                <span className="depth-gauge-peak-note">
-                  {t("squat.repPeakSoFar", { deg: Math.round(repPeakFlexionDeg) })}
-                </span>
-              )}
-              <div className="depth-gauge-track">
-                <span className="depth-gauge-zone z-minimal" style={{ width: `${shallowPct}%` }} />
-                <span
-                  className="depth-gauge-zone z-shallow"
-                  style={{ width: `${parallelPct - shallowPct}%` }}
-                />
-                <span
-                  className="depth-gauge-zone z-parallel"
-                  style={{ width: `${deepPct - parallelPct}%` }}
-                />
-                <span className="depth-gauge-zone z-deep" style={{ width: `${100 - deepPct}%` }} />
-                <span
-                  className="depth-gauge-marker"
-                  style={{ left: `${depthGaugePct(kneeFlexionDeg, liveConfig)}%` }}
-                />
-              </div>
-              <div className="depth-gauge-ticks">
-                <span style={{ left: `${shallowPct}%` }}>{t("squat.depthZone_shallow")}</span>
-                <span style={{ left: `${parallelPct}%` }}>{t("squat.depthZone_parallel")}</span>
-                <span style={{ left: `${deepPct}%` }}>{t("squat.depthZone_deep")}</span>
-              </div>
-
-              <div className="knee-metrics">
-                <div className="knee-metric-card">
-                  <div>
-                    <span className="knee-metric-label">{t("squat.trunkLeanLabel")}</span>
-                    <strong>{Math.round(trunkLeanDeg)}°</strong>
-                  </div>
                 </div>
-                <div className="knee-metric-card">
-                  <div>
-                    <span className="knee-metric-label">{t("squat.lastRepDepthLabel")}</span>
-                    <strong>
-                      {lastRepPeakDeg != null ? `${Math.round(lastRepPeakDeg)}°` : "—"}
-                    </strong>
+                {repPeakFlexionDeg != null && (
+                  <div className="live-angle-stat">
+                    <span className="live-angle-label">{t("squat.repPeakLabel")}</span>
+                    <span className="live-angle-value">{Math.round(repPeakFlexionDeg)}°</span>
+                  </div>
+                )}
+                <div className="live-angle-stat">
+                  <span className="live-angle-label">{t("squat.trunkLeanLabel")}</span>
+                  <span className="live-angle-value">{Math.round(trunkLeanDeg)}°</span>
+                </div>
+                <div className="live-angle-stat">
+                  <span className="live-angle-label">{t("squat.lastRepDepthLabel")}</span>
+                  <span className="live-angle-value">
+                    {lastRepPeakDeg != null ? `${Math.round(lastRepPeakDeg)}°` : "—"}
                     {lastRepBand && (
-                      <span
-                        className={"band " + lastRepBand.toLowerCase()}
-                        style={{ marginTop: 8, display: "inline-block" }}
-                      >
+                      <span className={"band " + lastRepBand.toLowerCase()}>
                         {t("common." + lastRepBand.toLowerCase())}
                       </span>
                     )}
-                    {lastRepPeakTrunkLeanDeg != null && (
-                      <span
-                        className="knee-metric-label"
-                        style={{ display: "block", marginTop: 8, fontWeight: 500 }}
-                      >
-                        {t("squat.lastRepTrunkLean", { deg: Math.round(lastRepPeakTrunkLeanDeg) })}
-                      </span>
-                    )}
-                  </div>
+                  </span>
                 </div>
               </div>
 
-              <p className="muted" style={{ fontSize: "0.74rem", marginTop: 12 }}>
+              <p className="muted" style={{ fontSize: "0.7rem", marginTop: 8 }}>
                 {t("squat.liveAngleGuidanceNote")}
               </p>
             </div>
           )}
 
-          <div className="panel reveal">
-            <div className="panel-head" style={{ marginBottom: 14 }}>
-              <h3>{t("live.liveBand")}</h3>
+          {/* HY's refinement: this panel now only appears for session setup (target
+              picker + Start Set) -- its recording-stage content (attempts summary,
+              progress bar, Finish button) moved to the Reps HUD card and the topbar,
+              so nothing calling itself "Live status" sits on screen once recording
+              starts. */}
+          {stage === "setup" && (
+            <div className="panel reveal">
+              <div className="panel-head" style={{ marginBottom: 14 }}>
+                <h3>{t("live.liveBand")}</h3>
+              </div>
+              <p className="muted" style={{ marginBottom: 14 }}>
+                {t("squat.setupTargetPrompt")}
+              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+                <Target width={18} height={18} />
+                <select
+                  className="select"
+                  value={targetReps ?? ""}
+                  onChange={(e) => setTargetReps(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">{t("squat.noTarget")}</option>
+                  {TARGET_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {t("squat.targetOption", { n })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button className="btn btn-primary btn-block" onClick={beginCountdown}>
+                {t("squat.startSet")}
+              </button>
             </div>
-
-            {stage === "setup" ? (
-              <>
-                <p className="muted" style={{ marginBottom: 14 }}>
-                  {t("squat.setupTargetPrompt")}
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-                  <Target width={18} height={18} />
-                  <select
-                    className="select"
-                    value={targetReps ?? ""}
-                    onChange={(e) => setTargetReps(e.target.value ? Number(e.target.value) : null)}
-                  >
-                    <option value="">{t("squat.noTarget")}</option>
-                    {TARGET_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {t("squat.targetOption", { n })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button className="btn btn-primary btn-block" onClick={beginCountdown}>
-                  {t("squat.startSet")}
-                </button>
-              </>
-            ) : (
-              <>
-                {/* Stage 5.21: the per-rep verdict ("Rep 5 of 10" / the rejection reason)
-                    moved to the promoted live-feedback panel above -- the HUD's Reps card
-                    already shows progress, so this panel is left as cumulative controls:
-                    the attempts summary, progress bar and Finish button. */}
-                {attemptCount > repCount && (
-                  <p className="muted" style={{ fontSize: "0.82rem", marginTop: 8 }}>
-                    {t("squat.attemptsSummary", {
-                      attempts: attemptCount,
-                      rejected: attemptCount - repCount,
-                    })}
-                  </p>
-                )}
-                <div className="track" style={{ height: 12 }}>
-                  <div
-                    className="fill good"
-                    style={{ width: pct + "%", transition: "width .5s var(--ease)" }}
-                  />
-                </div>
-                <p className="muted" style={{ fontSize: "0.82rem", marginTop: 10 }}>
-                  {targetReps ? t("squat.finishWhenReadyTargeted") : t("squat.finishWhenReady")}
-                </p>
-                <div style={{ marginTop: 20 }}>
-                  <button
-                    className="btn btn-primary btn-block"
-                    onClick={() => void finishSet()}
-                    disabled={stage !== "recording"}
-                  >
-                    {t("squat.finishSet")}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </>

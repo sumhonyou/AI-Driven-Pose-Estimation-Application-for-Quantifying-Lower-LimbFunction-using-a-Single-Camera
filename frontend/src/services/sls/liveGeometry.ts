@@ -66,6 +66,14 @@ export interface SlsLiveUpdate {
   points: number; // gamified combo points (display-only, never persisted)
   multiplier: number; // current combo multiplier
   cappedAtMax: boolean;
+  /**
+   * UAT remediation (Stage R4): true when the STANCE leg (not the one the user was
+   * prompted to lift) has risen off the ground by roughly the same lift-line margin
+   * used for the target leg. Debounced with the same dwell constants as the real
+   * lift/drop detection so a single noisy frame can't flip it. Display-only — never
+   * sent to the backend, never affects the hold timer or the official result.
+   */
+  wrongLegLifted: boolean;
 }
 
 /** Multiplier for a given continuous seconds-inside, from the configured tiers. */
@@ -97,6 +105,16 @@ export function createSlsLiveTracker(leg: SlsLeg) {
   let holdSeconds = 0;
   let cappedAtMax = false;
 
+  // Wrong-leg-lift detection: the STANCE ankle's own baseline + a line at the same
+  // norm above it, so "stance leg rising" is judged against its own planted height
+  // exactly the way the target leg's lift is -- not an arbitrary shared threshold.
+  let baselineStanceAnkleYSum = 0;
+  let baselineStanceAnkleY: number | null = null;
+  let wrongLegLineY: number | null = null;
+  let wrongLegAboveSinceSec: number | null = null;
+  let wrongLegBelowSinceSec: number | null = null;
+  let wrongLegLifted = false;
+
   // Debounces the raw inside/outside-circle signal (mirrors backend CircleDebouncer)
   // so a single noisy frame can't flip the ball colour or reset the combo.
   let debouncedInside: boolean | null = null;
@@ -123,6 +141,12 @@ export function createSlsLiveTracker(leg: SlsLeg) {
     insideSinceSec = null;
     points = 0;
     lastFrameSec = null;
+    baselineStanceAnkleYSum = 0;
+    baselineStanceAnkleY = null;
+    wrongLegLineY = null;
+    wrongLegAboveSinceSec = null;
+    wrongLegBelowSinceSec = null;
+    wrongLegLifted = false;
   }
 
   function update(w: WorldLandmark[], nowMs: number): SlsLiveUpdate {
@@ -136,6 +160,7 @@ export function createSlsLiveTracker(leg: SlsLeg) {
       points,
       multiplier: 1,
       cappedAtMax,
+      wrongLegLifted,
     };
     if (!w || w.length < 33) return idle;
 
@@ -149,6 +174,7 @@ export function createSlsLiveTracker(leg: SlsLeg) {
     // Calibration: average the planted baseline + stance-leg length, then place the line.
     if (t <= SLS_CALIBRATION_SEC) {
       baselineAnkleYSum += ankleY;
+      baselineStanceAnkleYSum += w[ANKLE[stance]].y;
       baselineLegLenSum += stanceLegLength(w, stance);
       baselineCount += 1;
       return { ...idle, phase: "calibrating" };
@@ -156,9 +182,11 @@ export function createSlsLiveTracker(leg: SlsLeg) {
     if (lineY === null) {
       if (baselineCount === 0) return { ...idle, phase: "waiting" };
       baselineAnkleY = baselineAnkleYSum / baselineCount;
+      baselineStanceAnkleY = baselineStanceAnkleYSum / baselineCount;
       const legLen = baselineLegLenSum / baselineCount;
       lineY = baselineAnkleY - SLS_LIFT_LINE_NORM * legLen;
       dropMargin = SLS_LIFT_HYSTERESIS_NORM * legLen;
+      wrongLegLineY = baselineStanceAnkleY - SLS_LIFT_LINE_NORM * legLen;
       phase = "waiting";
     }
 
@@ -181,6 +209,24 @@ export function createSlsLiveTracker(leg: SlsLeg) {
     const inside = debouncedInside;
     const liftSpan = (baselineAnkleY as number) - lineY;
     const liftProgress = liftSpan > 1e-9 ? ((baselineAnkleY as number) - ankleY) / liftSpan : 0;
+
+    // Wrong-leg-lift: the STANCE ankle crossing its own lift-line means the user is
+    // lifting the leg they were told to keep planted. Same dwell debounce as the real
+    // lift/drop detection, active any time the hold hasn't already stopped.
+    if (phase !== "stopped" && wrongLegLineY !== null) {
+      const stanceAboveLift = w[ANKLE[stance]].y < wrongLegLineY;
+      if (stanceAboveLift) {
+        wrongLegBelowSinceSec = null;
+        if (wrongLegAboveSinceSec === null) wrongLegAboveSinceSec = t;
+        if (t - wrongLegAboveSinceSec >= SLS_LIFT_MIN_DWELL_SEC) wrongLegLifted = true;
+      } else {
+        wrongLegAboveSinceSec = null;
+        if (wrongLegLifted) {
+          if (wrongLegBelowSinceSec === null) wrongLegBelowSinceSec = t;
+          if (t - wrongLegBelowSinceSec >= SLS_DROP_MIN_DWELL_SEC) wrongLegLifted = false;
+        }
+      }
+    }
 
     if (phase === "waiting") {
       if (aboveLift) {
@@ -234,6 +280,7 @@ export function createSlsLiveTracker(leg: SlsLeg) {
       points: Math.floor(points),
       multiplier,
       cappedAtMax,
+      wrongLegLifted,
     };
   }
 

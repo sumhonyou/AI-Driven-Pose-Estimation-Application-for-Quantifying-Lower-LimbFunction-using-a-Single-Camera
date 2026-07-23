@@ -338,6 +338,13 @@ class FeedbackText(Base):
     )
     provider: Mapped[str | None] = mapped_column(String(50))
     model_version: Mapped[str | None] = mapped_column(String(100))
+    # UAT remediation (T11, S5 "keeps showing template fallback"): `llm_attempted`
+    # alone says a call happened, not what became of it. One of "none" (never
+    # attempted), "llm_used" (rewrite accepted), "rate_limited", "timeout",
+    # "api_error", "invalid_json", "empty_response", or "guard_rejected:<reason>"
+    # (Stage 6.3's safety filter rejected an otherwise-successful reply, with its own
+    # rejection reason appended). Diagnostic only -- never rendered to the user.
+    fallback_reason: Mapped[str | None] = mapped_column(String(80))
     # Versioned id for the disclaimer copy shown alongside this report (the disclaimer
     # text itself always comes from the current i18n render, never stored here).
     disclaimer_version: Mapped[str | None] = mapped_column(String(20))

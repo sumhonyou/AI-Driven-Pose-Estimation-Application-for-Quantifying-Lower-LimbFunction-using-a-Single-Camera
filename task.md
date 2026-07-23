@@ -4247,7 +4247,7 @@ backlog and the future-work list.
       were removed outright (no longer read anywhere) rather than left as dead exports.
 - [x] Regression tests: `backend/tests/test_module_a_sls.py::FsmTests` rewritten for
       dwell-based timing, incl. a direct regression proof (`test_a_lift_shorter_than_the
-    _dwell_never_confirms`) that a lift shorter than the dwell window never starts a
+_dwell_never_confirms`) that a lift shorter than the dwell window never starts a
       timer. New `frontend/src/services/sls/liveGeometry.test.ts` (4 tests) covers the
       same dwell/drop-dwell behaviour client-side — no prior test file existed for this
       module. Full backend suite **330/330**; frontend `tsc --noEmit` clean, full
@@ -4259,3 +4259,284 @@ backlog and the future-work list.
       Phase 3B baseline (`SLS_EVALUATION_REPORT.md` diff is empty).
 - [ ] Live end-to-end re-verification (browser + running backend, a genuinely brief
       accidental foot-twitch vs. a real held lift) deferred to the next working session.
+
+### Phase 10 — Stage R3: LLM coaching fallback telemetry + prompt tightening (2026-07-24)
+
+- [x] Root cause confirmed: `backend/app/module_b/core/router.py::_build_and_save_feedback`
+      already computed a precise reason whenever a rewrite wasn't used — the safety filter
+      (`feedback_safety.check_llm_feedback`) returns `forbidden_phrase:X`,
+      `grade_mismatch_band/score`, `invented_tag:X`, `too_long`, `markdown_formatting`,
+      and the client (`llm_client.GroqClient`) returns `result.error` — but both were only
+      logged, never stored, so diagnosing a template-only report required a log-file
+      search per session rather than a query. `feedback_llm_enabled=False` by default
+      means a _fresh_ run always falls back silently for that reason alone; UAT ran with
+      it enabled (`.env` already has `FEEDBACK_LLM_ENABLED=true` + a real `LLM_API_KEY`),
+      so the observed fallback was downstream of the request, in the client or the guard.
+- [x] Added `fallback_reason` telemetry: new nullable `String(80)` column on
+      `feedback_texts` (migration `20260724_0013`, applied against the live local
+      Postgres and confirmed present via `information_schema` inspection), threaded
+      through `crud.FeedbackWrite`/`save_feedback`/`feedback_summary` and set by
+      `_build_and_save_feedback` to one of `none` (never attempted) / `llm_used` /
+      `rate_limited` / `timeout` / `api_error` / `invalid_json` / `empty_response` /
+      `guard_rejected:<safety.reason>`. Diagnostic only — no schema/frontend change
+      needed to keep it out of the user-facing report: `ModuleBFeedbackResponse` doesn't
+      enumerate the field, so FastAPI/Pydantic silently drops it from the HTTP response
+      (verified no `extra="forbid"` anywhere on that model) while it stays queryable
+      directly from the `feedback_texts` table or the structured log line.
+- [x] `llm_client.py::GroqClient.rewrite_feedback` now catches `httpx.TimeoutException`
+      ahead of the generic `httpx.HTTPError` handler (it's a subclass) and reports it as
+      the distinct `"timeout"` reason instead of folding it into `"transport_error:..."`,
+      so a slow API call is now distinguishable from a dead connection or any other
+      `4xx`/`5xx` in the stored telemetry.
+- [x] Tightened `_SYSTEM_PROMPT` against the two most likely structural rejection causes
+      identified by reading `feedback_safety.py`'s own checks (no live API access in this
+      session to confirm empirically, so this is diagnosis-by-code-reading + the new
+      telemetry field for further live iteration, not a confirmed-live fix): (1) the
+      model was free to restate the score as an approximate "X/10", which
+      `_contradicts_score`'s ±0.05 tolerance would reject on any rounding — now
+      explicitly forbidden, banded/qualitative language only; (2) the model could add
+      generic technique cues that happen to echo an untriggered gate's tag/message text,
+      which `_find_invented_tag` would reject — now explicitly told to give only general
+      encouragement when no tags are present and never introduce a cue beyond the given
+      tags.
+- [x] English-only rewrite kept as-is per HY's call — no locale routing added; non-English
+      sessions continue to get the localised template. Documented here as the known,
+      deliberate limitation for this stage (multi-language LLM output is future work).
+- [x] Regression tests: `test_module_b_llm_client.py` updated for the new `"timeout"`
+      label plus a new `test_connection_error_is_reported_as_transport_error` proving
+      non-timeout transport errors are unaffected. New
+      `FallbackReasonTelemetryTests` in `test_module_b_feedback_persistence.py` (5 tests)
+      cover all five `fallback_reason` outcomes end-to-end through
+      `_build_and_save_feedback`, including a guard-rejection case
+      (`guard_rejected:grade_mismatch_band`). Full backend suite: **336/336 passing**.
+      Black + isort applied.
+- [ ] Live verification against the real Groq API (confirm the tightened prompt actually
+      reduces `guard_rejected` fallbacks vs. the UAT-era prompt) deferred to the next
+      working session — this stage shipped the diagnostic capability and a
+      code-reasoned fix, not yet a live-confirmed reduction in fallback rate.
+
+### Phase 10 — Stage R4: Live-feedback redesign — squat portion (2026-07-24, in progress)
+
+**Scope note:** R4 is a cross-cutting stage across all four live-session pages
+(STS/SLS/WBLT/squat). This entry covers **squat only**; STS/SLS/WBLT are not yet
+touched. HY additionally specified mid-stage that the corrective-cue pop-out's
+background should be a translucent colour wash (can see the webcam feed and HUD rep
+count through it), not opaque like the existing start-countdown overlays — folded into
+the design below.
+
+- [x] **Discovered and fixed a drift bug from Stage R1** while building this stage:
+      `frontend/src/utils/squat/squatFaultGates.ts`'s `createHeelRiseTracker` (the
+      client-side live mirror of the backend heel-lift gate) was still on the OLD
+      bilateral/first-frame construction — R1 only updated the backend. Rewrote it to
+      the same near-leg-selection/settle-window/debounce construction as the backend
+      (buffers small per-frame numeric arrays for both legs, decides the near leg by
+      mean visibility only once at `result()` time, since the live path can't know the
+      whole-rep visibility average until the rep ends). Also fixed a pre-existing,
+      unrelated constant drift found in the same file: its local `MIN_VISIBILITY`
+      claimed to mirror the backend's `0.6` but was hardcoded `0.5` — now imports
+      `LIVE_MIN_VISIBILITY` (already correctly `0.6`) instead of duplicating it. Also
+      updated the stale fallback threshold in `squatLiveEstimate.ts`
+      (`FALLBACK_SQUAT_LIVE_CONFIG.faultGates.faultHeelRisePeakNorm`:
+      `0.08399336939375095` → `0.07098522548163665`, matching R1's re-derived value).
+      `src/test/squatFaultGates.test.ts` rewritten (14 tests): sustained lift fires,
+      single-frame spike doesn't, near-leg selection ignores a noisy far leg, an
+      occluded near leg refuses to fire.
+- [x] Built a new shared `frontend/src/components/LiveCueOverlay.tsx` — a full-viewport
+      portal (same take-over pattern as `StartHoldCountdown`/`StartSetCountdown`, z-index 500) but with a **translucent tone-coloured background**
+      (`color-mix(in srgb, var(--coral) 30%, transparent)` for `warn`, similar for
+      `good`/`neutral`) instead of their opaque `background: var(--bg)`, so the camera
+      feed and the HUD's rep counter stay visible through it — HY's explicit mid-stage
+      request. Giant title text (`clamp(2.6rem, 7vw, 4.5rem)`), optional detail line, a
+      10s auto-dismiss countdown ring (SVG, same technique as `AutoStartCountdown`),
+      and a manual dismiss button. `pointer-events: none` on the backdrop (only the
+      dismiss button is clickable) so it can never block interaction with anything
+      underneath even while showing.
+- [x] Wired into `SquatLiveSessionPage.tsx`: on `repJustRejected`, the primary failed
+      gate drives the big pop-out title (`squat.cueInsufficientDepth` = "Go deeper",
+      `cueExcessiveForwardLean` = "Chest up", `cueHeelLift` = "Heels down" — corrective
+      wording, not descriptive, per the plan); any additional failed gates for the same
+      rep are named in the smaller detail line. Throttled to at most one cue at a time
+      by construction (single `liveCue` state, replaced not queued — a new rejection
+      just restarts the overlay's own countdown). Cleared on `startSet`/`finishSet`.
+      i18n added to en/zh/ms.
+- [x] Enlarged the always-visible live-feedback text for distance readability (Q9 =
+      3.38/5, the lowest-scoring UAT item): `.hud-card .hv` (HUD timer/rep numbers)
+      2.4rem → `clamp(2.4rem, 3.6vw, 2.9rem)`; `.live-feedback-title` (squat) 1.4rem →
+      `clamp(1.4rem, 2.6vw, 1.85rem)`; `.live-band` (STS) 1.45rem →
+      `clamp(1.45rem, 2.6vw, 1.9rem)`; `.sls-live-status-text` (SLS) 1.55rem →
+      `clamp(1.55rem, 2.8vw, 2rem)` — all four pages' persistent panels bumped even
+      though only squat has the new pop-out wired in yet.
+- [x] Verification: `tsc --noEmit` clean; full frontend `vitest` **32/32**. Visual
+      verification of the new overlay's translucency, legibility, and full-page
+      takeover done by injecting its exact markup/classes into running pages in both
+      light and dark theme and at mobile width (375px) — confirmed real UI content
+      (a skeleton figure illustration, a "Knee ROM · Good" pill, a capture-quality
+      badge) stays clearly visible through the colour wash behind the giant title text
+      in both themes.
+- [ ] **Not yet done, deferred:** a real end-to-end check (an actual rejected squat rep
+      in front of a real webcam, triggering the overlay live) — the sandboxed preview
+      browser used for this session blocks camera permission outright ("Camera
+      permission denied"), so this needs HY's own machine. Also not yet done: STS, SLS,
+      WBLT corrective-cue wiring (plan items 2/5 — glanceable rep-progress ring,
+      surfacing the font-size control in-session) for any exercise; this entry is the
+      squat slice only.
+
+**Refinements after HY reviewed a screenshot of the first pass (2026-07-24, same day):**
+
+- [x] Backdrop opacity dropped from tone-tinted 30%/26% to a uniform, much lighter
+      `color-mix(in srgb, var(--bg) 10%, transparent)` across all three tones — same
+      base colour the sidebar itself already uses for its own translucent background
+      (`.side`), just far lighter, so the wash barely tints the feed at all. Tone
+      (`warn`/`good`) now only colours the icon, not the backdrop.
+- [x] Added a genuine reject sound: `wrongRepAudio` (new
+      `assets/sound effect/Wrong sound effect.mp3` ref, same pattern as the existing
+      `goodRepAudio`) now plays on `repJustRejected` — previously deliberately silent
+      ("no success chime"); HY asked for an actual wrong-buzzer instead.
+- [x] Cue copy restructured into a real headline/subheading pair instead of
+      title-plus-other-gates-list: `LiveCueOverlay`'s `detail` prop renamed to
+      `subheading` (grouped with the title in a new `.live-cue-copy` flex column, tight
+      6px gap, clearly smaller font) and now always carries the SPECIFIC reason behind
+      the primary cue rather than an optional list of the rep's other failed gates
+      (which stays covered by the persistent sidebar panel instead): "Go deeper" / "Aim
+      for at least {{deg}}° knee bend" (interpolated live from
+      `liveConfig.faultGates.minKneeFlexPeakDeg`, never hardcoded), "Chest up" /
+      "Leaning too far forward", "Heels down" / "You're lifting your heels up". New
+      `squat.cue*Detail` i18n keys added to en/zh/ms.
+- [x] Re-verified: `tsc --noEmit` clean, full `vitest` **32/32**, and the updated markup
+      re-injected into a live dashboard page to visually confirm the much lighter,
+      neutral-toned wash and the new headline/subheading grouping.
+
+**Further refinements after HY tried the first pass live (screenshot attached, 2026-07-24,
+same day):**
+
+- [x] Overlay colours now reuse the persistent live-feedback panel's own state colours
+      exactly instead of an invented wash: `--warn-bg`/`--good-bg`/`--surface`
+      background (the same `.live-feedback-panel.rejected`/`.counted`/`.idle`
+      backgrounds — `--warn-bg` is literally `rgba(245, 183, 49, 0.14)` light /
+      `0.16` dark, HY's own quoted values), a real `2px solid` full-page border in the
+      matching state colour (`--amber`/`--good`/`--border`), and the icon copied
+      exactly (`.live-feedback-icon`'s 40px solid-colour circle + `--on-accent`
+      glyph, not the previous white circle + coloured glyph).
+- [x] Added a genuine "wrong" sound: `wrongRepAudio` plays
+      `assets/sound effect/Wrong sound effect.mp3` on `repJustRejected` (previously
+      silent by design — "no success chime"; HY asked for an actual buzzer).
+- [x] Cue copy restructured into title + specific subheading (renamed `detail` prop to
+      `subheading`, grouped in a new `.live-cue-copy` flex column): "Go deeper" / "Aim
+      for at least {{deg}}° knee bend" (still interpolated live from
+      `liveConfig.faultGates.minKneeFlexPeakDeg`), "Chest up" / "Leaning too far
+      forward", "Heels down" / "You're lifting your heels up" — replacing the previous
+      "other failed gates" list (which stays covered by the sidebar panel).
+- [x] Simplified the "Live angles" panel from a graphical gauge bar + zone ticks + two
+      stacked metric cards + a peak-so-far sentence + a trunk-lean-peak sentence, down
+      to one compact `.live-angle-row` of four minimal label:value stats (Knee depth,
+      Peak, Trunk lean, Last rep depth) that wraps gracefully instead of scrolling — so
+      the whole live squat page (camera + HUD + feedback + angles) fits without
+      scrolling, per HY's request. Removed the now-dead `.depth-gauge-head/-value/
+-peak-note/-track/-zone*/-marker/-ticks*` CSS and the `depthGaugePct` import
+      (kept the exported utility itself in `squatLiveEstimate.ts` since it's harmless
+      and may be reused); kept `.depth-gauge-zone-chip` (still used) and
+      `.knee-metrics`/`.knee-metric-card`/`.knee-metric-label` (still used by STS,
+      untouched). Retired i18n keys `repPeakSoFar`→`repPeakLabel` (short "Peak" label)
+      and dropped the now-unused `lastRepTrunkLean` key, in en/zh/ms.
+- [x] Re-verified: `tsc --noEmit` clean, full `vitest` **32/32**; both changes
+      re-checked visually via injected markup (amber border/icon/background confirmed
+      against a real panel; the compact stat row confirmed to read as effectively one
+      line at the sidebar column's real width, wrapping gracefully rather than forcing
+      scroll on narrower widths).
+
+**Third round of refinements after HY tried the second pass live (screenshots
+attached, 2026-07-24, same day):**
+
+- [x] The pop-out now auto-closes on `repJustCompleted`, not just its own 10s timer or
+      manual dismiss — a good rep clears `liveCue` immediately, so a stale "Go deeper"
+      from an earlier rejected rep can no longer linger on screen after the user has
+      already corrected and completed a valid one.
+- [x] Backdrop opacity is now a single tunable knob: `--live-cue-bg-alpha` (currently
+      `80%`) declared once on `.live-cue-overlay`, consumed by all three tone
+      backgrounds via `color-mix(in srgb, <hue> var(--live-cue-bg-alpha), transparent)`
+      — raised from the previous `--warn-bg`/`--good-bg` (fixed ~14-16%, shared with
+      the sidebar panel so deliberately not reused for this). **Where to tune further:
+      `frontend/src/index.css`, the `--live-cue-bg-alpha` declaration inside
+      `.live-cue-overlay`** — one line controls the wash strength for every tone and
+      every exercise page that uses this component.
+      **Contrast heads-up (found while re-verifying, not asked for but worth flagging):**
+      title/subheading colour is still `var(--text)`, which is dark in light theme
+      (crisp against the 80% amber -- matches HY's own screenshots) but goes
+      near-white in dark theme, so it reads noticeably softer against the same bright
+      amber wash there. Left as-is since HY is tuning this by feel; if dark theme needs
+      fixing too, the fix is forcing `.live-cue-title`/`.live-cue-subheading` to
+      `var(--on-accent)` for the `warn`/`good` tones specifically (same pattern already
+      used for `.live-cue-icon`).
+- [x] Removed the "Live status" panel entirely once recording starts (it now only
+      renders during `stage === "setup"` for the target picker + Start Set button).
+      Its recording-stage contents relocated: **Finish Set** moved into the topbar
+      beside Cancel (`topbar-actions`, shown only while `stage === "recording"`); the
+      **progress bar** moved inside the Reps HUD card itself, below the big number
+      (new slim `.hud-progress` modifier on the existing `.track`, only shown with a
+      target set). The attempts-summary text and "finish whenever ready" caption were
+      dropped rather than relocated (the sidebar's "that rep didn't count" panel
+      already covers the rejection info); their now-orphaned i18n keys
+      (`attemptsSummary`, `finishWhenReady`, `finishWhenReadyTargeted`) removed from
+      en/zh/ms.
+- [x] `.live-cue-icon` circle enlarged `40px → 68px` (the 40px glyph no longer fits a
+      40px circle); the glyph itself sized down to `34px` in `LiveCueOverlay.tsx` so it
+      now sits with comfortable padding inside the larger circle.
+- [x] Re-verified: `tsc --noEmit` clean, full `vitest` **32/32**; visually re-checked
+      the 80%-opaque warn overlay with the enlarged icon in both dark and light theme
+      (confirming the contrast note above), matching HY's own screenshots in light
+      theme closely.
+
+### Phase 10 — Stage R4: Live-feedback redesign — SLS + STS portion (2026-07-24)
+
+Rolled `LiveCueOverlay` out to the two remaining live pages, plus a new signal HY
+flagged from live testing: SLS users aren't told when they lift the **wrong** leg.
+
+- [x] **New: wrong-leg-lift detection** in
+      `frontend/src/services/sls/liveGeometry.ts`'s `createSlsLiveTracker()`. The
+      tracker already tracked the _target_ leg's ankle against a calibrated
+      lift-line; it now also averages the **stance** ankle's baseline during the
+      same calibration window and places an identical lift-line above it
+      (`wrongLegLineY = baselineStanceAnkleY - SLS_LIFT_LINE_NORM * legLen`). Each
+      frame (while `phase !== "stopped"`) checks whether the stance ankle has
+      crossed _its own_ line, debounced with the same `SLS_LIFT_MIN_DWELL_SEC` /
+      `SLS_DROP_MIN_DWELL_SEC` dwell constants already used for the real lift/drop
+      detection (Stage R2) — so a single noisy frame can't flip it either direction.
+      Exposed as a new `wrongLegLifted: boolean` field on `SlsLiveUpdate`. Purely a
+      display-only client signal (X7: mirrors the "helper only" convention already
+      documented at the top of this file) — never sent to the backend, never
+      affects the hold timer, combo score, or the official persisted result.
+- [x] Wired into `SlsLiveSessionPage.tsx`: edge-triggered (a ref tracks the previous
+      frame's `wrongLegLifted` so the sound/cue fire once per lift, not every
+      frame, matching the rep-boundary pattern squat/STS use). Rising edge plays
+      the existing "Wrong sound effect.mp3" and shows `LiveCueOverlay` with title
+      `sls.cueWrongLeg` ("Wrong leg!") and subheading `sls.cueWrongLegDetail`
+      ("Keep your {{leg}} on the ground"), `{{leg}}` interpolated from the actual
+      stance leg (`sls.legRight`/`sls.legLeft`, lower-cased) so it always names the
+      leg that should stay planted for _this_ attempt — never a generic message.
+      Falling edge (user self-corrects) clears the cue immediately, same as squat's
+      auto-close-on-good-rep. State reset in `startHold()` alongside the tracker.
+- [x] Wired `LiveCueOverlay` into `StsLiveSessionPage.tsx` too, reusing the
+      existing `InvalidReasonCode` → i18n mapping (`reasonCodeToI18nKey`) that
+      already drove the old `liveReasonGuess` timeout-banner — the persistent
+      banner is kept as-is (still useful sitting in the panel), `LiveCueOverlay` is
+      now shown _alongside_ it as the big glanceable pop-out, and both clear
+      together on the next valid rep (`response.metrics.rep_count >
+    validRepsRef.current`). No subheading (STS's existing reason strings are
+      already short/specific enough to stand alone as titles) and no new i18n keys
+      needed — this stage only added the plumbing.
+- [x] New i18n keys `sls.cueWrongLeg` / `sls.cueWrongLegDetail` added to en/zh/ms.
+- [x] New vitest coverage in `liveGeometry.test.ts`
+      (`createSlsLiveTracker wrong-leg-lift detection`, 4 cases): a stance-leg rise
+      shorter than the dwell window doesn't flag; a sustained one does; it clears
+      after a sustained return below the line; and — the case most likely to
+      regress silently — a _correct_ target-leg lift never trips `wrongLegLifted`.
+- [x] Verified: `tsc --noEmit` clean; full `vitest` **36/36**; Prettier clean;
+      visually re-checked the SLS wrong-leg cue's exact copy/typography via the
+      same injected-markup technique used for squat (real webcam access stays
+      blocked in the sandboxed Browser pane) — renders identically to the squat
+      overlay's amber warn treatment, just with the new copy.
+- [ ] Still outstanding: WBLT has not had `LiveCueOverlay` wired in at all (no
+      rejected-attempt concept currently surfaced live for it — would need its own
+      design pass, not just a copy of this pattern). Live end-to-end verification
+      with a real webcam (including the wrong-leg cue specifically) remains on HY's
+      own machine, as with every other R4 stage so far.

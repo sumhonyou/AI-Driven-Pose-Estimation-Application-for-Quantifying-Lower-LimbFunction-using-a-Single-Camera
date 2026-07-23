@@ -1,10 +1,10 @@
-// Gate direction, threshold boundaries and the heel-visibility abstention.
+// Gate direction, threshold boundaries and the heel-rise tracker's near-leg
+// selection / settle-window / debounce construction (Stage R1/R4).
 // Backend parity of the heel-rise MATH is checked separately, cross-language.
 import { describe, it, expect } from "vitest";
 import {
   createHeelRiseTracker,
   evaluateSquatFaultGates,
-  heelLandmarksVisible,
   type SquatFaultGateConfig,
 } from "../utils/squat/squatFaultGates";
 import { LM, type WorldLandmark } from "../types/pose";
@@ -84,34 +84,75 @@ describe("evaluateSquatFaultGates", () => {
   });
 });
 
-describe("heel visibility", () => {
-  it("treats a low-visibility heel as not judgeable", () => {
-    expect(heelLandmarksVisible(pose())).toBe(true);
-    expect(heelLandmarksVisible(pose({ [LM.LEFT_HEEL]: { visibility: 0.49 } }))).toBe(false);
-  });
-
-  it("returns null from the tracker if any frame was occluded", () => {
-    const tracker = createHeelRiseTracker();
-    tracker.record(pose());
-    tracker.record(pose({ [LM.RIGHT_FOOT_INDEX]: { visibility: 0.1 } }));
-    expect(tracker.result()).toBeNull();
-  });
-});
-
+// UAT remediation (Stage R1/R4): the tracker now selects the camera-side (near) leg
+// per rep by visibility, baselines against a settle-window median, and requires a
+// rise to be sustained across a debounce window -- regression coverage for each part
+// mirrors backend tests/test_module_b_squat_fault_gates.py::HeelRiseGateTests.
 describe("heel-rise tracker", () => {
-  it("measures rise relative to the rep's first frame, normalised by trunk length", () => {
+  it("measures a rise sustained across the debounce window, baselined from the settle window", () => {
     const tracker = createHeelRiseTracker();
-    // Trunk length is 0.5 in `pose()`. Heel starts level with the toe, then lifts 0.05
-    // (y is DOWN, so a raised heel has the smaller y).
+    // Trunk length is 0.5 in `pose()`. 3 flat settle frames, then 3 frames with the
+    // heel lifted 0.05 (y is DOWN, so a raised heel has the smaller y) -- long enough
+    // to survive the debounce window.
     tracker.record(pose());
-    tracker.record(pose({ [LM.LEFT_HEEL]: { y: -0.05 }, [LM.RIGHT_HEEL]: { y: -0.05 } }));
+    tracker.record(pose());
+    tracker.record(pose());
+    tracker.record(pose({ [LM.LEFT_HEEL]: { y: -0.05 } }));
+    tracker.record(pose({ [LM.LEFT_HEEL]: { y: -0.05 } }));
+    tracker.record(pose({ [LM.LEFT_HEEL]: { y: -0.05 } }));
     expect(tracker.result()).toBeCloseTo(0.05 / 0.5, 10);
+  });
+
+  it("does not report a single-frame spike that never survives the debounce window", () => {
+    const tracker = createHeelRiseTracker();
+    tracker.record(pose());
+    tracker.record(pose());
+    tracker.record(pose());
+    tracker.record(pose({ [LM.LEFT_HEEL]: { y: -0.5 } })); // one noisy frame
+    tracker.record(pose());
+    tracker.record(pose());
+    expect(tracker.result()).toBeCloseTo(0, 10);
+  });
+
+  it("reads the near (more visible) leg, ignoring a noisy low-visibility far leg", () => {
+    const tracker = createHeelRiseTracker();
+    for (let i = 0; i < 6; i += 1) {
+      tracker.record(
+        pose({
+          [LM.LEFT_HEEL]: { visibility: 1 },
+          [LM.LEFT_FOOT_INDEX]: { visibility: 1 },
+          // Right leg spikes wildly but is poorly tracked -- must not leak in.
+          [LM.RIGHT_HEEL]: { y: -0.5, visibility: 0.3 },
+          [LM.RIGHT_FOOT_INDEX]: { visibility: 0.3 },
+        }),
+      );
+    }
+    expect(tracker.result()).toBeCloseTo(0, 10);
+  });
+
+  it("refuses to report a result when even the near leg is not reliably visible", () => {
+    const tracker = createHeelRiseTracker();
+    for (let i = 0; i < 6; i += 1) {
+      tracker.record(
+        pose({
+          [LM.LEFT_HEEL]: { y: -0.5, visibility: 0.3 },
+          [LM.LEFT_FOOT_INDEX]: { visibility: 0.3 },
+          [LM.RIGHT_HEEL]: { y: -0.5, visibility: 0.3 },
+          [LM.RIGHT_FOOT_INDEX]: { visibility: 0.3 },
+        }),
+      );
+    }
+    expect(tracker.result()).toBeNull();
   });
 
   it("ignores a heel DROP, reporting zero rise", () => {
     const tracker = createHeelRiseTracker();
     tracker.record(pose());
-    tracker.record(pose({ [LM.LEFT_HEEL]: { y: 0.05 }, [LM.RIGHT_HEEL]: { y: 0.05 } }));
+    tracker.record(pose());
+    tracker.record(pose());
+    tracker.record(pose({ [LM.LEFT_HEEL]: { y: 0.05 } }));
+    tracker.record(pose({ [LM.LEFT_HEEL]: { y: 0.05 } }));
+    tracker.record(pose({ [LM.LEFT_HEEL]: { y: 0.05 } }));
     expect(tracker.result()).toBeCloseTo(0, 10);
   });
 
@@ -119,6 +160,8 @@ describe("heel-rise tracker", () => {
     const tracker = createHeelRiseTracker();
     tracker.record(pose({ [LM.LEFT_HEEL]: { y: -0.5 } }));
     tracker.reset();
+    tracker.record(pose());
+    tracker.record(pose());
     tracker.record(pose());
     expect(tracker.result()).toBeCloseTo(0, 10);
   });

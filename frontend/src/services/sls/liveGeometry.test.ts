@@ -13,13 +13,14 @@ function landmark(x = 0, y = 0): WorldLandmark {
 }
 
 /** Left leg lifted (leg="left", stance="right"). ankleLiftOffset > 0 raises the left
- * ankle above the y=1 planted baseline (world-y increases downward). */
-function frame(ankleLiftOffset = 0): WorldLandmark[] {
+ * ankle above the y=1 planted baseline (world-y increases downward). stanceLiftOffset
+ * does the same for the RIGHT (stance) ankle -- used for wrong-leg-lift coverage. */
+function frame(ankleLiftOffset = 0, stanceLiftOffset = 0): WorldLandmark[] {
   const w = Array.from({ length: 33 }, () => landmark(0, 0));
   w[LM.LEFT_HIP] = landmark(-0.1, 0);
   w[LM.RIGHT_HIP] = landmark(0.1, 0);
   w[LM.LEFT_ANKLE] = landmark(-0.1, 1 - ankleLiftOffset);
-  w[LM.RIGHT_ANKLE] = landmark(0.1, 1);
+  w[LM.RIGHT_ANKLE] = landmark(0.1, 1 - stanceLiftOffset);
   return w;
 }
 
@@ -72,5 +73,51 @@ describe("createSlsLiveTracker dwell timing", () => {
     tracker.update(frame(0), 2600);
     const update = tracker.update(frame(0), 2710); // 0.11s of sustained drop
     expect(update.phase).toBe("stopped");
+  });
+});
+
+// UAT remediation (Stage R4): SLS note "user is not aware if they lift the wrong
+// leg" -- coverage for the STANCE ankle crossing its own lift-line while the target
+// leg stays planted, mirroring the real lift/drop dwell debounce above.
+describe("createSlsLiveTracker wrong-leg-lift detection", () => {
+  it("does not flag a stance-leg rise shorter than the dwell window", () => {
+    const tracker = createSlsLiveTracker("left");
+    calibrate(tracker);
+
+    let update = tracker.update(frame(0, 0.5), 2200);
+    expect(update.wrongLegLifted).toBe(false);
+    update = tracker.update(frame(0, 0), 2300);
+    expect(update.wrongLegLifted).toBe(false);
+  });
+
+  it("flags wrongLegLifted once the stance leg rises for the full dwell window", () => {
+    const tracker = createSlsLiveTracker("left");
+    calibrate(tracker);
+
+    tracker.update(frame(0, 0.5), 2400);
+    const update = tracker.update(frame(0, 0.5), 2560); // 0.16s later, past the dwell
+    expect(update.wrongLegLifted).toBe(true);
+    expect(update.phase).toBe("waiting"); // the TARGET leg never lifted
+  });
+
+  it("clears wrongLegLifted once the stance leg returns and the drop-dwell completes", () => {
+    const tracker = createSlsLiveTracker("left");
+    calibrate(tracker);
+    tracker.update(frame(0, 0.5), 2400);
+    tracker.update(frame(0, 0.5), 2560); // confirmed wrongLegLifted
+
+    tracker.update(frame(0, 0), 2600);
+    const update = tracker.update(frame(0, 0), 2710); // 0.11s of sustained return
+    expect(update.wrongLegLifted).toBe(false);
+  });
+
+  it("does not flag the stance leg while the correct target leg is genuinely lifted", () => {
+    const tracker = createSlsLiveTracker("left");
+    calibrate(tracker);
+
+    tracker.update(frame(0.5, 0), 2400);
+    const update = tracker.update(frame(0.5, 0), 2560);
+    expect(update.phase).toBe("holding");
+    expect(update.wrongLegLifted).toBe(false);
   });
 });

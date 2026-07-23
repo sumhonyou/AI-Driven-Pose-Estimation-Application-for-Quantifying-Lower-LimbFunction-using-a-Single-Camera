@@ -52,14 +52,21 @@ _MAX_ATTEMPTS = 2  # one try + one retry, per task.md Stage 6.4
 
 _SYSTEM_PROMPT = (
     "You rewrite a movement-quality coaching report for readability only. "
-    "Rules: do not add any medical claim or diagnosis; do not change the grade, band, "
-    "or score; do not introduce a fault or tag that is not in the input; keep it brief, "
+    "Rules: do not add any medical claim or diagnosis; do not use a clinical or "
+    "diagnostic verb (e.g. never say something is 'normal', 'healthy', or "
+    "'diagnosed'); do not introduce a fault, tag, or coaching cue that is not "
+    "already given in the input tags below -- if no tags are given, write general "
+    "encouragement only, with no specific technique advice; keep it brief, "
     "plain-language, and encouraging. Use the exact band word given in the input -- "
-    "never invent a different one.\n\n"
+    "never invent a different one, and never restate it as a different word.\n\n"
+    "Never state a numeric score, fraction (like '8/10'), or percentage anywhere in "
+    "your reply, even approximately -- the exact number is already shown elsewhere in "
+    "the report, so restating it risks stating the wrong one. Describe overall "
+    "performance in words only (e.g. 'strong set', 'a good effort', 'room to grow').\n\n"
     "Reply with ONLY a JSON object of this exact shape -- no markdown, no code fences, "
     "no preamble or explanation before or after it:\n"
-    '{"summary": "<one short sentence stating the grade and overall impression>", '
-    '"tips": ["<short plain-text tip>", "..."]}\n'
+    '{"summary": "<one short sentence stating the band and overall impression, with '
+    'no numbers>", "tips": ["<short plain-text tip>", "..."]}\n'
     "Each tip must be plain prose: no asterisks, no bullet characters, no bold/italic "
     "markup, no numbering."
 )
@@ -142,6 +149,11 @@ class GroqClient:
                 last_error = f"http_{exc.response.status_code}"
                 if exc.response.status_code != 429:
                     break  # only 429 is worth a retry; other 4xx/5xx won't self-resolve
+            except httpx.TimeoutException:
+                # Caught ahead of the generic HTTPError below (TimeoutException is a
+                # subclass of it) so a slow Groq response is distinguishable in
+                # fallback_reason telemetry from a connection-level transport error.
+                last_error = "timeout"
             except httpx.HTTPError as exc:
                 last_error = f"transport_error:{exc}"
         return LlmRewriteResult(

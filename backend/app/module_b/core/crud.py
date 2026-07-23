@@ -106,6 +106,7 @@ class FeedbackWrite:
     provider: str | None = None
     model_version: str | None = None
     disclaimer_version: str | None = None
+    fallback_reason: str | None = None
 
 
 def save_feedback(
@@ -124,6 +125,7 @@ def save_feedback(
     row.provider = feedback.provider
     row.model_version = feedback.model_version
     row.disclaimer_version = feedback.disclaimer_version
+    row.fallback_reason = feedback.fallback_reason
 
     db.commit()
     db.refresh(row)
@@ -155,6 +157,7 @@ def feedback_summary(feedback: FeedbackText | None) -> dict[str, Any] | None:
         "provider": feedback.provider,
         "model_version": feedback.model_version,
         "disclaimer_version": feedback.disclaimer_version,
+        "fallback_reason": feedback.fallback_reason,
     }
 
 

@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
+import LiveCueOverlay from "../../components/LiveCueOverlay";
 import BallInCircleOverlay from "../../components/sls/BallInCircleOverlay";
 import LiftLineMarker from "../../components/sls/LiftLineMarker";
 import ComboScore from "../../components/sls/ComboScore";
@@ -21,6 +22,7 @@ import { sessionService, enqueueCancel } from "../../services/sessionService";
 import { slsApi, type SlsLegMetrics, type UsedSupport } from "../../services/sls/slsApi";
 import {
   createSlsLiveTracker,
+  otherLeg,
   type SlsLeg,
   type SlsLiveUpdate,
 } from "../../services/sls/liveGeometry";
@@ -30,11 +32,20 @@ import { useMediaPipePose } from "../../hooks/useMediaPipePose";
 import { useSessionRecorder } from "../../hooks/useSessionRecorder";
 import { computeFrameQuality } from "../../utils/captureQuality";
 import { SLS_LEG_ORDER, SLS_MAX_HOLD_SEC } from "../../config/moduleAThresholds";
+import wrongRepSrc from "../../assets/sound effect/Wrong sound effect.mp3";
 
 type Stage =
   "ready" | "countdown" | "recording" | "posting" | "leg_result" | "support" | "finishing";
 
 const COUNTDOWN_START_SEC = 5;
+
+// UAT remediation (Stage R4): full-page corrective cue for the wrong-leg-lift signal
+// from liveGeometry.ts, mirroring the squat page's LiveCue shape.
+interface LiveCue {
+  title: string;
+  subheading?: string;
+  tone: "warn";
+}
 
 const IDLE_UPDATE: SlsLiveUpdate = {
   phase: "calibrating",
@@ -46,6 +57,7 @@ const IDLE_UPDATE: SlsLiveUpdate = {
   points: 0,
   multiplier: 1,
   cappedAtMax: false,
+  wrongLegLifted: false,
 };
 
 export default function SlsLiveSessionPage() {
@@ -58,6 +70,7 @@ export default function SlsLiveSessionPage() {
 
   const [stage, setStage] = useState<Stage>("ready");
   const [liveUpdate, setLiveUpdate] = useState<SlsLiveUpdate>(IDLE_UPDATE);
+  const [liveCue, setLiveCue] = useState<LiveCue | null>(null);
   const [legResults, setLegResults] = useState<Partial<Record<SlsLeg, SlsLegMetrics>>>({});
   const [error, setError] = useState("");
   const [supportSubmitting, setSupportSubmitting] = useState(false);
@@ -71,6 +84,9 @@ export default function SlsLiveSessionPage() {
   const finishingLegRef = useRef(false);
   const finishingSessionRef = useRef(false);
   const qualitySamplesRef = useRef<{ score: number; validFrameRatio: number }[]>([]);
+  const wrongRepAudio = useRef(new Audio(wrongRepSrc));
+  // Edge-detects wrongLegLifted so the sound/cue fire once per lift, not every frame.
+  const wasWrongLegLiftedRef = useRef(false);
 
   const captureQuality = computeFrameQuality(landmarks ?? []);
 
@@ -78,6 +94,8 @@ export default function SlsLiveSessionPage() {
     trackerRef.current = createSlsLiveTracker(leg);
     recorder.start();
     setLiveUpdate(IDLE_UPDATE);
+    setLiveCue(null);
+    wasWrongLegLiftedRef.current = false;
     setError("");
     setStage("recording");
   }
@@ -150,6 +168,22 @@ export default function SlsLiveSessionPage() {
     if (worldLandmarks) {
       const update = trackerRef.current.update(worldLandmarks, now);
       setLiveUpdate(update);
+      if (update.wrongLegLifted && !wasWrongLegLiftedRef.current) {
+        wrongRepAudio.current.currentTime = 0;
+        wrongRepAudio.current.play().catch(() => {});
+        const stanceLeg = otherLeg(leg);
+        const stanceLabel = t(stanceLeg === "right" ? "sls.legRight" : "sls.legLeft");
+        setLiveCue({
+          title: t("sls.cueWrongLeg"),
+          subheading: t("sls.cueWrongLegDetail", {
+            leg: stanceLabel.charAt(0).toLowerCase() + stanceLabel.slice(1),
+          }),
+          tone: "warn",
+        });
+      } else if (!update.wrongLegLifted && wasWrongLegLiftedRef.current) {
+        setLiveCue(null);
+      }
+      wasWrongLegLiftedRef.current = update.wrongLegLifted;
       if (update.phase === "stopped" && !finishingLegRef.current) {
         void finalizeLeg();
       }
@@ -235,6 +269,14 @@ export default function SlsLiveSessionPage() {
           secondsLeft={countdownSeconds}
           legLabel={legLabel}
           onCancel={cancelCountdown}
+        />
+      )}
+      {stage === "recording" && liveCue && (
+        <LiveCueOverlay
+          title={liveCue.title}
+          subheading={liveCue.subheading}
+          tone={liveCue.tone}
+          onDismiss={() => setLiveCue(null)}
         />
       )}
       {stage === "support" && (

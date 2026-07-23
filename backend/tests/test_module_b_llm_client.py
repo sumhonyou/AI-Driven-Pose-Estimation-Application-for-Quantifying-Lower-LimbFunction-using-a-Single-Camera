@@ -98,6 +98,9 @@ class GroqClientSuccessTests(unittest.TestCase):
 
 class GroqClientFailureTests(unittest.TestCase):
     def test_timeout_retries_once_then_fails(self) -> None:
+        # UAT remediation (Stage R3): a timeout is now its own distinct error label
+        # (was folded into "transport_error:..." before), so router.py's
+        # fallback_reason telemetry can tell a slow API apart from a dead connection.
         with patch(
             "app.module_b.core.llm_client.httpx.post",
             side_effect=httpx.TimeoutException("timed out"),
@@ -106,8 +109,20 @@ class GroqClientFailureTests(unittest.TestCase):
             result = client.rewrite_feedback(structured=_structured())
 
         self.assertIsNone(result.text)
-        self.assertIn("transport_error", result.error)
+        self.assertEqual(result.error, "timeout")
         self.assertEqual(post.call_count, 2)  # one try + one retry
+
+    def test_connection_error_is_reported_as_transport_error(self) -> None:
+        with patch(
+            "app.module_b.core.llm_client.httpx.post",
+            side_effect=httpx.ConnectError("connection refused"),
+        ) as post:
+            client = GroqClient(api_key="test-key")
+            result = client.rewrite_feedback(structured=_structured())
+
+        self.assertIsNone(result.text)
+        self.assertIn("transport_error", result.error)
+        self.assertEqual(post.call_count, 2)
 
     def test_429_retries_once(self) -> None:
         rate_limited = _FakeResponse(429)

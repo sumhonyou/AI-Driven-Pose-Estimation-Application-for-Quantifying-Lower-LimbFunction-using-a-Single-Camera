@@ -50,7 +50,9 @@ export const FALLBACK_SQUAT_LIVE_CONFIG: SquatLiveConfig = {
     leanEnabled: true,
     faultTrunkLeanPeakDeg: 41.42411876009375,
     heelRiseEnabled: true,
-    faultHeelRisePeakNorm: 0.08399336939375095,
+    // UAT remediation (Stage R1): re-derived under the corrected near-leg/settle-
+    // window/debounce construction (was 0.08399336939375095) -- see squat/config.py.
+    faultHeelRisePeakNorm: 0.07098522548163665,
   },
 };
 

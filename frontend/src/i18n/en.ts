@@ -301,6 +301,7 @@ const en = {
     quality: "Quality",
     liveBand: "Live status",
     cue: "Keep your whole body visible",
+    cueDismiss: "Dismiss",
     cancel: "Cancel",
     paused: "Recording",
     repTarget: "of 5",
@@ -571,6 +572,11 @@ const en = {
     liftAboveLine: "Lift your foot above the line to start timing.",
     holdSteady: "Hold steady — keep the ball in the circle to get more points!",
     footDropped: "Foot dropped below the line. Hold stopped.",
+    // UAT remediation (Stage R4): full-page corrective cue when the STANCE leg lifts
+    // instead of the prompted one — leg is interpolated so it always names the leg
+    // that should actually stay planted, not a generic message.
+    cueWrongLeg: "Wrong leg!",
+    cueWrongLegDetail: "Keep your {{leg}} on the ground",
     notVisible: "Body not fully visible. Please adjust your camera.",
     timeReached: "Time reached. Great — switch legs when ready.",
     startHold: "Start Hold",
@@ -717,26 +723,32 @@ const en = {
     startFirstRep: "Start your first rep — squat down whenever you're ready.",
     repCountedTitle: "Rep counted",
     repCountedDetail: "Nice depth — {{deg}}° reached.",
-    finishWhenReady: "Finish the set whenever you're ready — there's no fixed rep count.",
     inactivityTitle: "No movement detected",
     inactivityBody: "Finish the set now, or keep going if you're still squatting.",
     repDidNotCount: "That rep didn't count:",
-    attemptsSummary: "{{attempts}} attempts · {{rejected}} didn't count",
-    finishWhenReadyTargeted: "The set finishes on its own once you reach your target.",
     liveAnglesTitle: "Live angles",
     kneeDepthLabel: "Knee depth",
-    repPeakSoFar: "This rep's deepest point so far: {{deg}}°",
+    repPeakLabel: "Peak",
     depthZone_minimal: "Minimal depth",
     depthZone_shallow: "Shallow",
     depthZone_parallel: "Parallel",
     depthZone_deep: "Deep",
     trunkLeanLabel: "Trunk lean",
     lastRepDepthLabel: "Last rep depth",
-    lastRepTrunkLean: "Trunk lean peaked at {{deg}}°",
     liveAngleGuidanceNote:
       "Guidance only, based on webcam pose estimation — not a clinical measurement.",
     getReadyEyebrow: "Squat",
     getReadyCaption: "Get into position — the set starts automatically.",
+    // UAT remediation (Stage R4): short, corrective (not descriptive) phrasing for
+    // the big pop-out cue — "Go deeper" beats "Knee: 87°" at a 2-3m viewing
+    // distance. The fuller explanation stays available via moduleB.tag_* below it.
+    cueInsufficientDepth: "Go deeper",
+    cueInsufficientDepthDetail: "Aim for at least {{deg}}° knee bend",
+    cueExcessiveForwardLean: "Chest up",
+    cueExcessiveForwardLeanDetail: "Leaning too far forward",
+    cueHeelLift: "Heels down",
+    cueHeelLiftDetail: "You're lifting your heels up",
+    cueRepCounted: "Nice rep!",
   },
   moduleB: {
     subscore_rom_completeness: "ROM completeness",
