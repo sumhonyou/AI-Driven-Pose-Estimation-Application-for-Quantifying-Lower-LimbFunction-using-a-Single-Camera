@@ -11,8 +11,6 @@
 **Project Title:** AI-Driven Pose-Estimation Application for Quantifying Lower-Limb Function using a Single Camera  
 **Current Recommended Architecture:** React + TypeScript frontend, MediaPipe Pose in browser, FastAPI backend, PostgreSQL database, Google Cloud deployment
 
-[OLD VERSION]
-
 **Related files:**
 
 - [task.md](./task.md) — phased tasks, deliverables, and milestones
@@ -1589,6 +1587,8 @@ See **[task.md](./task.md)** for the recommended start order and first three mil
 
 
 ## 21. Coding Agent Rules
+
+
 
 ## Coding agent rules are maintained in **[rules.md](./rules.md)**. They must be followed on every development request.
 
