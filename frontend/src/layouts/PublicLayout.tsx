@@ -1,14 +1,70 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Logo, ThemeToggle, FontSizeControl, LanguageSwitcher } from "../components/Controls";
 import { Menu, Close, ArrowRight } from "../components/Icons";
 import { useReveal } from "../useReveal";
 
+type NavSection = "modules" | "how" | "about" | null;
+
+function useActivePublicNav(): NavSection {
+  const { pathname, hash } = useLocation();
+  const [section, setSection] = useState<NavSection>(null);
+
+  useEffect(() => {
+    if (pathname === "/about") {
+      setSection("about");
+      return;
+    }
+    if (pathname !== "/") {
+      setSection(null);
+      return;
+    }
+
+    const fromHash = (): NavSection => {
+      if (hash === "#modules") return "modules";
+      if (hash === "#how") return "how";
+      return null;
+    };
+
+    // Prefer explicit hash clicks immediately; then refine from scroll position.
+    setSection(fromHash());
+
+    const modulesEl = document.getElementById("modules");
+    const howEl = document.getElementById("how");
+    if (!modulesEl || !howEl) return;
+
+    const updateFromScroll = () => {
+      const marker = window.scrollY + Math.min(160, window.innerHeight * 0.28);
+      const howTop = howEl.getBoundingClientRect().top + window.scrollY;
+      const modulesTop = modulesEl.getBoundingClientRect().top + window.scrollY;
+
+      if (marker >= howTop - 40) {
+        setSection("how");
+      } else if (marker >= modulesTop - 40) {
+        setSection("modules");
+      } else {
+        setSection(fromHash());
+      }
+    };
+
+    updateFromScroll();
+    window.addEventListener("scroll", updateFromScroll, { passive: true });
+    window.addEventListener("hashchange", updateFromScroll);
+    return () => {
+      window.removeEventListener("scroll", updateFromScroll);
+      window.removeEventListener("hashchange", updateFromScroll);
+    };
+  }, [pathname, hash]);
+
+  return section;
+}
+
 export default function PublicLayout() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const active = useActivePublicNav();
   useReveal([pathname]);
 
   return (
@@ -17,14 +73,15 @@ export default function PublicLayout() {
         <div className="wrap nav-inner">
           <Logo />
           <div className="nav-links">
-            <a href="/#modules">{t("nav.modules")}</a>
-            <a href="/#how">{t("nav.how")}</a>
-            <a href="/#" onClick={(e) => e.preventDefault()}>
-              {t("nav.clinicians")}
+            <a href="/#modules" className={active === "modules" ? "active" : undefined}>
+              {t("nav.modules")}
             </a>
-            <a href="/#" onClick={(e) => e.preventDefault()}>
+            <a href="/#how" className={active === "how" ? "active" : undefined}>
+              {t("nav.how")}
+            </a>
+            <Link to="/about" className={active === "about" ? "active" : undefined}>
               {t("nav.about")}
-            </a>
+            </Link>
           </div>
           <div className="nav-actions">
             <span className="desktop-only">
@@ -49,30 +106,27 @@ export default function PublicLayout() {
           </div>
         </div>
         <div className={"wrap mobile-menu" + (menuOpen ? " open" : "")}>
-          <a href="/#modules" onClick={() => setMenuOpen(false)}>
+          <a
+            href="/#modules"
+            className={active === "modules" ? "active" : undefined}
+            onClick={() => setMenuOpen(false)}
+          >
             {t("nav.modules")}
           </a>
-          <a href="/#how" onClick={() => setMenuOpen(false)}>
+          <a
+            href="/#how"
+            className={active === "how" ? "active" : undefined}
+            onClick={() => setMenuOpen(false)}
+          >
             {t("nav.how")}
           </a>
-          <a
-            href="/#"
-            onClick={(e) => {
-              e.preventDefault();
-              setMenuOpen(false);
-            }}
-          >
-            {t("nav.clinicians")}
-          </a>
-          <a
-            href="/#"
-            onClick={(e) => {
-              e.preventDefault();
-              setMenuOpen(false);
-            }}
+          <Link
+            to="/about"
+            className={active === "about" ? "active" : undefined}
+            onClick={() => setMenuOpen(false)}
           >
             {t("nav.about")}
-          </a>
+          </Link>
           <div style={{ padding: "14px 6px 0" }}>
             <FontSizeControl />
           </div>
@@ -115,12 +169,7 @@ function Footer() {
             </div>
             <div className="foot-col">
               <b>{t("landing.footCompany")}</b>
-              <a href="/#" onClick={(e) => e.preventDefault()}>
-                {t("landing.fLink5")}
-              </a>
-              <a href="/#" onClick={(e) => e.preventDefault()}>
-                {t("landing.fLink6")}
-              </a>
+              <Link to="/about">{t("landing.fLink5")}</Link>
               <a href="/#" onClick={(e) => e.preventDefault()}>
                 {t("landing.fLink7")}
               </a>

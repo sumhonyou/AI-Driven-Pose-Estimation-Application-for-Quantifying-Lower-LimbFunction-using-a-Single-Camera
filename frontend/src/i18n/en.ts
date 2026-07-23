@@ -30,7 +30,6 @@ const en = {
   nav: {
     modules: "Modules",
     how: "How it works",
-    clinicians: "For clinicians",
     about: "About",
     login: "Log in",
     startCheck: "Start a check",
@@ -105,7 +104,6 @@ const en = {
     fLink3: "How it works",
     fLink4: "Dashboard",
     fLink5: "About",
-    fLink6: "For clinicians",
     fLink7: "Privacy",
     fLink8: "Contact",
     copyright: "© 2026 PhysioFit · Non-diagnostic movement-quality tool.",
@@ -158,8 +156,8 @@ const en = {
     logout: "Log out",
   },
   dash: {
-    greeting: "Good morning, Sarah",
-    greetingName: "Good morning, {{name}}",
+    greeting: "Good Day, Sarah",
+    greetingName: "Good Day, {{name}}ß",
     dateline: "{{date}} · Here's how your lower-limb function is trending.",
     avgScore: "Average score · last 14 days",
     latestBand: "Latest band",
@@ -504,7 +502,7 @@ const en = {
     tipDelete: "Delete this reminder",
     filterStatus: "Status",
     filterFrequency: "Repeats",
-    filterStatusAll: "All statuses",
+    filterStatusAll: "All status",
     filterFreqAll: "All repeats",
     filterEmpty: "No reminders match these filters.",
     formTitle: "Schedule a reminder",
@@ -752,6 +750,51 @@ const en = {
     tag_excessive_forward_lean: "Leaning too far forward — keep your chest more upright",
     tag_heel_lift: "Heels lifting off the floor — keep your weight through your heels",
     tag_inconsistent_tempo: "Aim for a steadier pace across your reps",
+  },
+  about: {
+    heroKicker: "PhysioFit",
+    heroTitle: "About",
+    heroSub: "A clearer look at what this project is — and who it is for.",
+    scrollHint: "Scroll",
+    whatLabel: "What it is",
+    whatTitle: "Movement feedback from a single camera",
+    whatP1:
+      "PhysioFit is a web app that helps you check lower-limb movement at home using an ordinary webcam. It focuses on the knee and ankle — no special sensors, no wearable devices, and no clinic visit required to try a session.",
+    whatP2:
+      "As you move, the app watches your pose in the browser and turns that into simple movement-quality feedback. After each session you get a clear report you can understand without clinical training.",
+    whatP3:
+      "It is designed for everyday self-checking and home rehabilitation practice: guided functional checks, rehab exercise grading, coaching tips, and progress you can review over time.",
+    whatP4:
+      "PhysioFit is a non-diagnostic tool. It describes how a movement looked on camera. It does not diagnose injury, prescribe treatment, give medical clearance, or decide whether someone is ready to return to sport.",
+    whoLabel: "Who it is for",
+    whoTitle: "Built for home users first",
+    whoP1:
+      "The project is meant for people who want practical, calm feedback on lower-limb movement — especially when getting to a clinic for every check is hard.",
+    whoItem1: "General users who want a guided movement self-check",
+    whoItem2: "Older adults with knee-related concerns",
+    whoItem3: "Athletes tracking movement quality over time",
+    whoItem4: "People doing basic home rehabilitation or functional practice",
+    whoP2:
+      "The interface aims to stay readable and low-stress: clear steps, plain language, and feedback that supports the next action without sounding like a medical verdict.",
+    featuresLabel: "What you get",
+    featuresTitle: "Features, in plain language",
+    featuresLead:
+      "Beyond the short overview on the home page, here is what the system can provide across a full session journey:",
+    feature1: "Guided functional checks for everyday knee and ankle movement",
+    feature2: "Rehab exercise grading for squat quality after a completed set",
+    feature3: "Live on-screen cues while you move — distance, framing, and simple guidance",
+    feature4: "Clear Good / Fair / Needs Improvement movement-quality bands",
+    feature5: "Capture-quality checks so you know when the camera view may be unreliable",
+    feature6: "Plain-language tips and error tags after the set — what to watch next time",
+    feature7: "Saved session history, progress trends, and reminders to stay consistent",
+    feature8:
+      "Privacy-minded pose tracking: video stays in your browser; the app works from movement data, not a video upload",
+    disclaimer:
+      "PhysioFit provides non-diagnostic movement-quality feedback only. It does not replace professional medical advice. If you feel pain, discomfort, or uncertainty, stop and consult a qualified healthcare professional.",
+    ctaTitle: "Ready to try a session?",
+    ctaLead: "Open your webcam and start with a guided check — no download required.",
+    ctaPrimary: "Start a check",
+    ctaSecondary: "See how it works",
   },
 };
 export default en;

@@ -33,7 +33,6 @@ const ms: Dict = {
   nav: {
     modules: "Modul",
     how: "Cara guna",
-    clinicians: "Untuk klinik",
     about: "Tentang",
     login: "Log masuk",
     startCheck: "Mula semakan",
@@ -109,7 +108,6 @@ const ms: Dict = {
     fLink3: "Cara guna",
     fLink4: "Papan pemuka",
     fLink5: "Tentang",
-    fLink6: "Untuk klinik",
     fLink7: "Privasi",
     fLink8: "Hubungi",
     copyright: "© 2026 PhysioFit · Alat kualiti pergerakan bukan diagnostik.",
@@ -760,6 +758,54 @@ const ms: Dict = {
     tag_excessive_forward_lean: "Terlalu condong ke hadapan — kekalkan dada lebih tegak",
     tag_heel_lift: "Tumit terangkat dari lantai — kekalkan berat pada tumit anda",
     tag_inconsistent_tempo: "Sasarkan rentak yang lebih stabil sepanjang ulangan anda",
+  },
+  about: {
+    heroKicker: "PhysioFit",
+    heroTitle: "Tentang",
+    heroSub: "Pandangan lebih jelas tentang projek ini — dan untuk siapa ia dibina.",
+    scrollHint: "Tatal",
+    whatLabel: "Apa itu",
+    whatTitle: "Maklum balas pergerakan dari satu kamera",
+    whatP1:
+      "PhysioFit ialah aplikasi web yang membantu anda menyemak pergerakan anggota bawah di rumah menggunakan kamera web biasa. Fokusnya pada lutut dan buku lali — tanpa sensor khas, tanpa peranti pakai, dan tanpa perlu ke klinik hanya untuk mencuba satu sesi.",
+    whatP2:
+      "Semasa anda bergerak, aplikasi memerhati pose anda dalam pelayar dan menukarkannya kepada maklum balas kualiti pergerakan yang mudah. Selepas setiap sesi, anda mendapat laporan jelas yang boleh difahami tanpa latihan klinikal.",
+    whatP3:
+      "Ia direka untuk semakan kendiri harian dan latihan pemulihan di rumah: semakan fungsi berpandu, penggredan senaman pemulihan, tip latihan, dan kemajuan yang boleh ditinjau dari masa ke masa.",
+    whatP4:
+      "PhysioFit ialah alat bukan diagnostik. Ia menerangkan bagaimana pergerakan kelihatan pada kamera. Ia tidak mendiagnosis kecederaan, menetapkan rawatan, memberi kelulusan perubatan, atau memutuskan sama ada seseorang sedia kembali bersukan.",
+    whoLabel: "Untuk siapa",
+    whoTitle: "Dibina untuk pengguna di rumah dahulu",
+    whoP1:
+      "Projek ini ditujukan kepada orang yang mahukan maklum balas praktikal dan tenang tentang pergerakan anggota bawah — terutamanya apabila sukar ke klinik untuk setiap semakan.",
+    whoItem1: "Pengguna umum yang mahukan semakan pergerakan berpandu",
+    whoItem2: "Warga emas yang prihatin tentang lutut",
+    whoItem3: "Atlet yang menjejak kualiti pergerakan dari masa ke masa",
+    whoItem4: "Orang yang membuat pemulihan asas di rumah atau latihan fungsi",
+    whoP2:
+      "Antara muka bertujuan kekal mudah dibaca dan kurang menegangkan: langkah jelas, bahasa biasa, dan maklum balas yang menyokong tindakan seterusnya tanpa kedengaran seperti keputusan perubatan.",
+    featuresLabel: "Apa yang anda dapat",
+    featuresTitle: "Ciri-ciri dalam bahasa biasa",
+    featuresLead:
+      "Selain ringkasan ringkas di laman utama, inilah yang sistem boleh sediakan sepanjang perjalanan sesi penuh:",
+    feature1: "Semakan fungsi berpandu untuk pergerakan lutut dan buku lali harian",
+    feature2: "Penggredan senaman pemulihan untuk kualiti squat selepas set selesai",
+    feature3:
+      "Isyarat langsung pada skrin semasa anda bergerak — jarak, pembingkaian, dan panduan ringkas",
+    feature4: "Band kualiti pergerakan Baik / Sederhana / Perlu Penambahbaikan yang jelas",
+    feature5:
+      "Semakan kualiti tangkapan supaya anda tahu bila pandangan kamera mungkin tidak boleh dipercayai",
+    feature6: "Tip bahasa biasa dan tag ralat selepas set — apa yang perlu diperhatikan lain kali",
+    feature7: "Sejarah sesi disimpan, aliran kemajuan, dan peringatan untuk kekal konsisten",
+    feature8:
+      "Penjejakan pose yang mementingkan privasi: video kekal dalam pelayar anda; aplikasi bekerja dari data pergerakan, bukan muat naik video",
+    disclaimer:
+      "PhysioFit hanya memberikan maklum balas kualiti pergerakan yang bukan diagnostik. Ia tidak menggantikan nasihat perubatan profesional. Jika anda berasa sakit, tidak selesa, atau ragu, berhenti dan rujuk profesional penjagaan kesihatan yang berkelayakan.",
+    ctaTitle: "Bersedia untuk cuba satu sesi?",
+    ctaLead:
+      "Buka kamera web anda dan mulakan dengan semakan berpandu — tiada muat turun diperlukan.",
+    ctaPrimary: "Mula semakan",
+    ctaSecondary: "Lihat cara ia berfungsi",
   },
 };
 export default ms;

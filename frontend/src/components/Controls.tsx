@@ -4,9 +4,12 @@ import { Link } from "react-router-dom";
 import { usePreferences } from "../preferences";
 import { LANGUAGES } from "../i18n";
 import { Sun, Moon, Globe, Check } from "./Icons";
-import logoImg from "../assets/Physiofit_Logo-removebg-preview.png";
+import logoLight from "../assets/Physiofit_Logo-removebg-preview.png";
+import logoDark from "../assets/logo_in_dark_themed-removebg-preview.png";
 
 export function Logo({ to = "/", size = "nav" }: { to?: string; size?: "nav" | "footer" }) {
+  const { theme } = usePreferences();
+  const logoImg = theme === "dark" ? logoDark : logoLight;
   return (
     <Link
       className={"brand" + (size === "footer" ? " brand--footer" : "")}
