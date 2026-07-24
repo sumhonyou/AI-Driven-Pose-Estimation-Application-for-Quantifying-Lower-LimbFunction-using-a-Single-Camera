@@ -6,6 +6,7 @@ import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import LiveCueOverlay from "../../components/LiveCueOverlay";
 import GetReadyCountdown from "../../components/GetReadyCountdown";
+import AudioCueToggle from "../../components/AudioCueToggle";
 import { Close } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
 import { useSessionFlow } from "../../session";
@@ -13,6 +14,7 @@ import { useWebcam } from "../../hooks/useWebcam";
 import { useMediaPipePose } from "../../hooks/useMediaPipePose";
 import { computeFrameQuality } from "../../utils/captureQuality";
 import { useSessionRecorder } from "../../hooks/useSessionRecorder";
+import { useSpeechCues } from "../../hooks/useSpeechCues";
 import { moduleAService } from "../../services/moduleAService";
 import { createStsLiveEstimator } from "../../utils/sts/stsLiveEstimate";
 import { humanizeLabel } from "../../utils/format";
@@ -113,6 +115,7 @@ export default function StsLiveSessionPage() {
   // Session quality recorder — buffers frames for Module A and provides summary metrics
   const recorder = useSessionRecorder();
   const recorderStarted = useRef(false);
+  const speech = useSpeechCues();
 
   // UAT remediation (Stage R5): recording (and therefore the recorder) now starts
   // only once the get-ready countdown below completes, not on mount.
@@ -122,6 +125,7 @@ export default function StsLiveSessionPage() {
       recorderStarted.current = true;
       console.log("[LiveSession] Session recorder started");
     }
+    speech.speakSession("sts_start", t("live.speakStarting"));
     setStage("recording");
   }
 
@@ -208,6 +212,7 @@ export default function StsLiveSessionPage() {
         } catch (err) {
           console.error("[LiveSession] sessionService.end failed (non-blocking)", err);
         }
+        speech.speakSession("sts_end", t("live.speakSessionComplete"));
         nav(`/report?session=${sessionId}`);
       }
     } catch (err) {
@@ -243,6 +248,7 @@ export default function StsLiveSessionPage() {
             const reasonText = t(reasonCodeToI18nKey(update.reasonCode));
             setLiveReasonGuess(reasonText);
             setLiveCue({ title: reasonText, tone: "warn" });
+            speech.speakFault(update.reasonCode, reasonText);
             if (failReasonTimeoutRef.current) window.clearTimeout(failReasonTimeoutRef.current);
             failReasonTimeoutRef.current = window.setTimeout(
               () => setLiveReasonGuess(null),
@@ -291,6 +297,7 @@ export default function StsLiveSessionPage() {
     if (finishingRef.current) return;
     finishingRef.current = true;
     setRunning(false);
+    speech.stop();
     stopDetection();
     if (sessionId) enqueueCancel(sessionId);
     setSessionId(null);
@@ -359,6 +366,7 @@ export default function StsLiveSessionPage() {
           <p>{t("common." + (mode === "rehab" ? "rehab" : "functional"))}</p>
         </div>
         <div className="topbar-actions">
+          <AudioCueToggle />
           <button className="btn btn-cancel" onClick={handleCancel}>
             <Close />
             {t("live.cancel")}

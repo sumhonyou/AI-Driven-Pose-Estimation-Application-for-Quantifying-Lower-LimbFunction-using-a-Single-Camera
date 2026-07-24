@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
+import AudioCueToggle from "../../components/AudioCueToggle";
 import { Close } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
 import {
@@ -36,6 +37,7 @@ import { useWebcam } from "../../hooks/useWebcam";
 import { useMediaPipePose } from "../../hooks/useMediaPipePose";
 import { useSessionRecorder } from "../../hooks/useSessionRecorder";
 import { useAutoStartGate } from "../../hooks/useAutoStartGate";
+import { useSpeechCues } from "../../hooks/useSpeechCues";
 import {
   computeFrameQuality,
   computeWbltLegQuality,
@@ -116,6 +118,7 @@ export default function WbltLiveSessionPage() {
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
   const { landmarks, worldLandmarks, stopDetection } = useMediaPipePose(videoRef, webcamReady);
   const recorder = useSessionRecorder();
+  const speech = useSpeechCues();
   const trackerRef = useRef(createWbltLiveTracker(leg));
   const busyRef = useRef(false);
   const qualitySamplesRef = useRef<{ score: number; validFrameRatio: number }[]>([]);
@@ -194,6 +197,10 @@ export default function WbltLiveSessionPage() {
   function startHold() {
     trackerRef.current.finalizeCalibration();
     setRecordingSecondsLeft(WBLT_RECORDING_DURATION_SEC);
+    // UAT remediation (Stage R6): announces the exact instruction the user needs at
+    // this instant -- reuses the same "lunge now" text already shown on screen
+    // (wblt.lungeNow) so the spoken and visual cues can never drift apart.
+    speech.speakSession("wblt_lunge_start", t("wblt.lungeNow"));
     setStage("recording");
   }
 
@@ -371,6 +378,10 @@ export default function WbltLiveSessionPage() {
       window.clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
+    // UAT remediation (Stage R6, HY's note): every fault tag gets spoken, including
+    // this one -- fires once since the attempt ends immediately after (no need for
+    // edge-detection/throttling like the other pages' sustained faults).
+    speech.speakFault("heel_lift", t("wblt.heelLifted"));
     queueMicrotask(() => void submitTouch(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, liveUpdate.calibrated, liveUpdate.heelLifted]);
@@ -393,6 +404,7 @@ export default function WbltLiveSessionPage() {
       capture_quality: avg(samples.map((s) => s.score)),
       valid_frame_ratio: avg(samples.map((s) => s.validFrameRatio)),
     });
+    speech.speakSession("wblt_end", t("live.speakSessionComplete"));
     nav(`/report?session=${sessionId}`);
   }
 
@@ -437,6 +449,7 @@ export default function WbltLiveSessionPage() {
   function handleCancel() {
     if (busyRef.current) return;
     busyRef.current = true;
+    speech.stop();
     stopDetection();
     if (sessionId) enqueueCancel(sessionId);
     setSessionId(null);
@@ -487,6 +500,7 @@ export default function WbltLiveSessionPage() {
           <p>{legPrompt}</p>
         </div>
         <div className="topbar-actions">
+          <AudioCueToggle />
           <button className="btn btn-cancel" onClick={handleCancel}>
             <Close />
             {t("live.cancel")}

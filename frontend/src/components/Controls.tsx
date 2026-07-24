@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { usePreferences } from "../preferences";
 import { LANGUAGES } from "../i18n";
 import { Sun, Moon, Globe, Check } from "./Icons";
+import CtrlHint from "./CtrlHint";
 import logoLight from "../assets/Physiofit_Logo-removebg-preview.png";
 import logoDark from "../assets/logo_in_dark_themed-removebg-preview.png";
 
@@ -27,14 +28,15 @@ export function ThemeToggle() {
   const { theme, toggleTheme } = usePreferences();
   const { t } = useTranslation();
   return (
-    <button
-      className="ctrl theme-toggle icon-btn"
-      onClick={toggleTheme}
-      aria-label={t("nav.theme")}
-      title={t("nav.theme")}
-    >
-      {theme === "light" ? <Moon /> : <Sun />}
-    </button>
+    <CtrlHint text={t("nav.themeHint")}>
+      <button
+        className="ctrl theme-toggle icon-btn"
+        onClick={toggleTheme}
+        aria-label={t("nav.theme")}
+      >
+        {theme === "light" ? <Moon /> : <Sun />}
+      </button>
+    </CtrlHint>
   );
 }
 
@@ -42,19 +44,21 @@ export function FontSizeControl() {
   const { fontScale, setFontScale } = usePreferences();
   const { t } = useTranslation();
   return (
-    <div className="fs-seg" role="group" aria-label={t("nav.fontSize")}>
-      {[1, 2, 3].map((s) => (
-        <button
-          key={s}
-          className={fontScale === s ? "on" : ""}
-          onClick={() => setFontScale(s as 1 | 2 | 3)}
-          aria-pressed={fontScale === s}
-          aria-label={`${t("nav.fontSize")} ${s}`}
-        >
-          A
-        </button>
-      ))}
-    </div>
+    <CtrlHint text={t("nav.fontSizeHint")}>
+      <div className="fs-seg" role="group" aria-label={t("nav.fontSize")}>
+        {[1, 2, 3].map((s) => (
+          <button
+            key={s}
+            className={fontScale === s ? "on" : ""}
+            onClick={() => setFontScale(s as 1 | 2 | 3)}
+            aria-pressed={fontScale === s}
+            aria-label={`${t("nav.fontSize")} ${s}`}
+          >
+            A
+          </button>
+        ))}
+      </div>
+    </CtrlHint>
   );
 }
 
@@ -75,26 +79,28 @@ export function LanguageSwitcher() {
 
   return (
     <div className="lang" ref={ref}>
-      <button
-        className="ctrl"
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        title={t("nav.language")}
-      >
-        <Globe />
-        <span
-          className="desktop-only"
-          style={{
-            maxWidth: 70,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
+      <CtrlHint text={t("nav.languageHint")} align="end">
+        <button
+          className="ctrl"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={t("nav.language")}
         >
-          {current.label}
-        </span>
-      </button>
+          <Globe />
+          <span
+            className="desktop-only"
+            style={{
+              maxWidth: 70,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {current.label}
+          </span>
+        </button>
+      </CtrlHint>
       {open && (
         <div className="lang-menu" role="listbox">
           {LANGUAGES.map((l) => (

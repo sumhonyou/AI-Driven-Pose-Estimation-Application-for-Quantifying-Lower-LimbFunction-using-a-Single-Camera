@@ -4521,7 +4521,7 @@ flagged from live testing: SLS users aren't told when they lift the **wrong** le
       banner is kept as-is (still useful sitting in the panel), `LiveCueOverlay` is
       now shown _alongside_ it as the big glanceable pop-out, and both clear
       together on the next valid rep (`response.metrics.rep_count >
-  validRepsRef.current`). No subheading (STS's existing reason strings are
+validRepsRef.current`). No subheading (STS's existing reason strings are
       already short/specific enough to stand alone as titles) and no new i18n keys
       needed — this stage only added the plumbing.
 - [x] New i18n keys `sls.cueWrongLeg` / `sls.cueWrongLegDetail` added to en/zh/ms.
@@ -4605,3 +4605,244 @@ had an actually-unmistakable "you are being recorded right now" signal.
       stage. The plan's R5 scope stops at start-protocol/RECORDING-state — the
       "instructions ack → camera check" steps upstream of this page are R9's scope,
       not this stage's.
+
+### Phase 10 — Stage R6: Audio / TTS live cues (2026-07-24)
+
+Most-requested new feature in UAT (5 sessions + 5 comments, including both 45+
+testers) — dissolves the reading-distance problem R4 addressed visually, this time
+by voice, and doubles as an accessibility win.
+
+- [x] **New `utils/speechCueQueue.ts` (`SpeechCueQueue`)** — a framework-free
+      priority queue with no dependency on `speechSynthesis` (that API doesn't exist
+      under vitest), so all queue/priority/throttle logic is fully unit-testable via
+      an injected `SpeechCueSpeaker` interface. Two categories: `"session"`
+      (start/end/leg-transition — never throttled, **interrupts** anything currently
+      speaking/queued so it's never delayed or dropped) and `"fault"` (queued +
+      spoken **sequentially** via onDone-chaining, throttled per-KEY only —
+      `faultThrottleMs` default 4s — so a _different_ fault key is never suppressed
+      by another key's throttle). **HY's scope call: no "count" category exists at
+      all** — the original plan's rep-number readout was dropped; the queue's type
+      system only has `"session" | "fault"`.
+- [x] **New `test/speechCueQueue.test.ts`** — 12 cases via a mock speaker: two/three
+      simultaneous distinct-key faults are all spoken in order (the "multiple faults
+      → all announced" requirement); per-key throttle suppresses a repeat inside the
+      window and allows it after; a session cue cancels in-progress speech and drops
+      anything still queued; the aborted utterance's `onDone` never double-pumps the
+      queue; mute (`setEnabled(false)`) clears the queue and further `enqueue()`
+      calls are no-ops until re-enabled.
+- [x] **New `hooks/useSpeechCues.ts`** — the real `speechSynthesis`-backed
+      `SpeechCueSpeaker`. `utterance.lang` is set from the current UI language
+      (en→en-US, zh→zh-CN, ms→ms-MY; HY's call: best-effort, no locale
+      validation/routing — falls back to whatever voice the OS/browser provides).
+      **Design fix found while wiring this in:** the queue must NOT be cleared on
+      component unmount — every live page navigates away immediately after its
+      "session complete" cue fires (`finish → sessionService.end() → nav`), so an
+      unmount-triggered `clear()` would cut that announcement off before it's ever
+      heard. `speechSynthesis` is a browser-global queue independent of the React
+      tree, so letting it finish across the navigation matches how the existing rep
+      sound effects already behave (nothing pauses them on unmount either). An
+      **abandoned** session must still stop speech immediately, though — that's the
+      hook's `stop()`, called explicitly from each page's `handleCancel`, not left to
+      unmount timing.
+- [x] **New `preferences.tsx` flag: `audioCues`** (localStorage
+      `physiofit-audio-cues`), same pattern as `theme`/`fontScale`. **Defaults to ON**
+      (HY's call) — it's the reading-distance fix the feature exists for, so it
+      should be heard immediately rather than requiring discovery of a toggle.
+- [x] **New `components/AudioCueToggle.tsx`** + two new icons (`Volume2`, `VolumeX`
+      in `Icons.tsx`) — dropped into the shared `DashTopbar`
+      (`layouts/DashboardLayout.tsx`, beside `ThemeToggle`, for out-of-session
+      discoverability) **and** every live page's own topbar (all 4 build their own
+      topbar markup, not `DashTopbar`).
+- [x] **Wired into all 4 live pages** (`speech.speakSession(...)` /
+      `speech.speakFault(...)` / `speech.stop()`):
+  - **Squat**: `speakSession` on `startSet()`; **HY's note: every failed gate is
+    spoken, not just the primary one** — the visual `LiveCueOverlay` still shows
+    only the primary reason (unchanged, R4's design), but a rep that trips two gates
+    at once now has **both** read aloud in the same fixed priority order
+    (depth→lean→heel); `speakSession` on a successful `finishSet()`; `speech.stop()`
+    in `handleCancel`.
+  - **SLS**: `speakSession` on `startHold()` announcing which leg
+    (`sls.legPromptRight`/`Left` — reuses the exact on-screen prompt text so spoken
+    and visual instructions can't drift apart); **`wrongLegLifted` (the R4 signal
+    from HY's earlier note) now speaks too** (`sls.cueWrongLeg`, key `"wrong_leg"`),
+    alongside the existing visual `LiveCueOverlay` and sound effect; `speakSession`
+    on session end (after the last leg's support self-report is submitted).
+  - **STS**: `speakSession` in the new `startRecording()` (R5's get-ready countdown
+    completing); every `reasonCode` rejection speaks (`speech.speakFault` reusing
+    the same `reasonText` already shown); `speakSession` on the persisted/complete
+    response, before navigating to the report.
+  - **WBLT**: `speakSession` in `startHold()` (the calibrating→recording moment)
+    reusing the on-screen `wblt.lungeNow` text; a confirmed heel-lift now speaks
+    (`wblt.heelLifted`) — no edge-detection needed here since the attempt ends
+    immediately after, so it only ever fires once; `speakSession` on session end in
+    `endSessionAndNavigate()`.
+  - All 4: `speech.stop()` added to `handleCancel` so an abandoned session never
+    keeps talking after the user has navigated away.
+- [x] New i18n: `live.speakStarting` / `live.speakSessionComplete` (shared session
+      cues) and `nav.audioCuesOn` / `nav.audioCuesOff` (toggle label), en/zh/ms. No
+      other new strings needed — every fault cue reuses text that already existed
+      for the R4 visual cues, by design (single source of truth, can't drift).
+- [x] Verified: `tsc --noEmit` clean; full `vitest` **48/48** (12 new); Prettier
+      clean; `AudioCueToggle`'s two icon states checked visually in the browser next
+      to the existing `ThemeToggle` (same `.ctrl.icon-btn` styling, no visual
+      inconsistency).
+- [ ] **Known limitation (documented, not fixed):** ms-MY voice availability varies
+      a lot by OS/browser — where it's missing, the platform silently falls back to
+      its default voice or no-ops. Same spirit as R3's English-only LLM deferral.
+- [ ] Still outstanding: actually **hearing** the spoken cues (correct text, correct
+      language, correct sequencing of simultaneous faults, audible tone/timing) is
+      the one thing this sandbox cannot verify at all — no audio output here, a
+      harder limitation than even the blocked webcam. This is a live check on HY's
+      own machine for all 4 exercises, with particular attention to the two-fault
+      squat case and the ms-MY voice availability question above.
+
+### Phase 10 — Stage R6 follow-up: fixed "no audio at all" bug (2026-07-24, same day)
+
+HY reported hearing nothing at all after testing live. Root cause found on code
+review, not a live-testing artefact:
+
+- [x] **Root cause:** `SpeechCueQueue.enqueue()`'s `"session"` branch called
+      `speaker.cancel()` unconditionally, immediately followed by `pump()` →
+      `speaker.speak()` in the **same synchronous tick** — even when nothing was
+      speaking yet. Since every single page speaks a `"session"` cue as the very
+      first thing in a fresh session (`speakSession("..._start", ...)`), this fired
+      on literally every session's first cue. Calling `speechSynthesis.speak()`
+      immediately after `speechSynthesis.cancel()` in the same task is a
+      well-documented Chromium bug: the new utterance either silently never starts,
+      or (confirmed by direct reproduction below) starts and then hangs forever —
+      `onstart` fires, `onend` never does, and the synth stays stuck reporting
+      `speaking: true` indefinitely, which blocks every later queued utterance too.
+- [x] **Empirically reproduced in the Browser pane**, not just reasoned about:
+      calling `cancel()` then `speak()` in the same tick → `{started: true, ended:
+false, speaking: true}` (hung forever); deferring the same `speak()` by a
+      single tick (`setTimeout(..., 0)`) → `{started: true, ended: true, speaking:
+false}` (completes normally). Direct confirmation the diagnosis was right, not
+      a guess.
+- [x] **Fix, `utils/speechCueQueue.ts`:** the `"session"` branch now only calls
+      `cancel()` when something is genuinely active (`this.speaking ||
+this.queue.length > 0`) — the common "fresh queue, nothing speaking yet" case
+      (every session's opening cue) now speaks directly with no cancel() at all, so
+      it can never hit this bug. For the rarer genuine-interrupt case (a session cue
+      arriving while a fault is still being read), the follow-up `pump()` is now
+      deferred through a new injectable `scheduleAfterCancel` option — defaults to
+      synchronous execution (keeps every existing test deterministic), and
+      `hooks/useSpeechCues.ts` supplies the real `(fn) => setTimeout(fn, 0)` so the
+      cancel has a tick to actually settle before the next `speak()` in real
+      browsers.
+- [x] **Second, independent defensive fix** in the real speaker
+      (`useSpeechCues.ts`): calls `synth.resume()` before `synth.speak()` if
+      `synth.paused` — a separate, also commonly-cited Chrome quirk where the synth
+      gets stuck paused (e.g. after a backgrounded tab) and silently never starts
+      newly queued speech until resumed. Harmless no-op when not actually paused.
+- [x] **2 new regression tests** in `speechCueQueue.test.ts`: a session cue with
+      nothing active never calls `cancel()`; a genuine interrupt defers the
+      follow-up speak through `scheduleAfterCancel` and only actually speaks once
+      that deferred callback runs.
+- [x] Verified: `tsc --noEmit` clean; full `vitest` **50/50** (2 new); Prettier
+      clean; the buggy-vs-fixed pattern reproduced live in the Browser pane as
+      described above.
+- [ ] **Separately noted, not a code bug:** the sandboxed Browser pane itself has
+      **zero TTS voices installed** (`speechSynthesis.getVoices().length === 0`), so
+      even with this fix, audible verification here is structurally impossible —
+      distinct from the hang bug just fixed. HY's own machine (which does have
+      system voices) is needed to confirm cues are now actually audible.
+
+### Phase 10 — Stage R6 follow-up #2: the ACTUAL "no audio" cause — user-activation gate (2026-07-24, same day)
+
+HY reported still hearing nothing after follow-up #1. On deeper review the earlier
+fix was aimed at the wrong thing:
+
+- [x] **Re-diagnosis (with voices actually present this time):** the "zero voices"
+      reading in follow-up #1 was itself a **timing artefact** — `getVoices()`
+      returns `[]` until the async `voiceschanged` event fires, then populates (the
+      sandbox actually has 180 voices once loaded). Re-testing the two previously
+      "fixed" failure modes **with voices loaded** showed **both work fine**:
+      lang-only speak → start/end OK; cancel-then-speak-same-tick → start/end OK. So
+      neither the cancel/speak fix nor voice-selection was the cause of HY's total
+      silence on a machine that has voices. (Those fixes are still correct and kept —
+      they matter on the voices-not-yet-loaded window and on non-macOS platforms —
+      just not the culprit here.)
+- [x] **Actual cause — user activation.** Grep of every `speakSession`/`speakFault`
+      call site confirmed **not one cue is ever spoken from inside a user gesture**:
+      session-start from a countdown `setInterval`, faults from the per-frame
+      MediaPipe callback, session-end from an async finish handler. STS is the worst
+      case — it auto-counts-down on mount, so there's never even a click on the page
+      before its first cue. Chrome gates `speechSynthesis.speak()` on user
+      activation; if a page never calls speak() during/just after a real gesture it
+      can silently produce **no audio at all**. This is exactly the class of bug that
+      _works in an automated sandbox_ (automation bypasses the gate — which is why it
+      could not be reproduced here) but fails in a real browser.
+- [x] **Fix — new `utils/speech.ts`, three layers:** (1) `primeSpeechSynthesis()`
+      installed as a one-shot `pointerdown`/`keydown` listener at module load —
+      speaks a silent (volume-0) utterance on the **first user interaction anywhere
+      in the app**, establishing activation app-wide before any session's timer-cue
+      fires, regardless of which page reaches a cue first (covers STS's no-click
+      case). **Verified firing end-to-end in the bundled app:** dispatching a
+      `pointerdown` triggers `speechSynthesis.speak(" ")` at volume 0 from within the
+      gesture handler. (2) `pickVoice()` selects a **concrete** `SpeechSynthesisVoice`
+      by language (exact tag, else base language) instead of relying on
+      `utterance.lang` alone, with the voice list warmed + refreshed on
+      `voiceschanged` — closes the voices-not-loaded silent window. (3)
+      `speakOnce()` used by the audio toggle.
+- [x] **`AudioCueToggle` now speaks a confirmation when switched ON** ("Voice cues
+      on", via `speakOnce`, in the current UI language) — double duty: an **in-gesture
+      audible self-test** (if HY hears it, TTS + activation both work on their
+      machine; if not, the problem is system voices / OS, not the app), and it primes
+      activation from a real click.
+- [x] `useSpeechCues.ts` refactored to use the shared `toBcp47` + `pickVoice`;
+      `LANG_BCP47` map moved into `utils/speech.ts` (single source).
+- [x] Verified: `tsc --noEmit` clean; full `vitest` **50/50**; Prettier clean;
+      global-prime path and concrete-voice speak both exercised live in the Browser
+      pane (start→end confirmed with the "Samantha" en-US voice once voices loaded).
+- [ ] **Definitive next step is HY's, and it is now a clean binary:** click the audio
+      toggle (speaker icon in any live page's topbar, or the dashboard topbar) to turn
+      cues **on** → if you hear "Voice cues on", audio works and the session cues will
+      now fire too (global prime already established activation); if you hear nothing
+      even then, the issue is your system TTS voices / OS audio, which no app change
+      can fix. Report which, and note that a **hard reload** may be needed so the dev
+      server serves the new `utils/speech.ts`.
+
+### Phase 10 — Stage R6 follow-up #3: the REAL cause was a wedged Chrome speech engine (2026-07-24, same day)
+
+HY's diagnostic decisively settled this. Console diagnostic showed `voices: 214` and
+clicking "speak" produced `event: ERROR: canceled` — a real voice was selected, so
+neither of the two previous fixes (cancel/speak race, user-activation) were ever the
+cause; both were fixing non-problems. **HY's own key observation cracked it: "it
+worked the first time... but only for sit-to-stand,"** and — decisively — **quitting
+Chrome entirely (⌘Q, not just reload) made it start speaking again; a page reload
+alone had NOT fixed it.**
+
+- [x] **Root cause, confirmed empirically, not guessed:** Chrome's speech engine can
+      wedge at the **browser-process** level (a well-documented, long-standing
+      Chromium bug) — `speak()` returns normally, no error fires, but the utterance
+      silently never starts, and it stays wedged across page reloads/navigations
+      until the browser process itself restarts. STS is the only live page whose
+      first cue fires almost immediately (~5s post-mount, no button); squat/SLS/WBLT
+      don't speak until 30s+ into the session (target-picking, positioning, get-ready,
+      calibration all precede their first cue) — long enough to hit the wedge. That
+      is why STS "worked" and the other three didn't: nothing page-specific in the
+      code, purely a timing coincidence with when the engine happened to still be
+      alive.
+- [x] **Fix, `hooks/useSpeechCues.ts`:** the real speaker now has a **start
+      watchdog** — every `speak()` call arms a 1.5s timer; if `onstart` hasn't fired
+      by then (engine wedged, utterance never began), it performs one
+      `cancel()+resume()+re-speak` recovery attempt on a fresh tick, and if THAT also
+      never starts, gives up cleanly (calls `onDone()` so the queue is never left
+      stalled waiting on an utterance that will never report back — a stuck queue
+      would otherwise block every future cue too, compounding the original symptom).
+      `resume()` is now called unconditionally before every `speak()` (not just when
+      already observed `paused`), since a wedged engine's `.paused` flag isn't a
+      reliable signal.
+- [x] **Honest limitation, not oversold:** this is a mitigation, not a guaranteed
+      cure — a page cannot force-reset a truly wedged BROWSER PROCESS the way
+      quitting Chrome does; the watchdog's cancel+retry recovers some wedge states
+      (worth having) but not all of them. The demo-day mitigation that HY's own test
+      proved reliable: **restart the browser**, not just reload the page, if cues go
+      silent mid-testing-session.
+- [x] Verified: `tsc --noEmit` clean; full `vitest` **50/50** (unchanged --
+      the watchdog only touches the real speaker, not the pure/testable
+      `SpeechCueQueue`); Prettier clean; app loads with zero console errors in the
+      Browser pane.
+- [ ] Still outstanding: HY to confirm live that squat/SLS/WBLT now speak reliably
+      across a full real session (not just the diagnostic click), including after the
+      engine has had time to potentially wedge again naturally.

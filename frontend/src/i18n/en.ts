@@ -37,6 +37,16 @@ const en = {
     fontSize: "Text size",
     language: "Language",
     theme: "Theme",
+    // Short hover explanations for the shared DashTopbar controls.
+    fontSizeHint: "Adjust text size for easier reading.",
+    themeHint: "Switch between light and dark mode.",
+    audioCuesHint: "Turn spoken coaching cues on or off during live sessions.",
+    languageHint: "Change the app language.",
+    // UAT remediation (Stage R6): mute toggle for spoken live cues, shown in the
+    // shared DashTopbar (out-of-session discoverability) and every live page's own
+    // topbar (components/AudioCueToggle.tsx).
+    audioCuesOn: "Voice cues on",
+    audioCuesOff: "Voice cues off",
   },
   landing: {
     badge: "Single camera · Browser-based pose AI",
@@ -304,6 +314,10 @@ const en = {
     cueDismiss: "Dismiss",
     cancel: "Cancel",
     repTarget: "of 5",
+    // UAT remediation (Stage R6): spoken (TTS) session-boundary cues, shared across
+    // all 4 live pages via useSpeechCues -- highest priority, never throttled.
+    speakStarting: "Starting",
+    speakSessionComplete: "Session complete",
     // UAT remediation (Stage R5): STS's 5s get-ready countdown (it previously
     // auto-recorded on mount with no countdown at all).
     getReadyCaption: "Get into position — recording starts automatically.",

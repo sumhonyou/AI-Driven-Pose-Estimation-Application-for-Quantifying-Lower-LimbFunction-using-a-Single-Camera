@@ -16,6 +16,7 @@ import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import LiveCueOverlay from "../../components/LiveCueOverlay";
+import AudioCueToggle from "../../components/AudioCueToggle";
 import StartSetCountdown from "../../components/squat/StartSetCountdown";
 import { Close, Target, Check, Alert, Play } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
@@ -24,6 +25,7 @@ import { useSessionFlow } from "../../session";
 import { useWebcam } from "../../hooks/useWebcam";
 import { useMediaPipePose } from "../../hooks/useMediaPipePose";
 import { useSessionRecorder } from "../../hooks/useSessionRecorder";
+import { useSpeechCues } from "../../hooks/useSpeechCues";
 import { computeFrameQuality } from "../../utils/captureQuality";
 import {
   createSquatLiveEstimator,
@@ -127,6 +129,7 @@ export default function SquatLiveSessionPage() {
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
   const { landmarks, worldLandmarks, stopDetection } = useMediaPipePose(videoRef, webcamReady);
   const recorder = useSessionRecorder();
+  const speech = useSpeechCues();
   const captureQuality = computeFrameQuality(landmarks ?? []);
 
   const estimatorRef = useRef(createSquatLiveEstimator());
@@ -156,6 +159,7 @@ export default function SquatLiveSessionPage() {
   function startSet() {
     estimatorRef.current = createSquatLiveEstimator(liveConfig);
     recorder.start();
+    speech.speakSession("squat_start", t("live.speakStarting"));
     setRepCount(0);
     setSec(0);
     setShowInactivityPrompt(false);
@@ -293,6 +297,13 @@ export default function SquatLiveSessionPage() {
             tone: "warn",
           });
         }
+        // UAT remediation (Stage R6, HY's call): unlike the VISUAL pop-out above
+        // (primary reason only), the SPOKEN cue reads out EVERY failed gate for this
+        // rep, in the same fixed priority order -- a rep that trips two gates at once
+        // gets both said aloud, one after another (SpeechCueQueue sequences them).
+        for (const tag of update.lastRepFailedGates) {
+          speech.speakFault(tag, t(CUE_TITLE_KEY[tag] as never));
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -352,6 +363,7 @@ export default function SquatLiveSessionPage() {
         capture_quality: score,
         valid_frame_ratio: validFrameRatio,
       });
+      speech.speakSession("squat_end", t("live.speakSessionComplete"));
       nav(`/report?session=${sessionId}`);
     } catch (err) {
       console.error("[SquatLiveSessionPage] Finish set failed", err);
@@ -364,6 +376,7 @@ export default function SquatLiveSessionPage() {
   function handleCancel() {
     if (finishingRef.current) return;
     finishingRef.current = true;
+    speech.stop();
     stopDetection();
     if (sessionId) enqueueCancel(sessionId);
     setSessionId(null);
@@ -427,6 +440,7 @@ export default function SquatLiveSessionPage() {
           <p>{t("squat.livePrompt")}</p>
         </div>
         <div className="topbar-actions">
+          <AudioCueToggle />
           {/* HY's refinement: Finish Set moved up here, beside Cancel, now that the
               "Live status" panel that used to hold it is gone during recording. */}
           {stage === "recording" && (
@@ -447,8 +461,19 @@ export default function SquatLiveSessionPage() {
       )}
 
       <div className="cam-grid">
+        {/* Recording border via inline style (not a conditional className) so React
+            never rewrites the class attribute and wipes the `.in` that useReveal
+            adds — same bug class as STS/SLS/CameraSetup. */}
         <div
-          className={"cam-stage reveal" + (stage === "recording" ? " cam-stage--recording" : "")}
+          className="cam-stage reveal"
+          style={
+            stage === "recording"
+              ? {
+                  borderColor: "var(--coral)",
+                  boxShadow: "0 0 0 4px color-mix(in srgb, var(--coral) 18%, transparent)",
+                }
+              : undefined
+          }
         >
           <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
           <PoseCanvas

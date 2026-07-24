@@ -12,6 +12,7 @@ import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import LiveCueOverlay from "../../components/LiveCueOverlay";
+import AudioCueToggle from "../../components/AudioCueToggle";
 import BallInCircleOverlay from "../../components/sls/BallInCircleOverlay";
 import LiftLineMarker from "../../components/sls/LiftLineMarker";
 import ComboScore from "../../components/sls/ComboScore";
@@ -30,6 +31,7 @@ import { useSessionFlow } from "../../session";
 import { useWebcam } from "../../hooks/useWebcam";
 import { useMediaPipePose } from "../../hooks/useMediaPipePose";
 import { useSessionRecorder } from "../../hooks/useSessionRecorder";
+import { useSpeechCues } from "../../hooks/useSpeechCues";
 import { computeFrameQuality } from "../../utils/captureQuality";
 import { SLS_LEG_ORDER, SLS_MAX_HOLD_SEC } from "../../config/moduleAThresholds";
 import wrongRepSrc from "../../assets/sound effect/Wrong sound effect.mp3";
@@ -80,6 +82,7 @@ export default function SlsLiveSessionPage() {
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
   const { landmarks, worldLandmarks, stopDetection } = useMediaPipePose(videoRef, webcamReady);
   const recorder = useSessionRecorder();
+  const speech = useSpeechCues();
   const trackerRef = useRef(createSlsLiveTracker(leg));
   const finishingLegRef = useRef(false);
   const finishingSessionRef = useRef(false);
@@ -93,6 +96,13 @@ export default function SlsLiveSessionPage() {
   function startHold() {
     trackerRef.current = createSlsLiveTracker(leg);
     recorder.start();
+    // UAT remediation (Stage R6): announces which leg this hold is FOR -- reuses the
+    // exact same prompt text already shown on screen (sls.legPromptRight/Left, e.g.
+    // "Lift your RIGHT leg"), so the spoken and visual instructions can never drift.
+    speech.speakSession(
+      "sls_leg_start",
+      t(leg === "right" ? "sls.legPromptRight" : "sls.legPromptLeft"),
+    );
     setLiveUpdate(IDLE_UPDATE);
     setLiveCue(null);
     wasWrongLegLiftedRef.current = false;
@@ -180,6 +190,9 @@ export default function SlsLiveSessionPage() {
           }),
           tone: "warn",
         });
+        // UAT remediation (Stage R6, HY's note): the wrong-leg signal is a fault like
+        // any other and must be spoken too, not just shown.
+        speech.speakFault("wrong_leg", t("sls.cueWrongLeg"));
       } else if (!update.wrongLegLifted && wasWrongLegLiftedRef.current) {
         setLiveCue(null);
       }
@@ -218,6 +231,7 @@ export default function SlsLiveSessionPage() {
         capture_quality: avg(samples.map((s) => s.score)),
         valid_frame_ratio: avg(samples.map((s) => s.validFrameRatio)),
       });
+      speech.speakSession("sls_end", t("live.speakSessionComplete"));
       nav(`/report?session=${sessionId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("live.endError"));
@@ -229,6 +243,7 @@ export default function SlsLiveSessionPage() {
   function handleCancel() {
     if (finishingSessionRef.current) return;
     finishingSessionRef.current = true;
+    speech.stop();
     stopDetection();
     if (sessionId) enqueueCancel(sessionId);
     setSessionId(null);
@@ -289,6 +304,7 @@ export default function SlsLiveSessionPage() {
           <p>{legPrompt}</p>
         </div>
         <div className="topbar-actions">
+          <AudioCueToggle />
           <button className="btn btn-cancel" onClick={handleCancel}>
             <Close />
             {t("live.cancel")}
@@ -302,8 +318,19 @@ export default function SlsLiveSessionPage() {
       )}
 
       <div className="cam-grid">
+        {/* Recording border via inline style (not a conditional className) so React
+            never rewrites the class attribute and wipes the `.in` that useReveal
+            adds — same bug class as STS/CameraSetup. */}
         <div
-          className={"cam-stage reveal" + (stage === "recording" ? " cam-stage--recording" : "")}
+          className="cam-stage reveal"
+          style={
+            stage === "recording"
+              ? {
+                  borderColor: "var(--coral)",
+                  boxShadow: "0 0 0 4px color-mix(in srgb, var(--coral) 18%, transparent)",
+                }
+              : undefined
+          }
         >
           <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
           <PoseCanvas

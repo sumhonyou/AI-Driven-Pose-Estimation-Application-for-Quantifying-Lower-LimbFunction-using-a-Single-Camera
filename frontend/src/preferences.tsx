@@ -9,12 +9,18 @@ interface Prefs {
   toggleTheme: () => void;
   fontScale: FontScale;
   setFontScale: (s: FontScale) => void;
+  /** UAT remediation (Stage R6): spoken live cues during a session. Defaults to ON
+   * (HY's call) -- it's the reading-distance fix the feature exists for, so it
+   * should be heard immediately rather than requiring discovery of a toggle. */
+  audioCues: boolean;
+  toggleAudioCues: () => void;
 }
 
 const PreferencesContext = createContext<Prefs | null>(null);
 
 const THEME_KEY = "physiofit-theme";
 const FS_KEY = "physiofit-fontscale";
+const AUDIO_CUES_KEY = "physiofit-audio-cues";
 
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY);
@@ -27,9 +33,15 @@ function getInitialFontScale(): FontScale {
   return stored === 2 || stored === 3 ? (stored as FontScale) : 1;
 }
 
+function getInitialAudioCues(): boolean {
+  const stored = localStorage.getItem(AUDIO_CUES_KEY);
+  return stored === null ? true : stored === "on";
+}
+
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [fontScale, setFontScaleState] = useState<FontScale>(getInitialFontScale);
+  const [audioCues, setAudioCues] = useState<boolean>(getInitialAudioCues);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -41,11 +53,18 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(FS_KEY, String(fontScale));
   }, [fontScale]);
 
+  useEffect(() => {
+    localStorage.setItem(AUDIO_CUES_KEY, audioCues ? "on" : "off");
+  }, [audioCues]);
+
   const toggleTheme = () => setTheme((t) => (t === "light" ? "dark" : "light"));
   const setFontScale = (s: FontScale) => setFontScaleState(s);
+  const toggleAudioCues = () => setAudioCues((v) => !v);
 
   return (
-    <PreferencesContext.Provider value={{ theme, toggleTheme, fontScale, setFontScale }}>
+    <PreferencesContext.Provider
+      value={{ theme, toggleTheme, fontScale, setFontScale, audioCues, toggleAudioCues }}
+    >
       {children}
     </PreferencesContext.Provider>
   );

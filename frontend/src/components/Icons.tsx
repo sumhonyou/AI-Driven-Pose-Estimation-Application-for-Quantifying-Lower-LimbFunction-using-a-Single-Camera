@@ -220,6 +220,19 @@ export const Trash = (p: P) => (
   </svg>
 );
 
+export const Volume2 = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 9v6h4l5 5V4L8 9H4z" />
+    <path d="M16.5 8.5a5 5 0 0 1 0 7M19.5 5.5a9 9 0 0 1 0 13" />
+  </svg>
+);
+export const VolumeX = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 9v6h4l5 5V4L8 9H4z" />
+    <path d="M17 9l5 6M22 9l-5 6" />
+  </svg>
+);
+
 export const LogoMark = (p: P) => (
   <svg viewBox="0 0 24 24" fill="none" {...p}>
     <path

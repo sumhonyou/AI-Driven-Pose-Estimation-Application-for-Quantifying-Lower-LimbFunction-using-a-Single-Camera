@@ -512,6 +512,52 @@ html[data-theme="dark"] .band.poor {
   width: 19px;
   height: 19px;
 }
+/* Immediate hover explanation under topbar controls (replaces slow native title). */
+.ctrl-hint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.ctrl-hint-bubble {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(220px, 70vw);
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 560;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: var(--shadow);
+  z-index: 80;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    visibility 0.15s ease;
+}
+.ctrl-hint--end .ctrl-hint-bubble {
+  left: auto;
+  right: 0;
+  transform: none;
+  text-align: right;
+}
+.ctrl-hint:hover .ctrl-hint-bubble,
+.ctrl-hint:focus-within .ctrl-hint-bubble {
+  opacity: 1;
+  visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ctrl-hint-bubble {
+    transition: none;
+  }
+}
 .theme-toggle:hover {
   transform: rotate(-18deg);
 }

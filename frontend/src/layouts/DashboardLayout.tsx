@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Logo, ThemeToggle, FontSizeControl, LanguageSwitcher } from "../components/Controls";
+import AudioCueToggle from "../components/AudioCueToggle";
 import { Grid, CirclePlus, History, Chart, Bell, User, Menu, Close } from "../components/Icons";
 import { useReveal } from "../useReveal";
 import { useAuth } from "../auth";
@@ -244,6 +245,7 @@ export function DashTopbar({
           <FontSizeControl />
         </span>
         <ThemeToggle />
+        <AudioCueToggle />
         <LanguageSwitcher />
         {actions}
         <TopbarAvatar />
