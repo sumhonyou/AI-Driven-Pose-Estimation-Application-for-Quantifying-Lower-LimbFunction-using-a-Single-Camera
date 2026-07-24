@@ -291,6 +291,20 @@ textarea {
   color: var(--accent-text);
   font-weight: 700;
 }
+/* UAT remediation (Stage R11): the report's "not a medical diagnosis" badge --
+   moved here, right beside the band, instead of a banner further down the page
+   that could be scrolled past. Info-blue rather than a neutral pill so it still
+   stands out among the other pills in the same row. */
+.non-diagnostic-badge {
+  background: var(--info-blue-bg);
+  border-color: color-mix(in srgb, var(--info-blue) 40%, var(--border));
+  color: var(--text);
+  font-weight: 700;
+}
+.non-diagnostic-badge svg {
+  color: var(--info-blue);
+  flex-shrink: 0;
+}
 
 .band {
   display: inline-flex;
@@ -2757,6 +2771,17 @@ html[data-theme="dark"] .trend.down {
   background: var(--surface);
   border: 1px solid var(--border);
 }
+/* UAT remediation (Stage R11): "coaching card green, error-tag card red" -- a
+   subtle tint (border + faint background wash), not a full colour fill, so the
+   two cards read as positive/negative at a glance without shouting. */
+.panel--coaching {
+  border-color: color-mix(in srgb, var(--good) 28%, var(--border));
+  background: color-mix(in srgb, var(--good) 4%, var(--surface));
+}
+.panel--errors {
+  border-color: color-mix(in srgb, var(--coral) 28%, var(--border));
+  background: color-mix(in srgb, var(--coral) 4%, var(--surface));
+}
 .panel-head {
   display: flex;
   align-items: center;
@@ -2971,20 +2996,53 @@ html[data-theme="dark"] .trend.down {
   font-weight: 800;
   color: var(--accent-text);
 }
+/* UAT remediation (Stage R11): `.sev` now wraps a small icon instead of being an
+   empty colour dot -- severity is never colour-only (colour-blind safety), each
+   level pairs a distinct icon shape with its colour. Also fixes a real bug: a
+   genuine low-severity ERROR TAG used to render with the exact same green as the
+   separate "no issues at all" placeholder, so a real (if minor) issue read as
+   "nothing to worry about." `.sev.low` is now a distinct blue, and the "no
+   issues" placeholder uses its own `.sev.ok` (still green -- that one really is
+   "all clear"). */
 .sev {
-  width: 8px;
-  height: 8px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--on-accent);
+}
+.sev.ok {
+  background: var(--good);
 }
 .sev.low {
-  background: var(--emerald);
+  background: var(--info-blue);
 }
 .sev.med {
   background: var(--amber);
 }
 .sev.high {
   background: var(--coral);
+}
+.sev-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+}
+.sev-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.76rem;
+  color: var(--text-3);
+}
+.sev-legend-item .sev {
+  width: 14px;
+  height: 14px;
 }
 
 /* Phase 7 Stage 7.1: small-multiples score-trend grid (one card per exercise) */
@@ -4289,6 +4347,22 @@ html[data-theme="dark"] .ex-card .ex-img {
   font-weight: 800;
   color: var(--accent-text);
   font-variant-numeric: tabular-nums;
+}
+/* UAT remediation (Stage R11): collapsed "Technical details" -- the full
+   prediction/probability figures (ML prediction, rule score, fusion weights,
+   model version), tucked below a toggle rather than sitting in the main
+   sub-scores view now that Confidence alone covers "how sure was the model". */
+.tech-details-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 6px 2px;
+}
+.tech-details-toggle:hover {
+  color: var(--text-2);
 }
 .feedback-box {
   border-radius: var(--r-md);

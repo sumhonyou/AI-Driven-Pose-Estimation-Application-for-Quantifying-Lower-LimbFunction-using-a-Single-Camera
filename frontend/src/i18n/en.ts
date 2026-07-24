@@ -433,6 +433,20 @@ const en = {
     subScores: "Rule-based sub-scores",
     mlPred: "ML prediction",
     mlConf: "model confidence",
+    // UAT remediation (Stage R11): collapsed "Technical details" section.
+    ruleScore: "Rule score",
+    fusionWeights: "Fusion weights",
+    fusionWeightsValue: "{{rule}}% rule · {{ml}}% ML",
+    modelVersion: "Model version",
+    technicalDetailsShow: "Show technical details",
+    technicalDetailsHide: "Hide technical details",
+    // UAT remediation (Stage R11): "Retry exercise" action + severity legend/count
+    // badge for the error-tags panel.
+    retryExercise: "Retry exercise",
+    tagsCount: "{{count}} tag(s)",
+    severityHigh: "High — needs attention",
+    severityMed: "Medium — worth checking",
+    severityLow: "Low — minor note",
     errorTags: "Error tags",
     coaching: "Coaching feedback",
     // Module A's coaching text is static, general-purpose copy, not generated per

@@ -5284,3 +5284,105 @@ cards entirely, leaving just image (bento) or icon, view chip, and title.
       Prettier clean. Browser-verified in the Preview pane against HY's
       reference screenshot: bento cards now render as image → eyebrow → title
       only, matching exactly.
+
+## Stage R11 — Post-session Report redesign (2026-07-25)
+
+Per the UAT remediation plan (`GROUP D`): Report is the app's strongest surface
+(+15 net in UAT) — the goal was fixing redundancy/ordering/colour-semantics
+without touching what already works. HY's two constraints going in: **don't add
+tooltips on every metric** (skip that plan bullet — R10 already added a
+reasonable set), and **make charts meaningful and interactive**, not decorative.
+
+- [x] **P0 redundancy fix**: dropped the "ML prediction" row from the main
+      sub-scores view (`ml_score = 10·P(Good)` and `confidence = max(P)` are
+      structurally the same number in two formats for Good reps, Stage 5.20).
+      Confidence stays visible as plain certainty; ML prediction moved into a
+      new collapsed **Technical Details** section (`report.technicalDetailsShow`/
+      `Hide`, `<ChevronDown>` toggle) alongside rule score, fusion weights
+      (`w_rule`/`w_ml` as %), and model version — the actual "full
+      prediction/probability" detail, just tucked away by default.
+- [x] **Reordered by importance**: band/score → **coaching + error tags**
+      (moved up from dead last to right after the hero) → sub-scores (now
+      charted) → comparison (trend, unchanged position) → technical details.
+      The coaching/error-tags ternary previously rendered at the very bottom of
+      the page, after every metric block, for all 4 exercise types — moved to
+      render directly after the hero instead, since UAT's own finding was that
+      this panel is the strongest part of the report.
+- [x] **Interactive sub-scores chart**: new
+      [components/charts/SubScoreBarChart.tsx](./frontend/src/components/charts/SubScoreBarChart.tsx)
+      (recharts `BarChart`, reusing the existing `ErrorTagBarChart`/
+      `RepAttemptsBarChart` pattern) replaces the 3 rule-subscore number cards
+      (ROM completeness/tempo consistency/stability control) for squat. Bars
+      are colour-coded by the same Good/Fair/Poor cuts (`scoreBandThresholdsFor`)
+      used everywhere else — meaningful, not just decorative — and hovering a
+      bar shows the exact score plus its plain-language definition (the same
+      text the old per-row `InfoTooltip` showed), so detail is available
+      on-demand instead of via more always-visible icons — directly answering
+      HY's "interactive, not more tooltips" brief. STS/SLS/WBLT's metrics
+      aren't 0-10 scores (times/angles/counts), so they weren't force-fit into
+      a chart — flagged as a reasonable future extension, not done here.
+- [x] **Severity colour bug fixed + colour-blind-safe redundant icons + legend +
+      count badge**: `.sev.low` used to render the exact same green as the
+      separate "no issues at all" placeholder, so a genuine (if minor) error
+      tag read as "nothing wrong." `.sev.low` is now a distinct blue
+      (`--info-blue`), and the "no issues" placeholder gets its own new
+      `.sev.ok` (still green — that one really is all-clear). Every severity
+      now pairs its colour with a **distinct icon shape**, not colour alone:
+      high → triangle (`Alert`), medium → circle-i (`Info`), low → circle-plus
+      (`CirclePlus`), none → checkmark (`Check`). Added a count badge
+      (`report.tagsCount`, a `.pill` in the panel head) and a legend
+      (`.sev-legend`) explaining the 3 severities, shown once there's at least
+      one tag. Deduped `severityClass()` — Report.tsx had its own copy of the
+      exact function already exported by
+      [dashboardChartUtils.ts](./frontend/src/components/charts/dashboardChartUtils.ts);
+      now imports it instead.
+- [x] **Semantic panel colour**: new `.panel--coaching` (green-tinted border +
+      faint wash) and `.panel--errors` (coral-tinted) — subtle `color-mix` tints
+      matching the app's existing pattern (e.g. `.instr-camera-angle`), not a
+      loud full-colour fill.
+- [x] **Unmissable non-diagnostic badge**: the old standalone
+      `report.nonDiagnosticReminder` banner sat below a placeholder-model notice
+      and a session-status notice, all using the identical `.dash-note` style —
+      easy to blend into "yet another banner" and easy to scroll past. Moved
+      into the hero itself, as a `.non-diagnostic-badge` pill right beside the
+      band chip — the first thing anyone looks at, no separate banner needed.
+      (R14 owns the bigger version of this — a one-time first-run
+      acknowledgement, logged with a timestamp.)
+- [x] **Retry exercise + Back button** (Report had neither before). Back uses
+      real browser-history-back (`nav(-1)`), not a fixed route, since Report is
+      reached from multiple places (History, or straight off a finished live
+      session). Retry explicitly sets `useSessionFlow()`'s mode/exerciseCode
+      from _this_ session's own data before navigating to `/instructions` —
+      the flow context can't be trusted to already match if the report was
+      opened from History for an old, unrelated session. New `Redo` icon added
+      to [Icons.tsx](./frontend/src/components/Icons.tsx).
+- [x] ~~Determinate-looking generating overlay~~ **reverted per HY (2026-07-25):**
+      [GeneratingReportOverlay.tsx](./frontend/src/components/GeneratingReportOverlay.tsx)
+      briefly gained a progress bar tied to its step cycle (22/48/72/90%), but
+      HY asked for it removed — back to just the pulsing waveform + cycling
+      step captions, no progress bar. Removed the bar's JSX, its
+      `STEP_PROGRESS_PCT` constant, and its `.generating-progress-track`/
+      `.generating-progress-fill` CSS.
+- [x] `Report.test.tsx` updated: added a `SessionProvider` wrapper (Report now
+      calls `useSessionFlow()` for Retry, which the existing test render helper
+      didn't provide — confirmed via `main.tsx` that `SessionProvider` already
+      wraps the whole app in production, so this is fixing test setup to match
+      reality, not routing around a real gap). Also added a `ResizeObserver`
+      stub to [test/setup.ts](./frontend/src/test/setup.ts) (jsdom has none;
+      recharts' `ResponsiveContainer` no-ops safely without it, but a stub is
+      the more correct fix and matches the existing `IntersectionObserver`
+      stub pattern) — confirmed necessary by actually running the suite with
+      the new chart mounted, not assumed.
+- [x] Verified: `tsc --noEmit` clean, full `vitest` **53/53** (all pre-existing
+      assertions still pass unchanged after the reorder — text content, not
+      DOM order, is what they check), Prettier clean. Browser-verified in the
+      Preview pane: back/retry/history/new-session buttons, the non-diagnostic
+      badge beside the band chip, the green/red-tinted coaching+error-tags
+      panels rendering _before_ the metrics section, the 3 distinct severity
+      icon shapes + legend + count badge, sub-scores with no ML-prediction row,
+      and the collapsed technical-details toggle — all matching the reordered
+      design. The `SubScoreBarChart` itself renders via the same recharts
+      pattern already proven live elsewhere in this app (Dashboard/Progress
+      pages); not independently screenshotted with real data since Report
+      needs an authenticated session + real analyzed data to reach normally
+      (same constraint as prior stages).

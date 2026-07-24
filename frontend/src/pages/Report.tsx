@@ -1,10 +1,24 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DashTopbar } from "../layouts/DashboardLayout";
-import { Lightbulb, ShieldCheck, History, Plus, Alert } from "../components/Icons";
+import {
+  Lightbulb,
+  ShieldCheck,
+  History,
+  Plus,
+  Alert,
+  Info,
+  Check,
+  CirclePlus,
+  ArrowLeft,
+  Redo,
+  ChevronDown,
+} from "../components/Icons";
 import InfoTooltip from "../components/InfoTooltip";
 import GlossaryTerm from "../components/GlossaryTerm";
+import SubScoreBarChart, { type SubScoreDatum } from "../components/charts/SubScoreBarChart";
+import { severityClass } from "../components/charts/dashboardChartUtils";
 import { sessionService } from "../services/sessionService";
 import {
   moduleAService,
@@ -16,6 +30,7 @@ import { moduleBService, type ModuleBResult, type SquatTrend } from "../services
 import { wbltApi, type WbltLegTrend } from "../services/wblt/wbltApi";
 import type { SlsLeg } from "../services/sls/slsApi";
 import type { SessionDTO } from "../types/api";
+import { useSessionFlow } from "../session";
 
 // Formats a seconds value to one decimal place, or "—" when unavailable.
 function fmtSec(value: number | null | undefined) {
@@ -164,11 +179,14 @@ function TrendLine({
 // against any future Module B code colliding with a Module A one.
 const MODULE_B_EXERCISE_CODES = new Set(["squat"]);
 
-// Maps a Module B error tag's severity to the existing `.sev` dot CSS class.
-function severityClass(severity: string | null): string {
-  if (severity === "high") return "high";
-  if (severity === "low") return "low";
-  return "med";
+// UAT remediation (Stage R11): severity -> icon, paired with the CSS colour so
+// severity is never colour-only (colour-blind safety) -- each shape is visually
+// distinct (triangle/circle-i/circle-plus), not just a differently-tinted dot.
+function severityIcon(severity: string | null) {
+  const cls = severityClass(severity);
+  if (cls === "high") return Alert;
+  if (cls === "low") return CirclePlus;
+  return Info;
 }
 
 // Maps a band value to its plain-language meaning key in i18n `common`.
@@ -187,8 +205,10 @@ function bandMeaningKey(band: string | null): string {
 
 export default function Report() {
   const { t } = useTranslation();
+  const nav = useNavigate();
   const [params] = useSearchParams();
   const sessionId = params.get("session");
+  const { setMode, setExerciseCode } = useSessionFlow();
 
   const [session, setSession] = useState<SessionDTO | null>(null);
   const [result, setResult] = useState<ModuleAResult | null>(null);
@@ -198,6 +218,9 @@ export default function Report() {
   const [passMark, setPassMark] = useState<number | null>(null);
   const [loading, setLoading] = useState(!!sessionId);
   const [error, setError] = useState("");
+  // UAT remediation (Stage R11): the "full prediction/probability" figures move
+  // into a collapsed section rather than sitting in the main sub-scores view.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   // §11 Stage 6: not part of the persisted metrics_json -- computed live from
   // the account's previous WBLT session, so it's fetched separately.
   const [wbltTrend, setWbltTrend] = useState<
@@ -260,6 +283,17 @@ export default function Report() {
     };
   }, [sessionId, t]);
 
+  // UAT remediation (Stage R11): "Retry exercise" -- explicitly sets the flow's
+  // mode/exerciseCode from THIS session (not whatever the flow context happens
+  // to hold from earlier browsing), since Report can be reached from History
+  // for an old session unrelated to the flow's current selection.
+  function handleRetry() {
+    if (!session) return;
+    setMode(session.mode === "rehab" ? "rehab" : "functional");
+    setExerciseCode(session.exercise_code);
+    nav("/instructions");
+  }
+
   // Session's exercise_type decides which of Module A's `result` or Module B's
   // `moduleBResult` is the live one — the two responses have different shapes
   // (Phase 3E Stage 2's lesson: a wrong-panel bug was silent before; see the test).
@@ -307,9 +341,12 @@ export default function Report() {
     ? (result?.trend as Partial<Record<SlsLeg, SlsLegTrend | null>> | undefined)
     : undefined;
 
-  // Module B: the three rule sub-scores broken out, plus the ML/confidence/capture
-  // figures the checklist asks for — reuses the same "sub-score" row shape as
-  // Module A's metricRows below, just from moduleBResult instead of result.
+  // Module B: Attempts/rep-target/confidence/capture-quality figures the
+  // checklist asks for. The three rule sub-scores used to live here too as
+  // plain-number cards; Stage R11 moved them into `subScoreChartData` (an
+  // interactive chart) below, and the ML prediction row moved into the
+  // collapsed Technical Details section (P0 redundancy fix -- `ml_score` and
+  // `confidence` are the same underlying number in two formats, see Stage 5.20).
   const moduleBRows: { label: string; value: string; info?: string }[] = moduleBResult
     ? [
         {
@@ -327,21 +364,47 @@ export default function Report() {
               },
             ]
           : []),
-        ...moduleBResult.metrics.rule_subscores.map((s) => ({
-          label: t(("moduleB.subscore_" + s.code) as never, { defaultValue: s.code }),
-          value: s.score != null ? `${s.score.toFixed(1)}/10` : "—",
-          // UAT remediation (Stage R10 / follow-up): "ROM completeness" reuses the
-          // shared glossary definition; tempo consistency and stability control
-          // get their own since neither is one of the 10 glossary terms.
-          info:
-            s.code === "rom_completeness"
-              ? t("glossary.rom.def")
-              : s.code === "tempo_consistency"
-                ? t("report.tempoConsistencyMeaning")
-                : s.code === "stability_control"
-                  ? t("report.stabilityControlMeaning")
-                  : undefined,
-        })),
+        {
+          label: t("report.confidence"),
+          value:
+            moduleBResult.confidence != null
+              ? `${Math.round(moduleBResult.confidence * 100)}%`
+              : "—",
+          info: t("report.confidenceMeaning"),
+        },
+        {
+          label: t("report.captureQualityBand"),
+          value: t("common." + moduleBResult.metrics.capture_quality.capture_quality_band),
+        },
+      ]
+    : [];
+
+  // UAT remediation (Stage R11): "chart the sub-scores" -- the 3 rule sub-scores,
+  // fed to <SubScoreBarChart>. Each definition is reused verbatim from what the
+  // static cards showed before (glossary ROM def, or the report's own tempo/
+  // stability text), so the chart's hover tooltip carries the same information,
+  // just interactively instead of via an always-visible icon per row.
+  const subScoreChartData: SubScoreDatum[] = moduleBResult
+    ? moduleBResult.metrics.rule_subscores.map((s) => ({
+        code: s.code,
+        label: t(("moduleB.subscore_" + s.code) as never, { defaultValue: s.code }),
+        score: s.score,
+        meaning:
+          s.code === "rom_completeness"
+            ? t("glossary.rom.def")
+            : s.code === "tempo_consistency"
+              ? t("report.tempoConsistencyMeaning")
+              : s.code === "stability_control"
+                ? t("report.stabilityControlMeaning")
+                : "",
+      }))
+    : [];
+
+  // UAT remediation (Stage R11): the collapsed "Technical details" section --
+  // the full prediction/probability figures, moved out of the main sub-scores
+  // view now that the headline ML-prediction/confidence redundancy is gone.
+  const technicalDetailsRows: { label: string; value: string }[] = moduleBResult
+    ? [
         {
           label: t("report.mlPred"),
           value:
@@ -350,21 +413,22 @@ export default function Report() {
               : "—",
         },
         {
-          label: t("report.confidence"),
+          label: t("report.ruleScore"),
           value:
-            moduleBResult.confidence != null
-              ? `${Math.round(moduleBResult.confidence * 100)}%`
+            moduleBResult.metrics.rule_score != null
+              ? `${moduleBResult.metrics.rule_score.toFixed(1)}/10`
               : "—",
-          // Stage 5.20: without this, Confidence and ML prediction look like two
-          // independent checks agreeing. They are the same value in two formats —
-          // `confidence = max(P(Good), P(Poor))` only diverges from `10 × P(Good)` when
-          // the model leans "Needs Improvement", which it has not done on any of the 47
-          // recorded repetitions (lowest P(Good) observed: 0.780).
-          info: t("report.confidenceMeaning"),
         },
         {
-          label: t("report.captureQualityBand"),
-          value: t("common." + moduleBResult.metrics.capture_quality.capture_quality_band),
+          label: t("report.fusionWeights"),
+          value: t("report.fusionWeightsValue", {
+            rule: Math.round(moduleBResult.metrics.fusion_weights.w_rule * 100),
+            ml: Math.round(moduleBResult.metrics.fusion_weights.w_ml * 100),
+          }),
+        },
+        {
+          label: t("report.modelVersion"),
+          value: moduleBResult.model_version ?? "—",
         },
       ]
     : [];
@@ -443,6 +507,14 @@ export default function Report() {
 
   return (
     <>
+      {/* UAT remediation (Stage R11): Report previously had no way back except the
+          browser button itself -- true history-back rather than a fixed route,
+          since Report is reached from multiple places (History, or straight off
+          a finished live session). */}
+      <button type="button" className="back-link" onClick={() => nav(-1)}>
+        <ArrowLeft />
+        {t("common.back")}
+      </button>
       <DashTopbar
         title={t("report.title")}
         subtitle={t("report.savedTo")}
@@ -452,7 +524,13 @@ export default function Report() {
               <History />
               {t("report.viewHistory")}
             </Link>
-            <Link className="btn btn-primary" to="/mode">
+            {session && (
+              <button type="button" className="btn btn-primary" onClick={handleRetry}>
+                <Redo />
+                {t("report.retryExercise")}
+              </button>
+            )}
+            <Link className="btn btn-ghost" to="/mode">
               <Plus />
               {t("report.newSession")}
             </Link>
@@ -563,6 +641,14 @@ export default function Report() {
                   {t("report.captureQualityBand")}: {t("common." + captureQualityBandTop)}
                 </span>
                 <GlossaryTerm id="captureQuality" />
+                {/* UAT remediation (Stage R11): "unmissable non-diagnostic badge" --
+                    moved from a banner further down the page (easy to scroll past,
+                    and visually identical to the other stacked .dash-notes above it)
+                    to right beside the band itself, the first thing anyone looks at. */}
+                <span className="pill non-diagnostic-badge">
+                  <Alert width={14} height={14} />
+                  {t("report.nonDiagnosticReminder")}
+                </span>
               </div>
               <p className="muted" style={{ maxWidth: "40em", marginBottom: 10 }}>
                 {t(bandMeaningKey(band))}
@@ -590,10 +676,170 @@ export default function Report() {
             </div>
           </div>
 
-          <div className="dash-note" style={{ marginBottom: 18 }}>
-            <Alert />
-            <span>{t("report.nonDiagnosticReminder")}</span>
-          </div>
+          {/* UAT remediation (Stage R11): reordered by importance -- band/score (above)
+              -> improvement cues (coaching + error tags, here) -> sub-scores/charted
+              metrics -> comparison -> technical details. Coaching used to render at
+              the very bottom of the page, after every metric; the plan's own +15-net
+              UAT finding was that this IS the app's strongest surface, so it now
+              follows straight after the score instead of being buried below it. */}
+          {isModuleB ? (
+            <div className="dash-grid-2" style={{ marginBottom: 18 }}>
+              <div className="panel panel--coaching">
+                <div className="panel-head" style={{ marginBottom: 16 }}>
+                  <div>
+                    <h3>{t("report.coaching")}</h3>
+                  </div>
+                  <span
+                    className="mi"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      display: "grid",
+                      placeItems: "center",
+                      background: "var(--good-bg)",
+                      color: "var(--accent-text)",
+                    }}
+                  >
+                    <Lightbulb width={19} height={19} />
+                  </span>
+                </div>
+                <div className="feedback-box">
+                  <div className="fb-label">
+                    {moduleBResult?.feedback?.feedback_source === "llm"
+                      ? t("report.feedbackSourceLlm")
+                      : t("report.feedbackSourceTemplate")}
+                  </div>
+                  {/* Stage 5.17: native <p> + <ul>, never a raw string — this is what
+                      replaces the literal "* " asterisks rendering inline. Falls back to
+                      "feedback unavailable" only when the row itself is missing (a fresh
+                      analyze always produces one); a present-but-empty-tips row still
+                      renders its summary with no bullet list. */}
+                  {moduleBResult?.feedback?.rewritten_feedback_structured ? (
+                    <>
+                      <p>{moduleBResult.feedback.rewritten_feedback_structured.summary}</p>
+                      {moduleBResult.feedback.rewritten_feedback_structured.tips.length > 0 && (
+                        <ul>
+                          {moduleBResult.feedback.rewritten_feedback_structured.tips.map(
+                            (tip, index) => (
+                              <li key={index}>{tip}</li>
+                            ),
+                          )}
+                        </ul>
+                      )}
+                    </>
+                  ) : (
+                    <p>{t("report.feedbackUnavailable")}</p>
+                  )}
+                </div>
+              </div>
+              <div className="panel panel--errors">
+                <div className="panel-head" style={{ marginBottom: 16 }}>
+                  <h3>{t("report.errorTags")}</h3>
+                  {/* UAT remediation (Stage R11): count badge -- how many issues at a
+                      glance, without counting tag pills. */}
+                  {!!moduleBResult?.error_tags.length && (
+                    <span className="pill">
+                      {t("report.tagsCount", { count: moduleBResult.error_tags.length })}
+                    </span>
+                  )}
+                </div>
+                <div className="tags">
+                  {moduleBResult?.error_tags.length === 0 && (
+                    <span className="tag">
+                      <span className="sev ok">
+                        <Check width={11} height={11} />
+                      </span>
+                      {t("report.noWarnings")}
+                    </span>
+                  )}
+                  {moduleBResult?.error_tags.map((tag) => {
+                    const SevIcon = severityIcon(tag.severity);
+                    return (
+                      <span className="tag" key={tag.tag}>
+                        <span className={"sev " + severityClass(tag.severity)}>
+                          <SevIcon width={11} height={11} />
+                        </span>
+                        {t(("moduleB.tag_" + tag.tag) as never, { defaultValue: tag.tag })}
+                      </span>
+                    );
+                  })}
+                </div>
+                {/* UAT remediation (Stage R11): severity legend -- colour-blind safe,
+                    since each severity already pairs a distinct icon shape with its
+                    colour (never colour alone). Only shown once there's something to
+                    explain. */}
+                {!!moduleBResult?.error_tags.length && (
+                  <div className="sev-legend">
+                    <span className="sev-legend-item">
+                      <span className="sev high">
+                        <Alert width={11} height={11} />
+                      </span>
+                      {t("report.severityHigh")}
+                    </span>
+                    <span className="sev-legend-item">
+                      <span className="sev med">
+                        <Info width={11} height={11} />
+                      </span>
+                      {t("report.severityMed")}
+                    </span>
+                    <span className="sev-legend-item">
+                      <span className="sev low">
+                        <CirclePlus width={11} height={11} />
+                      </span>
+                      {t("report.severityLow")}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            result && (
+              <div className="panel panel--coaching" style={{ marginBottom: 18 }}>
+                <div className="panel-head" style={{ marginBottom: 16 }}>
+                  <div>
+                    <h3>{t("report.coaching")}</h3>
+                  </div>
+                  <span
+                    className="mi"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      display: "grid",
+                      placeItems: "center",
+                      background: "var(--good-bg)",
+                      color: "var(--accent-text)",
+                    }}
+                  >
+                    <Lightbulb width={19} height={19} />
+                  </span>
+                </div>
+                {result.warning_tags.length === 0 ? (
+                  <div className="feedback-box">
+                    <div className="fb-label">{t("report.coachingTipLabel")}</div>
+                    {t("report.coachingBody")}
+                  </div>
+                ) : (
+                  <div className="check-list">
+                    {result.warning_tags.map((tag) => (
+                      <div className="check-item" key={tag}>
+                        <div className="check-item-head">
+                          <span className="sev med">
+                            <Info width={11} height={11} />
+                          </span>
+                          <b>{t(("report.warn_" + tag) as never, { defaultValue: tag })}</b>
+                        </div>
+                        <p className="muted check-item-tip">
+                          {t(("report.tip_" + tag) as never, { defaultValue: "" })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          )}
 
           <div style={{ marginBottom: 8 }}>
             <span className="eyebrow">
@@ -611,6 +857,17 @@ export default function Report() {
 
           {isModuleB ? (
             <>
+              {/* UAT remediation (Stage R11): "chart the sub-scores" -- interactive
+                  bar chart (colour-coded by band, hover for exact score + definition)
+                  replaces what used to be 3 more static number cards here. */}
+              {subScoreChartData.length > 0 && (
+                <div className="panel" style={{ marginBottom: 14 }}>
+                  <SubScoreBarChart
+                    data={subScoreChartData}
+                    exerciseType={session?.exercise_type}
+                  />
+                </div>
+              )}
               <div className="sub-scores" style={{ marginBottom: 8 }}>
                 {moduleBRows.map((row) => (
                   <div className="sub-score" key={row.label}>
@@ -666,6 +923,44 @@ export default function Report() {
                 text={squatTrendText(t, moduleBResult?.trend)}
                 style={{ marginBottom: 18 }}
               />
+              {/* UAT remediation (Stage R11): collapsed "Technical details" -- the full
+                  prediction/probability figures the ML-prediction row used to show
+                  inline, now tucked away since Confidence above already communicates
+                  the same certainty in plain language. */}
+              {technicalDetailsRows.length > 0 && (
+                <div className="tech-details" style={{ marginBottom: 18 }}>
+                  <button
+                    type="button"
+                    className="tech-details-toggle"
+                    onClick={() => setDetailsOpen((o) => !o)}
+                    aria-expanded={detailsOpen}
+                  >
+                    <ChevronDown
+                      width={16}
+                      height={16}
+                      style={{
+                        transform: detailsOpen ? "rotate(180deg)" : undefined,
+                        transition: "transform 0.2s var(--ease)",
+                      }}
+                    />
+                    {detailsOpen
+                      ? t("report.technicalDetailsHide")
+                      : t("report.technicalDetailsShow")}
+                  </button>
+                  {detailsOpen && (
+                    <div className="sub-scores" style={{ marginTop: 14 }}>
+                      {technicalDetailsRows.map((row) => (
+                        <div className="sub-score" key={row.label}>
+                          <div className="ss-top">
+                            <b>{row.label}</b>
+                            <span>{row.value}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           ) : hasWbltLegs ? (
             <>
@@ -889,123 +1184,6 @@ export default function Report() {
                 />
               )}
             </>
-          )}
-
-          {isModuleB ? (
-            <div className="dash-grid-2" style={{ marginBottom: 18 }}>
-              <div className="panel">
-                <div className="panel-head" style={{ marginBottom: 16 }}>
-                  <div>
-                    <h3>{t("report.coaching")}</h3>
-                  </div>
-                  <span
-                    className="mi"
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      display: "grid",
-                      placeItems: "center",
-                      background: "var(--good-bg)",
-                      color: "var(--accent-text)",
-                    }}
-                  >
-                    <Lightbulb width={19} height={19} />
-                  </span>
-                </div>
-                <div className="feedback-box">
-                  <div className="fb-label">
-                    {moduleBResult?.feedback?.feedback_source === "llm"
-                      ? t("report.feedbackSourceLlm")
-                      : t("report.feedbackSourceTemplate")}
-                  </div>
-                  {/* Stage 5.17: native <p> + <ul>, never a raw string — this is what
-                      replaces the literal "* " asterisks rendering inline. Falls back to
-                      "feedback unavailable" only when the row itself is missing (a fresh
-                      analyze always produces one); a present-but-empty-tips row still
-                      renders its summary with no bullet list. */}
-                  {moduleBResult?.feedback?.rewritten_feedback_structured ? (
-                    <>
-                      <p>{moduleBResult.feedback.rewritten_feedback_structured.summary}</p>
-                      {moduleBResult.feedback.rewritten_feedback_structured.tips.length > 0 && (
-                        <ul>
-                          {moduleBResult.feedback.rewritten_feedback_structured.tips.map(
-                            (tip, index) => (
-                              <li key={index}>{tip}</li>
-                            ),
-                          )}
-                        </ul>
-                      )}
-                    </>
-                  ) : (
-                    <p>{t("report.feedbackUnavailable")}</p>
-                  )}
-                </div>
-              </div>
-              <div className="panel">
-                <div className="panel-head" style={{ marginBottom: 16 }}>
-                  <h3>{t("report.errorTags")}</h3>
-                </div>
-                <div className="tags">
-                  {moduleBResult?.error_tags.length === 0 && (
-                    <span className="tag">
-                      <span className="sev low" />
-                      {t("report.noWarnings")}
-                    </span>
-                  )}
-                  {moduleBResult?.error_tags.map((tag) => (
-                    <span className="tag" key={tag.tag}>
-                      <span className={"sev " + severityClass(tag.severity)} />
-                      {t(("moduleB.tag_" + tag.tag) as never, { defaultValue: tag.tag })}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            result && (
-              <div className="panel" style={{ marginBottom: 18 }}>
-                <div className="panel-head" style={{ marginBottom: 16 }}>
-                  <div>
-                    <h3>{t("report.coaching")}</h3>
-                  </div>
-                  <span
-                    className="mi"
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      display: "grid",
-                      placeItems: "center",
-                      background: "var(--good-bg)",
-                      color: "var(--accent-text)",
-                    }}
-                  >
-                    <Lightbulb width={19} height={19} />
-                  </span>
-                </div>
-                {result.warning_tags.length === 0 ? (
-                  <div className="feedback-box">
-                    <div className="fb-label">{t("report.coachingTipLabel")}</div>
-                    {t("report.coachingBody")}
-                  </div>
-                ) : (
-                  <div className="check-list">
-                    {result.warning_tags.map((tag) => (
-                      <div className="check-item" key={tag}>
-                        <div className="check-item-head">
-                          <span className="sev med" />
-                          <b>{t(("report.warn_" + tag) as never, { defaultValue: tag })}</b>
-                        </div>
-                        <p className="muted check-item-tip">
-                          {t(("report.tip_" + tag) as never, { defaultValue: "" })}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
           )}
         </>
       )}

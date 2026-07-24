@@ -11,6 +11,7 @@ import "../i18n";
 import Report from "./Report";
 import { PreferencesProvider } from "../preferences";
 import { AuthProvider } from "../auth";
+import { SessionProvider } from "../session";
 import type { SessionDTO } from "../types/api";
 import type { ModuleAResult } from "../services/moduleAService";
 import type { ModuleBResult } from "../services/moduleBService";
@@ -34,7 +35,9 @@ function renderReport(sessionId: string) {
     <MemoryRouter initialEntries={[`/report?session=${sessionId}`]}>
       <AuthProvider>
         <PreferencesProvider>
-          <Report />
+          <SessionProvider>
+            <Report />
+          </SessionProvider>
         </PreferencesProvider>
       </AuthProvider>
     </MemoryRouter>,
