@@ -118,12 +118,6 @@ export default function ExerciseSelection() {
                   · {repInfoFor(exercise.code)}
                 </span>
                 <h3>{exercise.name}</h3>
-                <div className="ex-meta">
-                  <span className="chip">
-                    {t("common." + (mode === "functional" ? "functional" : "rehab"))}
-                  </span>
-                  {mode === "rehab" && <span className="chip">{t("exercise.configurable")}</span>}
-                </div>
               </div>
             </Link>
           ) : (
@@ -141,14 +135,12 @@ export default function ExerciseSelection() {
                 </span>
               </div>
               <h3>{exercise.name}</h3>
-              <p>{exercise.description}</p>
               <div className="ex-meta">
                 <span className="chip">
                   {exercise.view_guidance === "front_view"
                     ? t("exercise.frontView")
                     : t("exercise.sideView")}
                 </span>
-                <span className="chip">{t("exercise.configurable")}</span>
               </div>
             </Link>
           ),

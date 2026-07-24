@@ -249,7 +249,6 @@ const zh: Dict = {
     comingSoon: "即将推出",
     hold: "保持 45 秒",
     trials: "3 次",
-    configurable: "可配置",
     sideView: "侧视",
     frontView: "正视",
     rehabName: "膝关节康复动作",
@@ -303,6 +302,49 @@ const zh: Dict = {
     viewFront: "正面视角",
     continueButton: "我明白了",
     continueCaption: "接下来将进入摄像头设置。",
+    whyTitle: "为什么要做这个动作？",
+  },
+  glossary: {
+    rom: {
+      term: "ROM（关节活动范围）",
+      def: "关节在一个动作中，从一端到另一端能移动的幅度。在安全、可控的姿势下，可用的活动范围越大，通常代表活动度越好。",
+    },
+    dorsiflexion: {
+      term: "踝背屈",
+      def: "脚掌/小腿向前越过脚趾的踝关节动作。背屈角度越大，通常代表踝关节活动度越好。",
+    },
+    band: {
+      term: "评级",
+      def: "用简单的“良好 / 一般 / 较差”来概括本次训练的得分，全站都用它代替原始分数。",
+    },
+    goodFairPoor: {
+      term: "良好 / 一般 / 较差",
+      def: "PhysioFit 全站使用的表现评级。良好为最佳结果，较差为最弱结果 —— 这是功能性参考，不是诊断。",
+    },
+    stability: {
+      term: "稳定性",
+      def: "保持姿势或动作时的稳定程度，依据身体摇晃的幅度而定。摇晃越小，通常代表稳定性越好。",
+    },
+    captureQuality: {
+      term: "捕捉质量",
+      def: "这表示训练过程中摄像头对您身体的追踪可靠程度，与动作质量评级是分开的。捕捉质量越高，结果通常越可信。",
+    },
+    confidence: {
+      term: "置信度",
+      def: "评分模型对自身结果的把握程度。置信度越高代表结果越可靠，并不代表你的表现更好。",
+    },
+    symmetryIndex: {
+      term: "对称性",
+      def: "本次动作中左右两侧的接近程度。左右差异越小，通常代表对称性越好。",
+    },
+    validRep: {
+      term: "有效次数",
+      def: "符合该动作姿势要求、可被评分的一次重复（或尝试）。不符合要求的次数会被标记，且不计入你的目标次数。",
+    },
+    holdTime: {
+      term: "保持时间",
+      def: "例如单腿站立时保持姿势的时长。在测试上限内，保持时间越长，通常代表平衡和耐力越好。",
+    },
   },
   live: {
     timer: "时间",
@@ -373,8 +415,6 @@ const zh: Dict = {
     feedbackUnavailable: "此次训练暂无指导反馈。",
     disclaimer: "本报告仅描述动作质量，并非医学诊断。如有疼痛或疑虑，请咨询合格的医疗专业人员。",
     bandInfoLabel: "此评级代表什么？",
-    captureQualityInfoLabel: "捕捉质量代表什么？",
-    captureQualityMeaning: "这表示训练过程中摄像头对您身体的追踪可靠程度，与动作质量评级是分开的。",
     nonDiagnosticReminder: "此结果仅为动作质量指标，并非医学诊断。",
     newSession: "新建训练",
     viewHistory: "查看历史",
@@ -404,7 +444,16 @@ const zh: Dict = {
     fastestRep: "最快一次",
     slowestRep: "最慢一次",
     kneeRom: "膝关节活动范围（估算）",
+    kneeRomMeaning:
+      "本组训练中膝关节角度最小值与最大值之间的范围 —— 这是真实膝关节活动度的估算值，并非直接的临床测量。范围越大，通常代表起坐动作越完整。",
     trunkLean: "平均躯干前倾角",
+    trunkLeanMeaning:
+      "站起过程中躯干平均前倾的幅度。适度前倾是健康起坐动作的正常部分 —— 仅供参考，不计入好坏评分。",
+    attemptedRepsMeaning:
+      "本组训练中检测到的每一次起坐动作，包括不符合姿势要求、未计为有效的次数。",
+    tempoConsistencyMeaning: "本组训练中各次动作节奏的一致程度。节奏越稳定，通常代表动作控制越好。",
+    stabilityControlMeaning:
+      "深蹲过程中的控制与稳定程度，依据每次动作中的躯干摇晃与左右偏移评估。不必要的晃动越少，通常代表稳定控制越好。",
     captureQualityBand: "拍摄质量",
     warnings: "需要注意的问题",
     noWarnings: "本次训练未标记任何问题。",
@@ -538,6 +587,8 @@ const zh: Dict = {
     focusTagUnset: "关注部位：未设置",
   },
   sls: {
+    whyThisExercise:
+      "单腿站立测试常用于检查站立平衡与姿势控制能力。稳定性越好、保持时间越长，通常代表平衡能力越强。",
     // 设置指引
     supportGuidance: "在身旁放一把椅子或靠墙。如果感到不稳，可用一只手轻轻扶着支撑。",
     setupInstrTitle: "测试说明",
@@ -611,6 +662,8 @@ const zh: Dict = {
     instrOverlayBody: "圆环显示你的平衡状态 — 让小球保持居中。线标示你的脚需要保持在其上方的高度。",
   },
   wblt: {
+    whyThisExercise:
+      "负重弓步测试常用于检查踝关节灵活度 —— 即在脚跟不离地的情况下，膝盖能越过脚趾多远。距离越大，通常代表踝关节活动度越好。",
     setupGuidanceSide: "侧对镜头站立，确保膝盖、脚踝、脚跟和脚掌都清晰可见。",
     setupGuidanceDistance: "开始前，用卷尺或直尺测量到墙壁的距离。",
     setupGuidanceLunge: "向前弓步，尝试让膝盖碰到墙壁，同时保持脚跟贴地。",
@@ -697,6 +750,8 @@ const zh: Dict = {
     instrEquipment: "你需要一面墙作为弓步的目标。",
   },
   squat: {
+    whyThisExercise:
+      "深蹲常用于检查下肢动作质量 —— 包括深度、控制力与姿势。深度、躯干姿势与脚跟着地都保持良好，通常代表动作质量更好。",
     reportTitle: "深蹲",
     livePrompt: "按自己的节奏深蹲，完成后结束这组训练。",
     setupTargetPrompt: "可以选择性地设定个人次数目标——这不会影响你的评分。",
@@ -741,6 +796,8 @@ const zh: Dict = {
     targetPromptTitle: "目标次数是多少？",
   },
   sts: {
+    whyThisExercise:
+      "起坐测试常用于检查下肢力量与功能性活动能力，反映你从坐姿站起的难易程度 —— 这是日常生活中常见的动作。",
     instrTitle: "起坐测试 — 如何进行",
     instrStep1: "面对摄像头坐在椅子上，确保从座位以上的全身都可见。",
     instrStep2: "完全站起后再坐下——按自己的节奏重复。",

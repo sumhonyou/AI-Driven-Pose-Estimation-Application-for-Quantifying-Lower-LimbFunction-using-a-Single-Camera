@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { DashTopbar } from "../layouts/DashboardLayout";
-import { ArrowLeft, Play, Lightbulb } from "../components/Icons";
+import { ArrowLeft, Play, Lightbulb, Info } from "../components/Icons";
 import { useSessionFlow } from "../session";
 import { instructionConfigForExerciseCode } from "../config/exerciseInstructions";
 
@@ -103,6 +103,20 @@ export default function ExerciseInstructions() {
             <h3>{t("instr.docTitle")}</h3>
             <p className="instr-doc-subtitle">{t("instr.docSubtitle")}</p>
           </div>
+
+          {/* UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb
+              (T4 -- the most-repeated content request), one shared source per
+              exercise (config/exerciseInstructions.ts::whyKey). */}
+          <div className="instr-why">
+            <span className="instr-why-icon">
+              <Info width={16} height={16} />
+            </span>
+            <div>
+              <p className="instr-why-title">{t("instr.whyTitle")}</p>
+              <p className="instr-why-body">{t(config.whyKey as never)}</p>
+            </div>
+          </div>
+
           <div className="instr-divider" />
           <ol className="instr-steps">
             {config.stepKeys.map((key, i) => (

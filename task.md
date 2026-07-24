@@ -4973,7 +4973,7 @@ legendBall,legendLine,autoStopsIn,showDetails,hideDetails}` in en/zh/ms.
       the rest of the site) — e.g. the Back control uses the site's existing
       `.back-link`, not Figma's bordered pill.
 - [x] **New shared template, `pages/ExerciseInstructions.tsx` + `config/
-  exerciseInstructions.ts`:** one config entry per exercise (`sts`, `sls`,
+exerciseInstructions.ts`:** one config entry per exercise (`sts`, `sls`,
       `wblt`, `squat`) drives the whole page — title, demo video, numbered steps
       (i18n keys), camera-angle image + caption + expected view, and an optional
       SLS-only `overlayExplainer` slot. Adding a future exercise only means adding
@@ -5139,10 +5139,10 @@ Small set of HY corrections on top of Stage R9, all in
 - [x] Dead i18n cleanup (all 3 locales, en/zh/ms): removed
       `camera.guidanceTitle/guidanceBody/guidanceFront/guidanceSide`,
       `camera.startSession`, `camera.demoTitle`, `sls.setupGuidanceFront/
-    Lift/Touchdown/Ball`, `squat.setupGuidanceSide/Space/Pace` — all
+Lift/Touchdown/Ball`, `squat.setupGuidanceSide/Space/Pace` — all
       orphaned by the panel removal above and confirmed via grep to have no
       remaining references. Also swept up `sls.legendTitle/legendBall/
-    legendLine`, a stale leftover from Stage R8's now-deleted
+legendLine`, a stale leftover from Stage R8's now-deleted
       `OverlayLegend.tsx` component (flagged but not addressed at the time).
 - [x] WBLT: shortened `wblt.warn_retry_leg_visibility` per HY's wording
       ("Step back so your whole leg stays visible.", was a longer sentence
@@ -5167,3 +5167,120 @@ Small set of HY corrections on top of Stage R9, all in
       status box stayed theme-green; and the reworked Camera Setup right
       column showing the moved banner and the relocated auto-start countdown
       in place of the removed guidance/demo panels and Start button.
+
+### Phase 10 — Stage R10: Global glossary + tooltips + "why this exercise" (2026-07-24)
+
+Per the UAT remediation plan (`GROUP C`): T4 (12/18 UAT sessions) — terminology
+unexplained, the most-repeated content request. Extends the existing
+`InfoTooltip.tsx` (already used for band/confidence in Report.tsx) rather than
+reimplementing it, per the plan's explicit instruction.
+
+- [x] New [config/glossary.ts](./frontend/src/config/glossary.ts) — one shared
+      `GLOSSARY` record for the plan's 10 named terms (ROM, dorsiflexion, band,
+      Good/Fair/Poor, stability, capture quality, confidence, symmetry index,
+      valid rep, hold time), each an `{termKey, defKey}` pair into a new
+      `glossary.*` i18n namespace. Every definition states which direction is
+      better (S16), in non-diagnostic language.
+- [x] New [components/GlossaryTerm.tsx](./frontend/src/components/GlossaryTerm.tsx)
+      — icon-only wrapper (`<GlossaryTerm id="stability" />`) that looks up an
+      entry and renders it through the existing `InfoTooltip`, so it sits next
+      to whatever label the page already shows rather than repeating the term's
+      canonical name.
+- [x] Wired into [Report.tsx](./frontend/src/pages/Report.tsx) at 7 real spots
+      across all 3 exercise families, so this is genuinely "one shared source
+      reused by report" today, not just a config nobody calls yet: ROM
+      completeness sub-score (squat), rep-breakdown heading + the WBLT attempts
+      table's "Valid form" column (`validRep`), the WBLT angle metric
+      (`dorsiflexion`), the WBLT symmetry panel + SLS left/right-difference row
+      (`symmetryIndex`), SLS best-hold (`holdTime`), and SLS stability score
+      (`stability`). The pre-existing capture-quality tooltip was migrated onto
+      the glossary too — its old bespoke `report.captureQualityMeaning`/
+      `captureQualityInfoLabel` i18n keys were dead-coded and removed (all 3
+      locales) now that `glossary.captureQuality` is the single source. Left
+      the band-specific tooltip (`bandMeaningKey`) untouched — it explains what
+      _this session's actual band_ means, which is more useful than the
+      glossary's generic band/Good-Fair-Poor entries; those two terms stay
+      defined in the glossary for a future consumer (dashboard, R12) rather
+      than forcing a redundant wire-up now.
+- [x] "Why this exercise" — two-sentence, non-diagnostic purpose+benefit blurb
+      per exercise ("commonly used to check X", never "tells you whether you
+      have X"), new `<exercise>.whyThisExercise` i18n key per exercise (all 3
+      locales), added as a `whyKey` field on
+      [config/exerciseInstructions.ts](./frontend/src/config/exerciseInstructions.ts)'s
+      per-exercise config: - [ExerciseInstructions.tsx](./frontend/src/pages/ExerciseInstructions.tsx):
+      a new visible `.instr-why` card (icon + heading + paragraph) near the
+      top of the doc panel, above the numbered steps. - [ExerciseSelection.tsx](./frontend/src/pages/ExerciseSelection.tsx): a
+      short `.ex-why` line (CSS `-webkit-line-clamp: 2`) added to both card
+      variants (bento + rehab-mode compact). Deliberately **plain text, not
+      an InfoTooltip** here — the whole card is itself a `<Link>`, and
+      nesting a focusable tooltip trigger inside an anchor is both invalid
+      HTML and would swallow taps meant for card navigation; a short
+      clamped line sidesteps that instead of building a workaround.
+- [x] Verified: `tsc --noEmit` clean, full `vitest` **53/53** unchanged (no
+      logic touched, only new config/components/i18n + additive JSX), Prettier
+      clean. Browser-verified in the Preview pane (same compiled-markup
+      approach as prior stages): the `.instr-why` card renders correctly, a
+      glossary-backed tooltip trigger renders inline next to a metric label
+      (ROM completeness), and the `.ex-why` line clamps to 2 lines on a card
+      without breaking its layout.
+- [ ] Not yet done (deliberately, per the plan's own scoping): `glossary.band`
+      and `glossary.goodFairPoor` are defined but not wired into a live page
+      yet, since Report.tsx's existing band tooltip is already better for that
+      specific spot; a natural home for the generic version is the future R12
+      dashboard work. Backend untouched — this stage is frontend-only, so the
+      existing backend suite is unaffected.
+
+### Phase 10 — Stage R10 follow-up: more report tooltips + card cleanup (2026-07-25)
+
+Three small corrections on top of R10, from real screenshots of the STS and
+Squat reports:
+
+- [x] [ExerciseSelection.tsx](./frontend/src/pages/ExerciseSelection.tsx): removed
+      the backend-supplied `exercise.description` paragraph from the rehab-mode
+      compact card — the new R10 `.ex-why` line already covers "what is this
+      exercise for," so the card no longer shows two overlapping blurbs.
+- [x] [Report.tsx](./frontend/src/pages/Report.tsx) STS metric cards
+      (`metricRows`): added tooltips to **Valid reps** (reuses the shared
+      `glossary.validRep` definition), **Attempted reps**, **Knee ROM proxy**,
+      and **Avg. trunk lean** — the latter two get their own dedicated text
+      rather than the generic glossary ROM def, since `knee_rom_deg` is
+      explicitly labelled a "proxy" (it's `max−min` knee angle across the set,
+      `sts/engine.py:193`, not a clinical ROM measurement) and trunk lean has
+      no universal "less is better" direction (some forward lean is a normal,
+      healthy part of standing up) — stating that honestly rather than forcing
+      a direction-of-good that doesn't exist. `metricRows` items didn't have an
+      `info` field before this; added it optionally and rendered via the same
+      `row.info && <InfoTooltip>` pattern `moduleBRows` already uses.
+- [x] Squat sub-scores (`moduleBRows`'s `rule_subscores` map): added tooltips to
+      **Tempo consistency** and **Stability control** (ROM completeness's
+      tooltip already shipped in R10) — new dedicated `report.*Meaning` i18n
+      keys, since neither is one of the glossary's 10 named terms.
+- [x] Verified: `tsc --noEmit` clean, full `vitest` **53/53** unchanged,
+      Prettier clean. Browser-verified in the Preview pane: STS card grid shows
+      the 4 requested tooltip icons in the right positions, Squat's Tempo
+      consistency/Stability control show theirs, and the exercise card renders
+      with only the title + why-line (no more duplicate description text).
+
+### Phase 10 — Stage R10 follow-up 2: exercise-card cleanup (2026-07-25)
+
+HY clarified with a screenshot that the R10-follow-up-1 fix wasn't quite it —
+the "why this exercise" blurb (which reads as a second description at a
+glance) and the mode/configurable chips should come off the exercise-selection
+cards entirely, leaving just image (bento) or icon, view chip, and title.
+
+- [x] [ExerciseSelection.tsx](./frontend/src/pages/ExerciseSelection.tsx): removed
+      the `.ex-why` paragraph and the `.ex-meta` chip row (`Functional`/`Rehab`/
+      `Configurable`) from **both** card variants — the bento (image-dominant,
+      functional mode) card now shows only eyebrow (view + rep info) and title;
+      the rehab-mode compact card keeps just its own view chip (side/front),
+      still wrapped in `.ex-meta` for the existing spacing, with the mode and
+      "Configurable" chips gone. Deleted the now-unused `whyKeyFor()` helper.
+- [x] Dead-code cleanup: `.ex-why` (index.css) and `exercise.configurable`
+      (all 3 locales) had no other callers after the above and were removed.
+      `common.functional`/`common.rehab` were checked too but are genuinely
+      still used elsewhere (SessionHistory, Dashboard, StsLiveSessionPage) —
+      left alone.
+- [x] Verified: `tsc --noEmit` clean, full `vitest` **53/53** unchanged,
+      Prettier clean. Browser-verified in the Preview pane against HY's
+      reference screenshot: bento cards now render as image → eyebrow → title
+      only, matching exactly.

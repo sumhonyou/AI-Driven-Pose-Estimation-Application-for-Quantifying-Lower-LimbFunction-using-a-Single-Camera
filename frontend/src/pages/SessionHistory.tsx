@@ -67,8 +67,14 @@ export default function SessionHistory() {
     return <Activity />;
   };
 
+  // Hide mid-cancel / abandoned sessions that never got scored — those rows
+  // show only "—" for quality/band/reps/score and clutter the history table.
+  const hasResult = (r: SessionDTO) =>
+    r.capture_quality != null || r.band != null || r.rep_count != null || r.score != null;
+
   const rows = sessions.filter(
     (r) =>
+      hasResult(r) &&
       (filter === "all" || r.mode === filter) &&
       (exerciseFilter === ALL_EXERCISES || r.exercise_code === exerciseFilter),
   );

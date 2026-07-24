@@ -263,7 +263,6 @@ const ms: Dict = {
     comingSoon: "Akan datang",
     hold: "tahan 45s",
     trials: "3 percubaan",
-    configurable: "Boleh dikonfigur",
     sideView: "Pandangan sisi",
     frontView: "Pandangan depan",
     rehabName: "Senaman Pemulihan Lutut",
@@ -319,6 +318,49 @@ const ms: Dict = {
     viewFront: "Pandangan hadapan",
     continueButton: "Faham",
     continueCaption: "Anda akan diteruskan ke persediaan kamera seterusnya.",
+    whyTitle: "Kenapa senaman ini?",
+  },
+  glossary: {
+    rom: {
+      term: "ROM (Julat Pergerakan)",
+      def: "Sejauh mana sendi bergerak sepanjang satu pergerakan, dari satu hujung ke hujung lain. Julat yang lebih boleh digunakan dalam bentuk yang selamat dan terkawal umumnya menunjukkan mobiliti yang lebih baik.",
+    },
+    dorsiflexion: {
+      term: "Dorsifleksi",
+      def: "Pergerakan buku lali menarik kaki/tulang kering ke hadapan melepasi jari kaki. Sudut dorsifleksi yang lebih besar umumnya menunjukkan mobiliti buku lali yang lebih baik.",
+    },
+    band: {
+      term: "Gred",
+      def: "Ringkasan bahasa mudah Baik / Sederhana / Lemah bagi skor anda untuk sesi ini, digunakan di seluruh aplikasi sebagai ganti nombor mentah.",
+    },
+    goodFairPoor: {
+      term: "Baik / Sederhana / Lemah",
+      def: "Gred prestasi yang digunakan di seluruh PhysioFit. Baik adalah keputusan terkuat dan Lemah yang terlemah — baca sebagai panduan fungsian, bukan diagnosis.",
+    },
+    stability: {
+      term: "Kestabilan",
+      def: "Sejauh mana anda kekal stabil semasa tahanan atau pergerakan, berdasarkan berapa banyak badan anda bergoyang. Goyangan yang kurang umumnya menunjukkan kestabilan yang lebih baik.",
+    },
+    captureQuality: {
+      term: "Kualiti tangkapan",
+      def: "Ini menunjukkan sejauh mana kamera dapat mengesan badan anda dengan boleh dipercayai semasa sesi — ia berasingan daripada gred kualiti pergerakan anda. Kualiti tangkapan yang lebih tinggi umumnya bermaksud keputusan yang lebih boleh dipercayai.",
+    },
+    confidence: {
+      term: "Keyakinan",
+      def: "Sejauh mana model penskoran yakin dengan keputusannya sendiri. Keyakinan yang lebih tinggi bermaksud keputusan lebih boleh dipercayai, bukan prestasi anda lebih baik.",
+    },
+    symmetryIndex: {
+      term: "Simetri",
+      def: "Sejauh mana sebelah kiri dan kanan anda hampir sama pada senaman ini. Perbezaan kiri/kanan yang lebih kecil umumnya menunjukkan simetri yang lebih baik.",
+    },
+    validRep: {
+      term: "Ulangan sah",
+      def: "Ulangan (atau cubaan) yang memenuhi keperluan bentuk senaman dan boleh diskor. Ulangan yang tidak memenuhi keperluan ini akan ditandakan dan tidak dikira ke arah sasaran anda.",
+    },
+    holdTime: {
+      term: "Tempoh tahanan",
+      def: "Berapa lama anda menahan kedudukan, seperti tahanan satu kaki. Tempoh tahanan yang lebih lama, sehingga had ujian, umumnya menunjukkan keseimbangan dan ketahanan yang lebih baik.",
+    },
   },
   live: {
     timer: "Masa",
@@ -391,9 +433,6 @@ const ms: Dict = {
     disclaimer:
       "Laporan ini hanya menerangkan kualiti pergerakan dan bukan diagnosis perubatan. Jika anda mengalami kesakitan atau kebimbangan, rujuk profesional kesihatan yang berkelayakan.",
     bandInfoLabel: "Apakah maksud gred ini?",
-    captureQualityInfoLabel: "Apakah maksud kualiti tangkapan?",
-    captureQualityMeaning:
-      "Ini menunjukkan sejauh mana kamera dapat mengesan badan anda dengan boleh dipercayai semasa sesi — ia berasingan daripada gred kualiti pergerakan anda.",
     nonDiagnosticReminder:
       "Keputusan ini hanya penunjuk kualiti pergerakan dan bukan diagnosis perubatan.",
     newSession: "Sesi baharu",
@@ -426,7 +465,17 @@ const ms: Dict = {
     fastestRep: "Ulangan terpantas",
     slowestRep: "Ulangan terperlahan",
     kneeRom: "Anggaran julat gerakan lutut",
+    kneeRomMeaning:
+      "Julat antara sudut lutut terkecil dan terbesar sepanjang set — anggaran bagi julat gerakan lutut sebenar, bukan pengukuran klinikal langsung. Julat yang lebih besar umumnya menunjukkan pergerakan duduk-ke-berdiri yang lebih penuh.",
     trunkLean: "Purata condong badan",
+    trunkLeanMeaning:
+      "Sejauh mana batang tubuh anda condong ke hadapan secara purata semasa berdiri. Sedikit condongan ke hadapan adalah bahagian normal dan sihat semasa berdiri — ditunjukkan untuk rujukan, bukan diskor baik atau buruk.",
+    attemptedRepsMeaning:
+      "Setiap pergerakan duduk-ke-berdiri yang dikesan semasa set ini, termasuk yang tidak memenuhi keperluan bentuk dan oleh itu tidak dikira sah.",
+    tempoConsistencyMeaning:
+      "Sejauh mana rentak anda konsisten merentasi ulangan dalam set ini. Rentak yang lebih stabil umumnya menunjukkan kawalan motor yang lebih baik.",
+    stabilityControlMeaning:
+      "Sejauh mana squat anda terkawal dan stabil, berdasarkan goyangan batang tubuh dan gelinciran sisi semasa setiap ulangan. Pergerakan yang tidak diperlukan yang kurang umumnya menunjukkan kawalan kestabilan yang lebih baik.",
     captureQualityBand: "Kualiti tangkapan",
     warnings: "Perkara untuk disemak",
     noWarnings: "Tiada isu ditandakan untuk sesi ini.",
@@ -570,6 +619,8 @@ const ms: Dict = {
     focusTagUnset: "Fokus: Belum ditetapkan",
   },
   sls: {
+    whyThisExercise:
+      "Ujian Tahanan Satu Kaki lazimnya digunakan untuk menilai keseimbangan berdiri dan kawalan postur. Kestabilan yang lebih baik dan tempoh tahanan yang lebih lama umumnya menunjukkan keseimbangan yang lebih kuat.",
     // Panduan persediaan
     supportGuidance:
       "Letakkan kerusi atau dinding di sisi anda. Sandarkan satu tangan dengan ringan padanya untuk sokongan jika anda berasa tidak stabil.",
@@ -652,6 +703,8 @@ const ms: Dict = {
       "Gelang menunjukkan keseimbangan anda — kekalkan bola di tengah. Garisan menandakan ketinggian yang kaki anda perlu kekal di atasnya.",
   },
   wblt: {
+    whyThisExercise:
+      "Ujian Lunge Menahan Berat lazimnya digunakan untuk menilai fleksibiliti buku lali — sejauh mana lutut anda boleh bergerak melepasi jari kaki tanpa tumit terangkat. Jarak yang lebih jauh umumnya menunjukkan mobiliti buku lali yang lebih baik.",
     setupGuidanceSide:
       "Berdiri sisi menghadap kamera supaya lutut, buku lali, tumit dan tapak kaki anda kelihatan jelas.",
     setupGuidanceDistance:
@@ -758,6 +811,8 @@ const ms: Dict = {
     instrEquipment: "Anda memerlukan dinding untuk lunge ke arahnya.",
   },
   squat: {
+    whyThisExercise:
+      "Squat lazimnya digunakan untuk menilai kualiti pergerakan anggota bawah — kedalaman, kawalan, dan postur. Bentuk yang baik merangkumi kedalaman, kedudukan batang tubuh, dan sentuhan tumit umumnya menunjukkan kualiti pergerakan yang lebih baik.",
     reportTitle: "Squat",
     livePrompt: "Squat mengikut rentak anda sendiri, kemudian tamatkan set apabila selesai.",
     setupTargetPrompt:
@@ -806,6 +861,8 @@ const ms: Dict = {
     targetPromptTitle: "Berapa banyak ulangan?",
   },
   sts: {
+    whyThisExercise:
+      "Ujian Duduk ke Berdiri lazimnya digunakan untuk menilai kekuatan anggota bawah dan mobiliti fungsian. Ia mencerminkan sejauh mana mudahnya anda bangun daripada kedudukan duduk, satu pergerakan yang digunakan sepanjang kehidupan seharian.",
     instrTitle: "Duduk ke Berdiri — cara melakukannya",
     instrStep1:
       "Duduk di kerusi menghadap kamera, dengan seluruh badan anda kelihatan dari tempat duduk ke atas.",

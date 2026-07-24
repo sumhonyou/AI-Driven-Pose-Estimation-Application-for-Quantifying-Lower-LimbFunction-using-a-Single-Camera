@@ -5361,6 +5361,38 @@ html[data-theme="dark"] .ex-card .ex-img {
   font-size: 0.72rem;
   font-weight: 700;
 }
+/* UAT remediation (Stage R10): "why this exercise" blurb, same shape as
+   `.instr-equipment` below (icon + text card) for visual consistency. */
+.instr-why {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+}
+.instr-why-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--accent-text);
+}
+.instr-why-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.instr-why-body {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-2);
+}
 .instr-equipment {
   display: flex;
   align-items: flex-start;

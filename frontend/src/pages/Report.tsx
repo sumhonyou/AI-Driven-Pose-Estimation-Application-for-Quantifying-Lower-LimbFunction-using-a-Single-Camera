@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { DashTopbar } from "../layouts/DashboardLayout";
 import { Lightbulb, ShieldCheck, History, Plus, Alert } from "../components/Icons";
 import InfoTooltip from "../components/InfoTooltip";
+import GlossaryTerm from "../components/GlossaryTerm";
 import { sessionService } from "../services/sessionService";
 import {
   moduleAService,
@@ -329,6 +330,17 @@ export default function Report() {
         ...moduleBResult.metrics.rule_subscores.map((s) => ({
           label: t(("moduleB.subscore_" + s.code) as never, { defaultValue: s.code }),
           value: s.score != null ? `${s.score.toFixed(1)}/10` : "—",
+          // UAT remediation (Stage R10 / follow-up): "ROM completeness" reuses the
+          // shared glossary definition; tempo consistency and stability control
+          // get their own since neither is one of the 10 glossary terms.
+          info:
+            s.code === "rom_completeness"
+              ? t("glossary.rom.def")
+              : s.code === "tempo_consistency"
+                ? t("report.tempoConsistencyMeaning")
+                : s.code === "stability_control"
+                  ? t("report.stabilityControlMeaning")
+                  : undefined,
         })),
         {
           label: t("report.mlPred"),
@@ -383,12 +395,16 @@ export default function Report() {
             {
               label: t("report.validReps"),
               value: `${result.metrics.rep_count}/${result.metrics.target_rep_count}`,
+              // UAT remediation (Stage R10 follow-up): reuses the shared glossary
+              // "valid rep" definition rather than inventing a second one.
+              info: t("glossary.validRep.def"),
             },
             ...(result.metrics.client_attempted_reps != null
               ? [
                   {
                     label: t("report.attemptedReps"),
                     value: `${result.metrics.client_attempted_reps}`,
+                    info: t("report.attemptedRepsMeaning"),
                   },
                 ]
               : []),
@@ -411,10 +427,12 @@ export default function Report() {
             {
               label: t("report.kneeRom"),
               value: fmtDeg(result.metrics.knee_rom_deg),
+              info: t("report.kneeRomMeaning"),
             },
             {
               label: t("report.trunkLean"),
               value: fmtDeg(result.metrics.avg_trunk_lean_deg),
+              info: t("report.trunkLeanMeaning"),
             },
             {
               label: t("report.captureQualityBand"),
@@ -544,10 +562,7 @@ export default function Report() {
                   <ShieldCheck width={16} height={16} style={{ color: "var(--emerald)" }} />
                   {t("report.captureQualityBand")}: {t("common." + captureQualityBandTop)}
                 </span>
-                <InfoTooltip
-                  text={t("report.captureQualityMeaning")}
-                  label={t("report.captureQualityInfoLabel")}
-                />
+                <GlossaryTerm id="captureQuality" />
               </div>
               <p className="muted" style={{ maxWidth: "40em", marginBottom: 10 }}>
                 {t(bandMeaningKey(band))}
@@ -619,6 +634,7 @@ export default function Report() {
                       counted: countedReps,
                       rejected: rejectedReps,
                     })}
+                    <GlossaryTerm id="validRep" />
                   </b>
                   <ul>
                     {Object.entries(rejectionCounts)
@@ -678,7 +694,10 @@ export default function Report() {
                         </p>
                       )}
                       <div className="sls-metric-row">
-                        <span className="sls-metric-label">{t("wblt.angleResultLabel")}</span>
+                        <span className="sls-metric-label">
+                          {t("wblt.angleResultLabel")}
+                          <GlossaryTerm id="dorsiflexion" />
+                        </span>
                         <span className="sls-metric-value">
                           {m.leg_angle_deg != null ? `${m.leg_angle_deg.toFixed(1)}°` : "—"}
                         </span>
@@ -693,7 +712,10 @@ export default function Report() {
                 })}
                 <div className="panel">
                   <div className="panel-head" style={{ marginBottom: 18 }}>
-                    <h3>{t("wblt.symmetryTitle")}</h3>
+                    <h3>
+                      {t("wblt.symmetryTitle")}
+                      <GlossaryTerm id="symmetryIndex" />
+                    </h3>
                   </div>
                   <p className="muted" style={{ fontSize: "0.85rem" }}>
                     {symmetry?.status === "asymmetry_flag"
@@ -724,7 +746,10 @@ export default function Report() {
                         <th>{t("wblt.thDistance")}</th>
                         <th>{t("wblt.thTouched")}</th>
                         <th>{t("wblt.thAngle")}</th>
-                        <th>{t("wblt.thValidForm")}</th>
+                        <th>
+                          {t("wblt.thValidForm")}
+                          <GlossaryTerm id="validRep" />
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -772,11 +797,17 @@ export default function Report() {
                       <span className={"band " + m.band}>{t("common." + m.band)}</span>
                     </div>
                     <div className="sls-metric-row">
-                      <span className="sls-metric-label">{t("sls.bestHold")}</span>
+                      <span className="sls-metric-label">
+                        {t("sls.bestHold")}
+                        <GlossaryTerm id="holdTime" />
+                      </span>
                       <span className="sls-metric-value">{fmtSec(m.holdSeconds)}</span>
                     </div>
                     <div className="sls-metric-row">
-                      <span className="sls-metric-label">{t("sls.stabilityScore")}</span>
+                      <span className="sls-metric-label">
+                        {t("sls.stabilityScore")}
+                        <GlossaryTerm id="stability" />
+                      </span>
                       <span className="sls-metric-value">{m.stabilityScore.toFixed(1)}/10</span>
                     </div>
                     <div className="sls-metric-row">
@@ -799,7 +830,10 @@ export default function Report() {
                   <h3>{t("sls.perLegHeading")}</h3>
                 </div>
                 <div className="sls-metric-row">
-                  <span className="sls-metric-label">{t("sls.lrDifference")}</span>
+                  <span className="sls-metric-label">
+                    {t("sls.lrDifference")}
+                    <GlossaryTerm id="symmetryIndex" />
+                  </span>
                   <span className="sls-metric-value">
                     {fmtSec(result?.metrics.leftRightHoldDifferenceSeconds)}
                   </span>
@@ -833,7 +867,12 @@ export default function Report() {
                 {metricRows.map((row) => (
                   <div className="sub-score" key={row.label}>
                     <div className="ss-top">
-                      <b>{row.label}</b>
+                      <b>
+                        {row.label}
+                        {"info" in row && row.info && (
+                          <InfoTooltip text={row.info} label={row.label} />
+                        )}
+                      </b>
                       <span>{row.value}</span>
                     </div>
                   </div>

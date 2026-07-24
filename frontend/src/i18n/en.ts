@@ -263,7 +263,6 @@ const en = {
     comingSoon: "Coming soon",
     hold: "45s hold",
     trials: "3 trials",
-    configurable: "Configurable",
     sideView: "Side view",
     frontView: "Front view",
     rehabName: "Knee Rehab Exercise",
@@ -320,6 +319,54 @@ const en = {
     viewFront: "Front view",
     continueButton: "Understand",
     continueCaption: "You'll move to camera setup next.",
+    // UAT remediation (Stage R10): heading for the new "why this exercise" block.
+    whyTitle: "Why this exercise?",
+  },
+  // UAT remediation (Stage R10): shared glossary terms, rendered via
+  // <GlossaryTerm id="..."/> next to a metric/label wherever it's used (Report,
+  // camera/instructions, and future dashboard work) -- one definition per term,
+  // reused everywhere instead of each page inventing its own explanation text.
+  glossary: {
+    rom: {
+      term: "ROM (Range of Motion)",
+      def: "How far a joint moves through a movement, from one end of its motion to the other. More usable range within safe, controlled form generally reflects better mobility.",
+    },
+    dorsiflexion: {
+      term: "Dorsiflexion",
+      def: "The ankle motion of pulling your foot/shin forward over your toes. A larger dorsiflexion angle generally reflects better ankle mobility.",
+    },
+    band: {
+      term: "Band",
+      def: "A plain-language Good / Fair / Poor summary of your score for this session, used throughout the app instead of a raw number.",
+    },
+    goodFairPoor: {
+      term: "Good / Fair / Poor",
+      def: "The performance bands used across PhysioFit. Good is the strongest result and Poor is the weakest — read as a functional guide, not a diagnosis.",
+    },
+    stability: {
+      term: "Stability",
+      def: "How steady you stayed during a hold or movement, based on how much your body swayed. Less sway generally reflects better stability.",
+    },
+    captureQuality: {
+      term: "Capture quality",
+      def: "How reliably the camera tracked your body during the session — it's separate from your movement-quality band. Higher capture quality generally means a more trustworthy result.",
+    },
+    confidence: {
+      term: "Confidence",
+      def: "How certain the scoring model is about its own result. Higher confidence means the result is more reliable, not that your performance was better.",
+    },
+    symmetryIndex: {
+      term: "Symmetry",
+      def: "How closely your left and right sides matched on this exercise. A smaller left/right difference generally reflects better symmetry.",
+    },
+    validRep: {
+      term: "Valid rep",
+      def: "A repetition (or attempt) that met the exercise's form requirements and could be scored. Reps that don't meet these requirements are flagged and don't count toward your target.",
+    },
+    holdTime: {
+      term: "Hold time",
+      def: "How long you held a position, such as a single-leg stance. A longer hold time, up to the test's cap, generally reflects better balance and endurance.",
+    },
   },
   live: {
     timer: "Time",
@@ -400,9 +447,6 @@ const en = {
     disclaimer:
       "This report describes movement quality only and is not a medical diagnosis. If you have pain or concerns, consult a qualified healthcare professional.",
     bandInfoLabel: "What does this band mean?",
-    captureQualityInfoLabel: "What does capture quality mean?",
-    captureQualityMeaning:
-      "This shows how reliably the camera tracked your body during the session — it's separate from your movement-quality band.",
     nonDiagnosticReminder:
       "This result is a movement-quality indicator only and is not a medical diagnosis.",
     newSession: "New session",
@@ -434,7 +478,17 @@ const en = {
     fastestRep: "Fastest rep",
     slowestRep: "Slowest rep",
     kneeRom: "Knee ROM proxy",
+    kneeRomMeaning:
+      "The range between your smallest and largest knee angle across the set — a proxy for true knee range of motion, not a direct clinical measurement. A larger range generally reflects a fuller stand-to-sit movement.",
     trunkLean: "Avg. trunk lean",
+    trunkLeanMeaning:
+      "How far forward your trunk leaned on average while standing up. Some forward lean is a normal, healthy part of standing up — shown for reference, not scored as better or worse.",
+    attemptedRepsMeaning:
+      "Every stand-to-sit movement detected during the set, including ones that didn't meet the form requirements and so weren't counted as valid.",
+    tempoConsistencyMeaning:
+      "How consistent your pace was across reps in this set. A steadier tempo generally reflects better motor control.",
+    stabilityControlMeaning:
+      "How controlled and steady your squat was, based on trunk sway and lateral drift during each rep. Less unwanted movement generally reflects better stability control.",
     captureQualityBand: "Capture quality",
     warnings: "Things to check",
     noWarnings: "No issues flagged for this session.",
@@ -580,6 +634,10 @@ const en = {
     focusTagUnset: "Focus: Not set",
   },
   sls: {
+    // UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb —
+    // purpose + benefit, never "tells you whether you have X".
+    whyThisExercise:
+      "The Single-Leg Stance test is commonly used to check standing balance and postural control. Better steadiness and a longer hold time generally reflect stronger balance.",
     // Setup guidance
     supportGuidance:
       "Keep a chair or wall beside you. Rest one hand lightly on it for support if you feel unsteady.",
@@ -669,6 +727,9 @@ const en = {
       "A ring shows your balance — keep the ball centred. A line marks the height your foot must stay above.",
   },
   wblt: {
+    // UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb.
+    whyThisExercise:
+      "The Weight-Bearing Lunge Test is commonly used to check ankle flexibility — how far your knee can travel over your toes without your heel lifting. A greater distance generally reflects better ankle mobility.",
     setupGuidanceSide:
       "Stand side-on to the camera so your knee, ankle, heel, and foot are all visible.",
     setupGuidanceDistance:
@@ -772,6 +833,9 @@ const en = {
     instrEquipment: "You'll need a wall to lunge toward.",
   },
   squat: {
+    // UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb.
+    whyThisExercise:
+      "The Squat is commonly used to check lower-limb movement quality — depth, control, and posture. Good form across depth, trunk position, and heel contact generally reflects better movement quality.",
     reportTitle: "Squat",
     livePrompt: "Squat at your own pace, then finish the set when you're done.",
     setupTargetPrompt: "Optionally set a personal rep goal — this never affects your score.",
@@ -826,6 +890,9 @@ const en = {
   // namespace (its live page reuses the generic `live.*` strings) -- this holds
   // only the new instruction-page content, so it doesn't need one either.
   sts: {
+    // UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb.
+    whyThisExercise:
+      "The Sit-to-Stand test is commonly used to check lower-limb strength and functional mobility. It reflects how easily you can rise from a seated position, a movement used throughout daily life.",
     instrTitle: "Sit to Stand — how to perform",
     instrStep1: "Sit in a chair facing the camera, with your full body visible from the seat up.",
     instrStep2: "Stand up fully, then sit back down — repeat at your own pace.",

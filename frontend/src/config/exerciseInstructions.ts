@@ -21,6 +21,10 @@ export interface ExerciseInstructionConfig {
    * from useSessionFlow()'s exerciseCode without a second mapping table. */
   exerciseCode: string;
   titleKey: string;
+  /** UAT remediation (Stage R10): i18n key for the two-sentence, non-diagnostic
+   * "why this exercise" blurb (purpose + benefit) — T4's most-repeated content
+   * request. Every exercise has one. */
+  whyKey: string;
   demoSrc: string;
   /** i18n keys for the numbered steps, in display order. Deliberately variable
    * length per exercise -- the last one or two are always the "what happens if..."
@@ -49,6 +53,7 @@ export const EXERCISE_INSTRUCTIONS: ExerciseInstructionConfig[] = [
     kind: "sts",
     exerciseCode: "sit_to_stand",
     titleKey: "sts.instrTitle",
+    whyKey: "sts.whyThisExercise",
     demoSrc: stsDemoSrc,
     stepKeys: ["sts.instrStep1", "sts.instrStep2", "sts.instrStep3", "sts.instrStep4"],
     cameraAngle: {
@@ -62,6 +67,7 @@ export const EXERCISE_INSTRUCTIONS: ExerciseInstructionConfig[] = [
     kind: "sls",
     exerciseCode: "supported_single_leg_stance",
     titleKey: "sls.instrTitle",
+    whyKey: "sls.whyThisExercise",
     demoSrc: slsDemoSrc,
     stepKeys: [
       "sls.instrStep1",
@@ -86,6 +92,7 @@ export const EXERCISE_INSTRUCTIONS: ExerciseInstructionConfig[] = [
     kind: "wblt",
     exerciseCode: "weight_bearing_lunge_test",
     titleKey: "wblt.instrTitle",
+    whyKey: "wblt.whyThisExercise",
     demoSrc: wbltDemoSrc,
     stepKeys: ["wblt.instrStep1", "wblt.instrStep2", "wblt.instrStep3", "wblt.instrStep4"],
     cameraAngle: {
@@ -99,6 +106,7 @@ export const EXERCISE_INSTRUCTIONS: ExerciseInstructionConfig[] = [
     kind: "squat",
     exerciseCode: "squat",
     titleKey: "squat.instrTitle",
+    whyKey: "squat.whyThisExercise",
     demoSrc: squatDemoSrc,
     stepKeys: ["squat.instrStep1", "squat.instrStep2", "squat.instrStep3", "squat.instrStep4"],
     cameraAngle: {
