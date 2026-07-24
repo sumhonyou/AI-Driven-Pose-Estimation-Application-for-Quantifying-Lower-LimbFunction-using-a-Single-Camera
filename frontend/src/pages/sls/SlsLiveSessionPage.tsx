@@ -17,9 +17,9 @@ import AudioCueToggle from "../../components/AudioCueToggle";
 import BallInCircleOverlay from "../../components/sls/BallInCircleOverlay";
 import LiftLineMarker from "../../components/sls/LiftLineMarker";
 import ComboScore from "../../components/sls/ComboScore";
-import OverlayLegend from "../../components/sls/OverlayLegend";
 import SupportSelfReportModal from "../../components/sls/SupportSelfReportModal";
 import StartHoldCountdown from "../../components/sls/StartHoldCountdown";
+import AutoStartCountdown from "../../components/AutoStartCountdown";
 import { Close } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
 import { slsApi, type SlsLegMetrics, type UsedSupport } from "../../services/sls/slsApi";
@@ -34,7 +34,12 @@ import { useWebcam } from "../../hooks/useWebcam";
 import { useMediaPipePose } from "../../hooks/useMediaPipePose";
 import { useSessionRecorder } from "../../hooks/useSessionRecorder";
 import { useSpeechCues } from "../../hooks/useSpeechCues";
-import { computeFrameQuality } from "../../utils/captureQuality";
+import { useAutoStartGate } from "../../hooks/useAutoStartGate";
+import {
+  computeFrameQuality,
+  computeFullBodyQuality,
+  FULL_BODY_QUALITY_THRESHOLD,
+} from "../../utils/captureQuality";
 import { SLS_LEG_ORDER, SLS_MAX_HOLD_SEC } from "../../config/moduleAThresholds";
 import wrongRepSrc from "../../assets/sound effect/Wrong sound effect.mp3";
 
@@ -42,6 +47,12 @@ type Stage =
   "ready" | "countdown" | "recording" | "posting" | "leg_result" | "support" | "finishing";
 
 const COUNTDOWN_START_SEC = 5;
+// UAT remediation (Stage R9): "ready" no longer waits for a manual Start Hold click
+// -- the camera setup step already confirmed full-body visibility once, so this is a
+// quick re-check (shorter than CameraSetup's own 5s) before auto-advancing to the
+// countdown. Leg 2 re-arms this the same way (see useAutoStartGate's `enabled`
+// re-arm-on-true semantics).
+const SLS_AUTO_START_STABLE_MS = 2000;
 
 // UAT remediation (Stage R4): full-page corrective cue for the wrong-leg-lift signal
 // from liveGeometry.ts, mirroring the squat page's LiveCue shape.
@@ -99,6 +110,7 @@ export default function SlsLiveSessionPage() {
   const wasWrongLegLiftedRef = useRef(false);
 
   const captureQuality = computeFrameQuality(landmarks ?? []);
+  const bodyQuality = computeFullBodyQuality(landmarks ?? []);
 
   function startHold() {
     trackerRef.current = createSlsLiveTracker(leg);
@@ -131,6 +143,23 @@ export default function SlsLiveSessionPage() {
     }
     setStage("ready");
   }
+
+  // UAT remediation (Stage R9, HY's call): no more manual "Start Hold" button --
+  // once the camera re-confirms the full body is in frame for a short stable
+  // window, the countdown begins automatically, exactly like CameraSetup's own
+  // auto-start gate. Re-arms every time `stage` returns to "ready" (leg 2, or a
+  // retry), per useAutoStartGate's enabled-transition semantics.
+  const { progress: readyProgress, active: readyActive } = useAutoStartGate(
+    bodyQuality,
+    FULL_BODY_QUALITY_THRESHOLD,
+    SLS_AUTO_START_STABLE_MS,
+    stage === "ready",
+    beginCountdown,
+  );
+  const readySecondsLeft = Math.max(
+    1,
+    Math.ceil(((1 - readyProgress) * SLS_AUTO_START_STABLE_MS) / 1000),
+  );
 
   useEffect(() => {
     if (stage !== "countdown") return;
@@ -271,7 +300,7 @@ export default function SlsLiveSessionPage() {
 
   const liveMessage =
     stage === "ready"
-      ? t("sls.pressStartHold")
+      ? t("sls.readyAutoMessage")
       : liveUpdate.phase === "calibrating"
         ? t("sls.standBothFeet")
         : liveUpdate.phase === "waiting"
@@ -431,30 +460,32 @@ export default function SlsLiveSessionPage() {
               <div className="panel-head" style={{ marginBottom: 14 }}>
                 <h3>{t("live.liveBand")}</h3>
               </div>
-              {/* UAT remediation (Stage R8): labelled preview of the ball+ring and
-                  lift-line overlays, shown once before the first hold starts. */}
-              {stage === "ready" && <OverlayLegend />}
               <div className="sls-live-status-box">
                 <span className="sls-live-status-text">{liveMessage}</span>
               </div>
+              {/* UAT remediation (Stage R9): replaces the manual "Start Hold"
+                  button -- shows the same auto-start ring CameraSetup uses once the
+                  full body has been steadily re-detected. */}
+              {stage === "ready" && readyActive && (
+                <AutoStartCountdown
+                  progress={readyProgress}
+                  secondsLeft={readySecondsLeft}
+                  label={t("sls.autoStartingLabel")}
+                />
+              )}
               <div className="track" style={{ height: 12 }}>
                 <div
                   className="fill good"
                   style={{ width: pct + "%", transition: "width .5s var(--ease)" }}
                 />
               </div>
-              <div style={{ marginTop: 20 }}>
-                {stage === "ready" && (
-                  <button className="btn btn-primary btn-block" onClick={beginCountdown}>
-                    {t("sls.startHold")}
-                  </button>
-                )}
-                {stage === "recording" && (
+              {stage === "recording" && (
+                <div style={{ marginTop: 20 }}>
                   <button className="btn btn-cancel btn-block" onClick={() => void finalizeLeg()}>
                     {t("sls.stop")}
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>

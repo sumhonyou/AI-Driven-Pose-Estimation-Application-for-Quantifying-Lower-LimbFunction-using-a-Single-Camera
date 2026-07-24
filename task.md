@@ -4854,12 +4854,12 @@ alone had NOT fixed it.**
       session pages, so the user has something to check their form against without
       leaving the page.
 - [x] Built `components/ExerciseDemoOverlay.tsx` — a `kind: "squat" | "sts" | "sls" |
-  "wblt"` prop selects the media: squat/STS render their looping `.gif`, WBLT
+"wblt"` prop selects the media: squat/STS render their looping `.gif`, WBLT
       renders its looping `.mp4` (`autoPlay loop muted playsInline`), SLS renders the
       static reference photo (`Single Leg Stance pic.png` — a still, not a loop, per
       the source asset HY pointed at).
 - [x] CSS (`index.css`): `.demo-overlay` — `position: absolute; top:16px; right:16px;
-  z-index:3` inside `.cam-stage` (already `position: relative`), 150px wide,
+z-index:3` inside `.cam-stage` (already `position: relative`), 150px wide,
       rounded corners, translucent blurred backdrop matching `.q-badge`'s existing
       look (same corner treatment, opposite side — badge is top-left, this is
       top-right, so neither ever overlaps). `.demo-overlay--sls` narrows to 96px:
@@ -4905,7 +4905,7 @@ alone had NOT fixed it.**
       `img` (2D image-space landmarks) argument to `update()`: during calibration it
       now also accumulates the target ankle's IMAGE-space y and the stance leg's
       IMAGE-space length, then places `lineYImgNorm = baselineAnkleImgY -
-    SLS_LIFT_LINE_NORM * imgLegLen` — the _exact same formula_ as the existing
+SLS_LIFT_LINE_NORM * imgLegLen` — the _exact same formula_ as the existing
       metric `lineY`, just computed in normalised image coordinates. This is
       **not** a new world→pixel projection — it reuses PoseCanvas's own coordinate
       system (2D landmark × canvas width/height), so the line lands exactly where
@@ -4935,7 +4935,7 @@ alone had NOT fixed it.**
       `lineYImgNorm`), `services/sls/liveGeometry.test.ts` (+3 regression tests),
       `pages/sls/SlsLiveSessionPage.tsx`, `index.css` (SLS overlay block rewritten +
       `.hud-sub` + `.btn-linklike` + legend styles), i18n `sls.{legendTitle,
-    legendBall,legendLine,autoStopsIn,showDetails,hideDetails}` in en/zh/ms.
+legendBall,legendLine,autoStopsIn,showDetails,hideDetails}` in en/zh/ms.
 - [x] Verified: `tsc --noEmit` clean; `vitest` **53/53** (50 existing + 3 new
       `lineYImgNorm` regression tests: stays null with no image landmarks, computes
       correctly from a known calibration frame, doesn't populate from a single
@@ -4949,3 +4949,221 @@ alone had NOT fixed it.**
       change to the SLS lift-sensitivity tuning (that's Stage R2, already done) or
       to the combo/score overlay (bottom-right, unaffected — not flagged as
       confusing in the UAT findings).
+
+### Phase 10 — Stage R9: Instruction flow + camera setup rework (2026-07-24)
+
+- [x] **Scope, per HY's extra requirements on top of the base plan:** a new,
+      reusable "before you begin" instruction page inserted as
+      `instructions -> camera setup -> countdown -> live`, plus SLS/WBLT/Squat-
+      specific flow changes. HY approved four clarifying decisions up front: (1) the
+      empty second Squat bullet was a stray leftover, ignore it; (2) Figma access —
+      HY authorized it live, confirmed working (see below); (3) the instruction page
+      stays text/media-only, no embedded live webcam (positioning still happens on
+      the existing Camera Setup page); (4) new dedicated route per exercise, one
+      shared template component.
+- [x] **Figma reference, `get_design_context` on node 12:37** ("Exercise
+      Instruction / Template", file `EHQzPLgZGUlmjy7mVphk5E`): two-panel layout
+      (looping demo video panel + a "document" card with numbered steps and a
+      camera-angle box) plus a footer CTA. The frame's own design tokens
+      (`--bg`, `--lime`, `--emerald`, `--text-3`, etc.) already matched this app's
+      real CSS variables, so translation was direct. Its "Reusable for all 4
+      exercises" badge was a note to the designer, not user-facing copy —
+      deliberately not shipped. Buttons/colours use this app's own `.btn`/`.panel`
+      classes, not the Figma file's raw values (HY's call: keep it standard with
+      the rest of the site) — e.g. the Back control uses the site's existing
+      `.back-link`, not Figma's bordered pill.
+- [x] **New shared template, `pages/ExerciseInstructions.tsx` + `config/
+  exerciseInstructions.ts`:** one config entry per exercise (`sts`, `sls`,
+      `wblt`, `squat`) drives the whole page — title, demo video, numbered steps
+      (i18n keys), camera-angle image + caption + expected view, and an optional
+      SLS-only `overlayExplainer` slot. Adding a future exercise only means adding
+      a config entry. "Pop out" entrance via `framer-motion` spring transitions
+      (bouncier than the site's standard `.reveal` fade, per HY's request) on the
+      demo panel, doc panel, and footer, staggered slightly. Page sits inside the
+      normal `DashboardLayout` shell — same background/chrome as every other page,
+      including the live session pages, per HY's "same as live session" note.
+      `DashTopbar` gained an optional `eyebrow` prop (small "Before you begin"
+      label above the title) — a small, backward-compatible, reusable addition.
+- [x] **Per-exercise step content, general requirement (all 4 exercises):** steps
+      are short and plain-language, and the LAST step always states the
+      consequence the UAT plan asked for — SLS: "if your foot drops back below the
+      line, the hold ends immediately and is recorded as-is" + the 45s cap; Squat:
+      "a rep that doesn't [clear the checks] will be flagged and won't count
+      toward your target"; WBLT: "if your heel lifts off the floor, that attempt
+      won't count"; STS: the 5-rep target + the 60s auto-end. New `sts.*` i18n
+      namespace created (STS previously had none — its live page reuses generic
+      `live.*` strings).
+- [x] **Routing:** new `/instructions` route (`App.tsx`), inserted between
+      `/exercise` and `/camera`. `ExerciseSelection.tsx`'s two exercise-card
+      `<Link>`s now point to `/instructions` instead of `/camera`; `CameraSetup.tsx`'s
+      Back button now returns to `/instructions` instead of `/exercise` (one step
+      back, not two, now that Instructions sits in between).
+- [x] **SLS extra 1 — overlay legend + reference photo folded into instructions
+      (HY's request):** the small ball/line SVG legend built in Stage R8
+      (`OverlayLegend.tsx`, shown on the live page's "ready" screen) is now fully
+      **removed** — its content moved into the instruction page's new
+      `overlayExplainer` slot, using a real annotated screenshot of the R8 overlay
+      actually working live (`assets/exercise type/SLS overlay reference.png`, a
+      copy of the screenshot HY sent) instead of a hand-drawn icon, paired with a
+      combined explanation of the ball, the line, AND how both feed the stability
+      score (HY: "beside the scoring, can explain together"). Dead CSS
+      (`.sls-overlay-legend*`) removed along with the component.
+- [x] **SLS extra 2 — camera setup picture (HY's report: "the camera setup is
+      wrong"):** the instruction page's camera-angle box now shows the actual SLS
+      reference photo with "Show this side to the camera" / "Expected: Front
+      view", using the same reusable box every other exercise gets — this is what
+      was actually missing, not a text error in the existing `CameraSetup.tsx`
+      guidance.
+- [x] **SLS extra 3 — no more manual "Start Hold" button (HY's call):**
+      `SlsLiveSessionPage.tsx`'s "ready" stage now runs the same kind of
+      quality-gated auto-start CameraSetup already uses
+      (`useAutoStartGate` + `computeFullBodyQuality`/`FULL_BODY_QUALITY_THRESHOLD`,
+      `SLS_AUTO_START_STABLE_MS = 2000` — a quick re-check, shorter than
+      CameraSetup's own 5s first check), auto-advancing straight into the existing
+      5s countdown once the full body is steadily back in frame. Reuses the
+      shared `AutoStartCountdown` ring component (same one CameraSetup uses) — no
+      new countdown UI invented. **The "detect leg lift above the threshold and
+      start the timer" and "auto-terminate on drop below threshold" behaviour HY
+      asked for already existed** — it's `liveGeometry.ts`'s own internal
+      calibrate → waiting → holding → stopped FSM, unconditionally driven by
+      elapsed time once `recording` starts; the only actual gap was the manual
+      button gating entry into that FSM. `sls.pressStartHold`/`sls.startHold` i18n
+      keys retired (replaced by `readyAutoMessage`/`autoStartingLabel`) since
+      nothing points at a button anymore.
+- [x] **WBLT extra 1 — target-distance prompt as a popup (HY's request):** new
+      `components/wblt/WbltTargetPromptModal.tsx`, reusing the existing
+      `.sls-modal-overlay`/`.sls-modal-card` pattern (same one
+      `SupportSelfReportModal`/`WbltTouchSelfReportModal` already use). Rendered
+      as a top-level overlay instead of a sidebar panel — the webcam feed and HUD
+      underneath never change layout when it opens or closes (this + task 4 below
+      is what actually delivers HY's "one page, don't adjust the webcam frame"
+      ask — the `.cam-stage`/`PoseCanvas` were already unconditionally mounted
+      across every stage; the sidebar's varying content was the real culprit).
+- [x] **WBLT extra 2 — positioning guidance colour + wording + audio + fault-tag
+      check:** `.sls-live-status-box` previously hardcoded `var(--good-bg)`/
+      `var(--good)` and stayed **green even while displaying a warning** ("your
+      leg went out of frame") — confirmed and fixed with an opt-in `.warn`
+      modifier (`var(--warn-bg)`/`var(--amber)`, matching
+      `.live-feedback-panel.rejected`'s existing colour language), applied
+      whenever the positioning stage is showing anything other than the genuine
+      "you're framed, hold still" message. The long `setupGuidanceSide` reuse as
+      the pre-landmark fallback text was replaced with HY's shorter wording
+      ("Keep your body from shoulder to ankle (both legs) in frame.",
+      `wblt.positionGuidanceShort`) — the two `warn_retry_*` messages were already
+      short/specific and left as-is. **Investigated HY's question ("is this also
+      an error tag?") — confirmed yes:** `backend/app/module_a/wblt/analysis.py`
+      really does append `retry_{limiting_factor}` to `warning_tags` for exactly
+      this condition. **Confirmed no audio cue existed for it** — the
+      `positioning` stage never called `speech.speakFault`, unlike every other
+      fault path in the app. Fixed with an edge-detected effect that speaks
+      `wblt.positionGuidanceShort` once per bad-framing episode (not every frame),
+      relying on `SpeechCueQueue`'s existing per-key throttle for the rest.
+- [x] **WBLT extra 3 — Attempt HUD card redesigned like Squat's Reps card:** added
+      a `.track.hud-progress` fill bar under the attempt count/target text
+      (`(attemptNumber - 1) / attemptsPerLeg`), matching the exact pattern
+      `SquatLiveSessionPage.tsx`'s Reps card already established; hidden during a
+      bonus attempt (no fixed denominator to show progress against).
+- [x] **WBLT extra 4 — heel-rise consequence in instructions:** covered by the
+      general per-exercise step content above (`wblt.instrStep4`).
+- [x] **Squat extra — target-rep prompt as a popup, same pattern as WBLT:** new
+      `components/squat/SquatTargetPromptModal.tsx`; the old inline sidebar panel
+      (target `<select>` + Start Set button) removed from
+      `SquatLiveSessionPage.tsx` entirely and replaced by the modal, rendered
+      top-level next to `StartSetCountdown` — clicking Start Set goes straight
+      into the existing countdown, unchanged. (Squat's second bullet was
+      confirmed empty/stray by HY — no further requirement to implement there.)
+- [x] **Files:** `pages/ExerciseInstructions.tsx` (new),
+      `config/exerciseInstructions.ts` (new),
+      `components/wblt/WbltTargetPromptModal.tsx` (new),
+      `components/squat/SquatTargetPromptModal.tsx` (new),
+      `components/sls/OverlayLegend.tsx` (deleted), `App.tsx`, `ExerciseSelection.tsx`,
+      `CameraSetup.tsx`, `layouts/DashboardLayout.tsx` (`DashTopbar` `eyebrow` prop),
+      `pages/sls/SlsLiveSessionPage.tsx`, `pages/wblt/WbltLiveSessionPage.tsx`,
+      `pages/squat/SquatLiveSessionPage.tsx`, `index.css` (new `.instr-*`/
+      `.topbar-eyebrow`/`.wblt-target-distance*` blocks, `.sls-live-status-box.warn`,
+      dead `.sls-overlay-legend*` removed), i18n `instr.*` (new namespace),
+      `sts.*` (new namespace), plus additions to `sls.*`/`wblt.*`/`squat.*` in
+      en/zh/ms.
+- [x] Verified: `tsc --noEmit` clean; full `vitest` **53/53** unchanged (no
+      tracker/geometry logic touched this stage); Prettier clean. Browser-verified
+      in the Preview pane: the Instructions template rendered end-to-end for Squat
+      (matches the Figma reference closely — eyebrow/title, demo panel, numbered
+      steps, camera-angle box with the real side-view photo, footer CTA); the WBLT
+      target modal + amber positioning warning box together; the Squat target
+      modal; the SLS auto-start ring in its "ready" (non-warning, green) state;
+      and all three non-squat camera-angle reference photos (SLS/WBLT/STS)
+      actually loading. Same constraint as Stages R7/R8: the live pages require an
+      authenticated session + webcam to reach normally, so this was verified via
+      the real compiled component markup/CSS/assets rendered directly in the
+      Browser pane rather than a full logged-in click-through — reasoning/logic
+      changes are covered by `tsc` + the unchanged passing test suite instead.
+- [ ] Not yet done: a real end-to-end click-through (login → exercise select →
+      instructions → camera setup → live) against a live backend, to confirm the
+      new auto-start flows (SLS leg-lift auto-start, WBLT/Squat modal → countdown)
+      feel right in practice, not just in isolated component/CSS verification.
+
+### Phase 10 — Stage R9.1: Instructions/Camera Setup follow-up corrections (2026-07-24)
+
+Small set of HY corrections on top of Stage R9, all in
+[ExerciseInstructions.tsx](./frontend/src/pages/ExerciseInstructions.tsx),
+[CameraSetup.tsx](./frontend/src/pages/CameraSetup.tsx), and
+[exerciseInstructions.ts](./frontend/src/config/exerciseInstructions.ts):
+
+- [x] Instructions page camera-angle box: removed the small camera icon +
+      arrow (`instr-camera-icon-wrap`), and the reference photo now fills the
+      box edge-to-edge (`instr-camera-image` → `width:100%`) instead of sitting
+      as a small thumbnail on a white/surface-colored background
+      (`.instr-camera-diagram`'s own background/padding/border removed).
+- [x] Added a per-exercise "what you'll need" equipment note
+      (`instr-equipment`, new optional `equipmentKey` on
+      `ExerciseInstructionConfig`): STS → "sturdy chair", SLS → reuses the
+      existing `sls.supportGuidance` copy ("chair or wall beside you"), WBLT →
+      "a wall to lunge toward", Squat → none (no equipment box shown).
+- [x] Camera Setup page reworked to match the Instructions page now covering
+      this content: removed the "View guidance" panel (numbered guidance
+      steps + camera icon) and the "Watch Demo" panel entirely; the
+      full-body-partial-detection banner ("Make sure your head, knees, and
+      feet are inside the camera frame.") moved from the left column into a
+      new right-column "Getting ready" panel; the manual "Start session"
+      button is gone (session already only ever auto-started via
+      `useAutoStartGate` → `beginSession`, the button was dead weight even
+      before this stage); that same "Getting ready" panel now shows, in
+      priority order, the framing banner, else the big ring+number
+      `AutoStartCountdown` once body-stability is being timed, else a new
+      static `camera.autoStartWaiting` line explaining the session starts
+      automatically once the whole body is captured. Removed now-dead code
+      along with the panels: `getViewGuidance()`, `guidanceSteps`, `demoSrc`
+      (+ the 4 demo video imports), `demoOpen` state, and the `starting`
+      state (no longer read anywhere once the button's loading label went
+      away).
+- [x] Dead i18n cleanup (all 3 locales, en/zh/ms): removed
+      `camera.guidanceTitle/guidanceBody/guidanceFront/guidanceSide`,
+      `camera.startSession`, `camera.demoTitle`, `sls.setupGuidanceFront/
+    Lift/Touchdown/Ball`, `squat.setupGuidanceSide/Space/Pace` — all
+      orphaned by the panel removal above and confirmed via grep to have no
+      remaining references. Also swept up `sls.legendTitle/legendBall/
+    legendLine`, a stale leftover from Stage R8's now-deleted
+      `OverlayLegend.tsx` component (flagged but not addressed at the time).
+- [x] WBLT: shortened `wblt.warn_retry_leg_visibility` per HY's wording
+      ("Step back so your whole leg stays visible.", was a longer sentence
+      naming knee/ankle/heel/foot individually), and its text — along with
+      the calibrating/lunge-feedback status box text on the WBLT live page —
+      now renders in a fixed near-black (`var(--ink-dark)`) instead of the
+      theme's green accent color, which was hard to read on the amber
+      warning background. Scoped via a new `.wblt` modifier class on
+      `.sls-live-status-box` (added only in `WbltLiveSessionPage.tsx`'s 3
+      usages) so SLS's unrelated reuse of the same shared class stays
+      theme-colored.
+- [x] SLS: shortened `sls.instrOverlayBody` (the "what you'll see during your
+      hold" explainer folded into the instruction page in R9) from a
+      3-sentence paragraph to two short sentences per HY's request.
+- [x] Verified: `tsc --noEmit` clean, full `vitest` **53/53** unchanged,
+      Prettier clean. Browser-verified in the Preview pane (same
+      compiled-markup approach as R7-R9, since live pages need an
+      authenticated session): the reworked camera-angle box (icon gone,
+      full-width photo, no white background) for Squat; the new equipment
+      note + full-width SLS photo; both WBLT status-box states (amber
+      warning and default) rendering black text while an unmodified SLS
+      status box stayed theme-green; and the reworked Camera Setup right
+      column showing the moved banner and the relocated auto-start countdown
+      in place of the removed guidance/demo panels and Start button.

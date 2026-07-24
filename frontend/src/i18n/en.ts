@@ -283,26 +283,43 @@ const en = {
     checklistLighting: "Good, even lighting",
     checklistSpace: "Safe space around you",
     checklistNoOcclusion: "Keep hands/objects off your body — blocking it confuses tracking",
-    guidanceTitle: "View guidance",
-    guidanceBody:
-      "This exercise needs a side view. Place your camera to your side so your knee and hip are clearly visible.",
-    guidanceFront:
-      "Face the camera directly so your full body, hips, knees, and feet are clearly visible.",
-    guidanceSide: "Place your camera to your side so your knee and hip are clearly visible.",
     bannerNoBody: "Step into the center of the camera view.",
     bannerPartial: "Make sure your head, knees, and feet are inside the camera frame.",
     bannerLowQuality: "Move further back so your full body is visible.",
+    statusTitle: "Getting ready",
     autoStarting: "Full body detected — starting automatically",
+    autoStartWaiting: "Fit your whole body in frame — auto-continues after 5 seconds.",
+    startSession: "Start session",
     startingSession: "Starting your session...",
     startingTitle: "Starting your session",
     startingSubtitle: "Full body detected — your session is being set up.",
     startingStep1: "Contacting server...",
     startingStep2: "Setting up your session...",
     startingStep3: "Almost ready...",
-    startSession: "Start session",
     selectExerciseFirst: "Please select an exercise before starting a session.",
     startError: "Could not start the session.",
-    demoTitle: "Watch Demo",
+  },
+  // UAT remediation (Stage R9): shared chrome strings for the reusable
+  // ExerciseInstructions template (pages/ExerciseInstructions.tsx). Per-exercise
+  // step/caption text lives under each exercise's own namespace instead.
+  instr: {
+    eyebrow: "Before you begin",
+    demoEyebrow: "Watch demo",
+    demoTitle: "Movement preview",
+    demoLooping: "Looping",
+    demoPlaceholder: "Tap to play the exercise demo",
+    demoCaption: "Match this motion at your own pace. Demo loops until you continue.",
+    docEyebrow: "Exercise file",
+    docTitle: "How to perform",
+    docSubtitle: "Read these steps, then continue when ready.",
+    cameraEyebrow: "Camera setup",
+    cameraTitle: "Show this side to the camera",
+    cameraLabel: "Camera",
+    expectedView: "Expected: {{view}}",
+    viewSide: "Side view",
+    viewFront: "Front view",
+    continueButton: "Understand",
+    continueCaption: "You'll move to camera setup next.",
   },
   live: {
     timer: "Time",
@@ -314,6 +331,8 @@ const en = {
     cueDismiss: "Dismiss",
     cancel: "Cancel",
     repTarget: "of 5",
+    // Same format as squat.repsOfTargetValue -- used by STS Reps HUD card.
+    repsOfTargetValue: "{{rep}} / {{target}}",
     // UAT remediation (Stage R6): spoken (TTS) session-boundary cues, shared across
     // all 4 live pages via useSpeechCues -- highest priority, never throttled.
     speakStarting: "Starting",
@@ -572,16 +591,6 @@ const en = {
       "Keep a chair or wall beside you. Rest one hand lightly on it for support if you feel unsteady.",
     setupInstr5: "Keep your eyes open.",
     setupInstr6: "You will be asked to lift one leg, then the other.",
-    setupGuidanceFront: "Face the camera directly so both knees and hips are clearly visible.",
-    setupGuidanceLift: "Lift your leg until the lift-level bar turns green to start timing.",
-    setupGuidanceTouchdown:
-      "If your foot touches down or you lose balance, the hold ends automatically.",
-    setupGuidanceBall: "Keep the ball inside the circle to earn more points!",
-    // UAT remediation (Stage R8): labelled preview shown once on the ready screen,
-    // explaining the two live overlays before the hold starts.
-    legendTitle: "What you'll see during your hold",
-    legendBall: "The ball drifts if you sway — try to keep it inside the ring.",
-    legendLine: "Lift your foot above this line to start and keep the timer running.",
     // Live — leg prompts & messages
     legPromptRight: "Lift your RIGHT leg",
     legPromptLeft: "Lift your LEFT leg",
@@ -589,7 +598,9 @@ const en = {
     legRight: "Right leg",
     legLeft: "Left leg",
     standBothFeet: "Stand on both feet to begin.",
-    pressStartHold: "Press Start Hold to start the session.",
+    // UAT remediation (Stage R9): replaces the old "Press Start Hold" copy -- there
+    // is no button anymore, the countdown starts automatically once framed.
+    readyAutoMessage: "Stand on both feet, fully in frame — the countdown starts automatically.",
     liftAboveLine: "Lift your foot above the line to start timing.",
     holdSteady: "Hold steady — keep the ball in the circle to get more points!",
     footDropped: "Foot dropped below the line. Hold stopped.",
@@ -600,7 +611,7 @@ const en = {
     cueWrongLegDetail: "Keep your {{leg}} on the ground",
     notVisible: "Body not fully visible. Please adjust your camera.",
     timeReached: "Time reached. Great — switch legs when ready.",
-    startHold: "Start Hold",
+    autoStartingLabel: "Getting ready...",
     getReadyCaption: "Get into position — the hold starts automatically.",
     stop: "Stop",
     retry: "Retry",
@@ -642,6 +653,20 @@ const en = {
     stopReason_unknown: "ended",
     disclaimer:
       "This is a functional self-check, not a clinical diagnosis. It does not tell you whether your balance or ankles are healthy. Stop immediately if you feel pain, dizziness, or unsafe.",
+    // UAT remediation (Stage R9): instruction-page content. Steps describe the new
+    // auto-start flow (no Start Hold button) -- see SlsLiveSessionPage.tsx.
+    instrTitle: "Single-Leg Stance — how to perform",
+    instrStep1: "Stand on both feet, facing the camera, with your whole body in frame.",
+    instrStep2: "Once your body is detected, a short countdown begins automatically.",
+    instrStep3:
+      "Lift the leg you're prompted for above the line shown on screen — the timer starts the moment you cross it, no button needed.",
+    instrStep4: "Hold as steady as you can, for up to 45 seconds.",
+    instrStep5:
+      "If your foot drops back below the line, the hold ends immediately and is recorded as-is.",
+    instrCameraCaption: "Front view — face the camera directly so both hips and knees are visible.",
+    instrOverlayTitle: "What you'll see during your hold",
+    instrOverlayBody:
+      "A ring shows your balance — keep the ball centred. A line marks the height your foot must stay above.",
   },
   wblt: {
     setupGuidanceSide:
@@ -718,8 +743,7 @@ const en = {
     warn_borderline_distance: "This result is close to a band boundary — treat it as approximate.",
     warn_retry_lateral_alignment:
       "Camera angle wasn't side-on enough — turn so the camera sees your leg from directly the side.",
-    warn_retry_leg_visibility:
-      "Your knee, ankle, heel, or foot went out of frame — step back so your whole leg stays visible.",
+    warn_retry_leg_visibility: "Step back so your whole leg stays visible.",
     warn_retry_landmark_conf:
       "Tracking was too unreliable to trust — try better lighting or a plainer background.",
     warn_calibration_failed:
@@ -733,13 +757,23 @@ const en = {
     trendDistanceNoChange: "distance about the same",
     trendAngleChanged: "angle {{sign}}{{value}}°",
     trendAngleNoChange: "angle about the same",
+    // UAT remediation (Stage R9): instruction-page content.
+    instrTitle: "Weight-Bearing Lunge Test — how to perform",
+    instrStep1: "Stand side-on to the camera so your knee, ankle, heel, and foot are all visible.",
+    instrStep2: "Stand at the shown distance from the wall, then lunge forward when ready.",
+    instrStep3: "Keep your heel flat on the floor and try to touch your knee to the wall.",
+    instrStep4:
+      "If your heel lifts off the floor, that attempt won't count — you'll get another try (3 attempts per leg, plus a bonus if needed).",
+    instrCameraCaption: "Side view — keep your knee, ankle, heel, and foot facing the lens.",
+    // UAT remediation (Stage R9): shortened, uniform framing guidance for the
+    // positioning stage — replaces the long setupGuidanceSide reuse there (still
+    // used as-is on the instruction page, where reading distance isn't a problem).
+    positionGuidanceShort: "Keep your body from shoulder to ankle (both legs) in frame.",
+    instrEquipment: "You'll need a wall to lunge toward.",
   },
   squat: {
     reportTitle: "Squat",
     livePrompt: "Squat at your own pace, then finish the set when you're done.",
-    setupGuidanceSide: "Stand side-on to the camera so your hip, knee, and ankle are visible.",
-    setupGuidanceSpace: "Make sure your full body stays in frame throughout each squat.",
-    setupGuidancePace: "Move at a controlled, natural pace — there's no rep target to rush for.",
     setupTargetPrompt: "Optionally set a personal rep goal — this never affects your score.",
     noTarget: "No target",
     targetOption: "Goal: {{n}} reps",
@@ -776,6 +810,31 @@ const en = {
     cueHeelLift: "Heels down",
     cueHeelLiftDetail: "You're lifting your heels up",
     cueRepCounted: "Nice rep!",
+    // UAT remediation (Stage R9): instruction-page content.
+    instrTitle: "Squat — how to perform",
+    instrStep1: "Stand side-on to the camera so your hip, knee, and ankle are visible.",
+    instrStep2: "Make sure your full body stays in frame throughout each squat.",
+    instrStep3: "Move at a controlled, natural pace — there's no rep target to rush for.",
+    instrStep4:
+      "A rep only counts if it clears the depth, lean, and heel checks — a rep that doesn't will be flagged and won't count toward your target, so just try again.",
+    instrCameraCaption: "Side view — keep your working hip, knee, and ankle facing the lens.",
+    // UAT remediation (Stage R9): target-rep prompt moved from an inline sidebar
+    // panel into a popup, shown after camera setup, before the countdown.
+    targetPromptTitle: "How many reps?",
+  },
+  // UAT remediation (Stage R9): Sit-to-Stand previously had no dedicated i18n
+  // namespace (its live page reuses the generic `live.*` strings) -- this holds
+  // only the new instruction-page content, so it doesn't need one either.
+  sts: {
+    instrTitle: "Sit to Stand — how to perform",
+    instrStep1: "Sit in a chair facing the camera, with your full body visible from the seat up.",
+    instrStep2: "Stand up fully, then sit back down — repeat at your own pace.",
+    instrStep3: "Complete 5 valid stand-to-sit reps to finish the set.",
+    instrStep4:
+      "The session ends automatically after 60 seconds even if you haven't reached 5 — whatever you completed is still recorded.",
+    instrCameraCaption:
+      "Side view — sit with the chair beside the camera so your hip and knee are visible.",
+    instrEquipment: "You'll need a sturdy chair to sit and stand from.",
   },
   moduleB: {
     subscore_rom_completeness: "ROM completeness",

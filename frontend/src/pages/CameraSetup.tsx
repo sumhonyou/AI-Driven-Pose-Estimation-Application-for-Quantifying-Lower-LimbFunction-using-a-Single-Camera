@@ -1,16 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect, useRef } from "react";
-import stsDemoSrc from "../assets/videos/sit to stand.mp4";
-import slsDemoSrc from "../assets/videos/Balance & Flexibility_ Single Leg Stance Test and Side Leg Raises.mp4";
-import wbltDemoSrc from "../assets/videos/(WBLT) Knee to Wall Dorsiflexion Lunge Test for the Ankle.mp4";
-import squatDemoSrc from "../assets/videos/Squat.mp4";
 import { DashTopbar } from "../layouts/DashboardLayout";
 import PoseCanvas from "../components/PoseCanvas";
 import CaptureQualityBadge from "../components/CaptureQualityBadge";
 import AutoStartCountdown from "../components/AutoStartCountdown";
 import StartingSessionOverlay from "../components/StartingSessionOverlay";
-import { ArrowLeft, ArrowRight, Camera, Check, Alert, Lightbulb } from "../components/Icons";
+import { ArrowLeft, ArrowRight, Check, Alert, Lightbulb, Info } from "../components/Icons";
 import { sessionService, enqueueCancel } from "../services/sessionService";
 import { useSessionFlow } from "../session";
 import { useWebcam } from "../hooks/useWebcam";
@@ -29,12 +25,6 @@ import cameraReadySound from "../assets/sound effect/Camera all good effect.mp3"
  * checklist/guidance before the session took over. */
 const AUTO_START_STABLE_MS = 5000;
 
-/** Derive the required camera view from exercise code. */
-function getViewGuidance(exerciseCode: string | null): "side" | "front" {
-  if (exerciseCode?.includes("single_leg")) return "front";
-  return "side"; // sit_to_stand and weight_bearing_lunge default to side
-}
-
 type ChecklistStatus = "done" | "pending" | "info";
 interface ChecklistItem {
   id: string;
@@ -49,11 +39,9 @@ export default function CameraSetup() {
   const { t } = useTranslation();
   const nav = useNavigate();
   const { mode, exerciseCode, sessionId, setSessionId } = useSessionFlow();
-  const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
   const [hasAutoStarted, setHasAutoStarted] = useState(false);
   const [frozenQuality, setFrozenQuality] = useState(0);
-  const [demoOpen, setDemoOpen] = useState(false);
 
   // Real webcam + pose
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
@@ -73,40 +61,11 @@ export default function CameraSetup() {
   const isFullBodyReady = bodyQuality >= FULL_BODY_QUALITY_THRESHOLD;
   const headFeetVisible = areHeadAndFeetVisible(landmarks ?? []);
 
-  const viewGuidance = getViewGuidance(exerciseCode);
   const isSls = !!exerciseCode?.includes("single_leg");
   // Exact match only: Module A's "weight_bearing_lunge_test" and Module B exercise
   // codes could collide on a loose substring check, so this stays exact.
   const isWblt = exerciseCode === "weight_bearing_lunge_test";
   const isSquat = exerciseCode === "squat";
-
-  const guidanceSteps = isSls
-    ? [
-        t("sls.setupGuidanceFront"),
-        t("sls.setupGuidanceLift"),
-        t("sls.setupGuidanceTouchdown"),
-        t("sls.setupGuidanceBall"),
-      ]
-    : isWblt
-      ? [t("wblt.setupGuidanceSide"), t("wblt.setupGuidanceDistance"), t("wblt.setupGuidanceLunge")]
-      : isSquat
-        ? [
-            t("squat.setupGuidanceSide"),
-            t("squat.setupGuidanceSpace"),
-            t("squat.setupGuidancePace"),
-          ]
-        : [viewGuidance === "front" ? t("camera.guidanceFront") : t("camera.guidanceSide")];
-
-  // Pick the tutorial clip per exercise; null hides the demo panel.
-  const demoSrc = isSls
-    ? slsDemoSrc
-    : isWblt
-      ? wbltDemoSrc
-      : isSquat
-        ? squatDemoSrc
-        : exerciseCode === "sit_to_stand"
-          ? stsDemoSrc
-          : null;
 
   // Log FPS once pose model is ready
   useEffect(() => {
@@ -123,8 +82,10 @@ export default function CameraSetup() {
       enqueueCancel(sessionId);
       setSessionId(null);
     }
+    // UAT remediation (Stage R9): Instructions now sits between Exercise Selection
+    // and Camera Setup in the flow, so Back returns one step, not two.
     console.log("[CameraSetup] Back navigating");
-    nav(`/exercise?mode=${mode}`);
+    nav("/instructions");
   };
 
   const beginSession = async () => {
@@ -141,7 +102,6 @@ export default function CameraSetup() {
     }
 
     setError("");
-    setStarting(true);
     try {
       const response = await sessionService.start({
         mode,
@@ -154,8 +114,6 @@ export default function CameraSetup() {
       setError(err instanceof Error ? err.message : t("camera.startError"));
       startedRef.current = false;
       setHasAutoStarted(false);
-    } finally {
-      setStarting(false);
     }
   };
 
@@ -286,20 +244,32 @@ export default function CameraSetup() {
             </div>
           </div>
 
-          {bannerText && (
-            <div className="setup-banner" role="status">
-              <Alert width={24} height={24} />
-              <span>{bannerText}</span>
-            </div>
-          )}
+          {/* UAT remediation: HY's ask (2026-07-24) -- the instruction was easy to
+              miss buried in the muted "Getting ready" panel on the right; moved
+              directly under the webcam frame with a high-contrast light-blue "info"
+              card (icon sized to roughly match 2 lines of text) so it's impossible
+              to miss while adjusting position. */}
+          <div className="cam-instruction-card">
+            <Info />
+            <span>{t("camera.autoStartWaiting")}</span>
+          </div>
 
-          {!hasAutoStarted && autoStartActive && (
-            <AutoStartCountdown
-              progress={autoStartProgress}
-              secondsLeft={autoStartSecondsLeft}
-              label={t("camera.autoStarting")}
-            />
-          )}
+          {/* TEMP DEV BUTTON — added 2026-07-24 at HY's request purely to speed up
+              manual QA while developing (skip waiting for the 5s auto-start gate).
+              Kept in the left column, below the instruction card, so a screenshot of
+              the right column ("Before you start" / "Getting ready") never includes
+              it. The real flow never needs a manual button, since beginSession()
+              already fires from useAutoStartGate above. REMOVE THIS BUTTON before
+              final submission/handoff. */}
+          <button
+            type="button"
+            className="btn btn-primary btn-lg btn-block"
+            onClick={beginSession}
+            disabled={hasAutoStarted}
+          >
+            {t("camera.startSession")}
+            <ArrowRight />
+          </button>
         </div>
 
         <div className="stack" style={{ gap: 14 }}>
@@ -323,73 +293,39 @@ export default function CameraSetup() {
             </div>
           </div>
 
-          <div className="panel">
-            <div className="panel-head" style={{ marginBottom: 12 }}>
+          {/* UAT remediation: replaces the removed view-guidance/demo panels and
+              manual Start button — the moved framing banner and the auto-start
+              countdown now live here, in the same slot. `cam-status-panel` grows to
+              fill the column so its bottom edge lines up with the instruction card
+              under the video (HY's request). */}
+          <div className="panel cam-status-panel">
+            <div className="panel-head" style={{ marginBottom: 14 }}>
               <div>
-                <h3>{t("camera.guidanceTitle")}</h3>
+                <h3>{t("camera.statusTitle")}</h3>
               </div>
-              <span
-                className="mi"
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  display: "grid",
-                  placeItems: "center",
-                  background: "var(--good-bg)",
-                  color: "var(--accent-text)",
-                }}
-              >
-                <Camera width={19} height={19} />
-              </span>
             </div>
-            <ol className="setup-guidance-list">
-              {guidanceSteps.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ol>
-            {isSls && <p className="setup-guidance-note">{t("sls.supportGuidance")}</p>}
-          </div>
-
-          {demoSrc && (
-            <div className="panel">
-              <div className="panel-head" style={{ marginBottom: demoOpen ? 14 : 0 }}>
-                <div>
-                  <h3>{t("camera.demoTitle")}</h3>
-                </div>
-                <button
-                  className="btn btn-ghost"
-                  style={{ padding: "6px 12px", fontSize: "0.85rem" }}
-                  onClick={() => setDemoOpen((o) => !o)}
-                >
-                  {demoOpen ? "▲" : "▶"}
-                </button>
+            {bannerText ? (
+              <div className="setup-banner" role="status">
+                <Alert width={24} height={24} />
+                <span>{bannerText}</span>
               </div>
-              {demoOpen && (
-                <video
-                  src={demoSrc}
-                  controls
-                  playsInline
-                  style={{ width: "100%", borderRadius: "var(--r-md)", display: "block" }}
+            ) : (
+              !hasAutoStarted &&
+              autoStartActive && (
+                <AutoStartCountdown
+                  progress={autoStartProgress}
+                  secondsLeft={autoStartSecondsLeft}
+                  label={t("camera.autoStarting")}
                 />
-              )}
-            </div>
-          )}
+              )
+            )}
+          </div>
 
           {error && (
             <p className="muted" style={{ color: "var(--coral)" }}>
               {error}
             </p>
           )}
-
-          <button
-            className="btn btn-primary btn-lg btn-block"
-            onClick={beginSession}
-            disabled={starting || hasAutoStarted}
-          >
-            {starting ? t("common.loading") : t("camera.startSession")}
-            <ArrowRight />
-          </button>
         </div>
       </div>
     </>

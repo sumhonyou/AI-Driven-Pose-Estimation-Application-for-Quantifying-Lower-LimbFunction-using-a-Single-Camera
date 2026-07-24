@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Progress from "./pages/Progress";
 import ModeSelection from "./pages/ModeSelection";
 import ExerciseSelection from "./pages/ExerciseSelection";
+import ExerciseInstructions from "./pages/ExerciseInstructions";
 import CameraSetup from "./pages/CameraSetup";
 import StsLiveSessionPage from "./pages/sts/StsLiveSessionPage";
 import SlsLiveSessionPage from "./pages/sls/SlsLiveSessionPage";
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="progress" element={<Progress />} />
             <Route path="mode" element={<ModeSelection />} />
             <Route path="exercise" element={<ExerciseSelection />} />
+            <Route path="instructions" element={<ExerciseInstructions />} />
             <Route path="camera" element={<CameraSetup />} />
             <Route path="sts/live" element={<StsLiveSessionPage />} />
             <Route path="sls/live" element={<SlsLiveSessionPage />} />

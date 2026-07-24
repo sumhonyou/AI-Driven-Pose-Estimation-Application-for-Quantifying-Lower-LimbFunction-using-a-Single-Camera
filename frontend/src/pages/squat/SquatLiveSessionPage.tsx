@@ -19,7 +19,8 @@ import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import LiveCueOverlay from "../../components/LiveCueOverlay";
 import AudioCueToggle from "../../components/AudioCueToggle";
 import StartSetCountdown from "../../components/squat/StartSetCountdown";
-import { Close, Target, Check, Alert, Play } from "../../components/Icons";
+import SquatTargetPromptModal from "../../components/squat/SquatTargetPromptModal";
+import { Close, Check, Alert, Play } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
 import { moduleBService } from "../../services/moduleBService";
 import { useSessionFlow } from "../../session";
@@ -406,6 +407,18 @@ export default function SquatLiveSessionPage() {
   return (
     <>
       {stage === "posting" && <GeneratingReportOverlay />}
+      {/* UAT remediation (Stage R9): popup overlay instead of a sidebar panel --
+          the webcam feed and HUD underneath keep their exact layout whether this is
+          open or closed. Clicking Start Set in the modal goes straight into the
+          countdown, same as WBLT's Start Attempt. */}
+      {stage === "setup" && (
+        <SquatTargetPromptModal
+          targetReps={targetReps}
+          targetOptions={TARGET_OPTIONS}
+          onChangeTarget={setTargetReps}
+          onStart={beginCountdown}
+        />
+      )}
       {stage === "countdown" && (
         <StartSetCountdown secondsLeft={countdownSeconds} onCancel={cancelCountdown} />
       )}
@@ -612,40 +625,6 @@ export default function SquatLiveSessionPage() {
               <p className="muted" style={{ fontSize: "0.7rem", marginTop: 8 }}>
                 {t("squat.liveAngleGuidanceNote")}
               </p>
-            </div>
-          )}
-
-          {/* HY's refinement: this panel now only appears for session setup (target
-              picker + Start Set) -- its recording-stage content (attempts summary,
-              progress bar, Finish button) moved to the Reps HUD card and the topbar,
-              so nothing calling itself "Live status" sits on screen once recording
-              starts. */}
-          {stage === "setup" && (
-            <div className="panel reveal">
-              <div className="panel-head" style={{ marginBottom: 14 }}>
-                <h3>{t("live.liveBand")}</h3>
-              </div>
-              <p className="muted" style={{ marginBottom: 14 }}>
-                {t("squat.setupTargetPrompt")}
-              </p>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-                <Target width={18} height={18} />
-                <select
-                  className="select"
-                  value={targetReps ?? ""}
-                  onChange={(e) => setTargetReps(e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">{t("squat.noTarget")}</option>
-                  {TARGET_OPTIONS.map((n) => (
-                    <option key={n} value={n}>
-                      {t("squat.targetOption", { n })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button className="btn btn-primary btn-block" onClick={beginCountdown}>
-                {t("squat.startSet")}
-              </button>
             </div>
           )}
         </div>

@@ -423,12 +423,18 @@ export default function StsLiveSessionPage() {
             </div>
             <div className="hud-card reveal">
               <div className="hl2">{t("live.reps")}</div>
+              {/* Match squat: show counted / target in the value, with progress under it. */}
               <div className="hv">
-                {validReps}{" "}
-                <span style={{ fontSize: "0.9rem", color: "var(--text-3)" }}>
-                  {t("live.repTarget")}
-                </span>
+                {t("live.repsOfTargetValue", { rep: validReps, target: STS_TARGET_REPS })}
               </div>
+              {stage === "recording" && (
+                <div className="track hud-progress">
+                  <div
+                    className="fill good"
+                    style={{ width: pct + "%", transition: "width .5s var(--ease)" }}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -450,15 +456,6 @@ export default function StsLiveSessionPage() {
                 }}
               />
               {liveMessage}
-            </div>
-            <div className="track" style={{ height: 12 }}>
-              <div
-                className="fill good"
-                style={{
-                  width: pct + "%",
-                  transition: "width .5s var(--ease)",
-                }}
-              />
             </div>
             <p className="muted" style={{ fontSize: "0.84rem", marginTop: 10 }}>
               {t("live.validRepsStatus", { valid: validReps, target: STS_TARGET_REPS })}

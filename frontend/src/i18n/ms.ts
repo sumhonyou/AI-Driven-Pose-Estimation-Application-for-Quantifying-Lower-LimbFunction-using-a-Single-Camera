@@ -284,26 +284,41 @@ const ms: Dict = {
     checklistSpace: "Ruang selamat di sekeliling anda",
     checklistNoOcclusion:
       "Jauhkan tangan/objek daripada badan anda — menghalangnya mengelirukan penjejakan",
-    guidanceTitle: "Panduan pandangan",
-    guidanceBody:
-      "Senaman ini memerlukan pandangan sisi. Letak kamera di sisi anda supaya lutut dan pinggul jelas kelihatan.",
-    guidanceFront:
-      "Hadap kamera secara langsung supaya seluruh badan, pinggul, lutut, dan kaki anda jelas kelihatan.",
-    guidanceSide: "Letak kamera di sisi anda supaya lutut dan pinggul jelas kelihatan.",
     bannerNoBody: "Berdiri di tengah pandangan kamera.",
     bannerPartial: "Pastikan kepala, lutut, dan kaki anda berada dalam bingkai kamera.",
     bannerLowQuality: "Undur ke belakang supaya seluruh badan anda kelihatan.",
+    statusTitle: "Bersiap sedia",
     autoStarting: "Seluruh badan dikesan — bermula secara automatik",
+    autoStartWaiting: "Pastikan seluruh badan dalam bingkai — diteruskan automatik selepas 5 saat.",
+    startSession: "Mula sesi",
     startingSession: "Memulakan sesi anda...",
     startingTitle: "Memulakan sesi anda",
     startingSubtitle: "Seluruh badan dikesan — sesi anda sedang disediakan.",
     startingStep1: "Menghubungi pelayan...",
     startingStep2: "Menyediakan sesi anda...",
     startingStep3: "Hampir bersedia...",
-    startSession: "Mula sesi",
     selectExerciseFirst: "Sila pilih senaman sebelum memulakan sesi.",
     startError: "Tidak dapat memulakan sesi.",
-    demoTitle: "Tonton Demo",
+  },
+  instr: {
+    eyebrow: "Sebelum anda mula",
+    demoEyebrow: "Tonton demo",
+    demoTitle: "Pratonton pergerakan",
+    demoLooping: "Bergelung",
+    demoPlaceholder: "Ketik untuk main demo senaman",
+    demoCaption:
+      "Padankan pergerakan ini mengikut kadar anda sendiri. Demo bergelung sehingga anda teruskan.",
+    docEyebrow: "Fail senaman",
+    docTitle: "Cara melakukannya",
+    docSubtitle: "Baca langkah-langkah ini, kemudian teruskan apabila bersedia.",
+    cameraEyebrow: "Persediaan kamera",
+    cameraTitle: "Tunjukkan sebelah ini kepada kamera",
+    cameraLabel: "Kamera",
+    expectedView: "Dijangka: {{view}}",
+    viewSide: "Pandangan sisi",
+    viewFront: "Pandangan hadapan",
+    continueButton: "Faham",
+    continueCaption: "Anda akan diteruskan ke persediaan kamera seterusnya.",
   },
   live: {
     timer: "Masa",
@@ -315,6 +330,7 @@ const ms: Dict = {
     cueDismiss: "Tutup",
     cancel: "Batal",
     repTarget: "drpd 5",
+    repsOfTargetValue: "{{rep}} / {{target}}",
     speakStarting: "Bermula",
     speakSessionComplete: "Sesi selesai",
     getReadyCaption: "Bersedia — rakaman akan bermula secara automatik.",
@@ -565,16 +581,6 @@ const ms: Dict = {
       "Letakkan kerusi atau dinding di sisi anda. Sandarkan satu tangan dengan ringan padanya untuk sokongan jika anda berasa tidak stabil.",
     setupInstr5: "Pastikan mata anda terbuka.",
     setupInstr6: "Anda akan diminta mengangkat satu kaki, kemudian kaki yang satu lagi.",
-    setupGuidanceFront:
-      "Hadap kamera secara langsung supaya kedua-dua lutut dan pinggul jelas kelihatan.",
-    setupGuidanceLift:
-      "Angkat kaki anda sehingga bar tahap angkat bertukar hijau untuk mula mengira masa.",
-    setupGuidanceTouchdown:
-      "Jika kaki anda menyentuh tanah atau anda kehilangan keseimbangan, tahan akan tamat secara automatik.",
-    setupGuidanceBall: "Kekalkan bola dalam bulatan untuk mendapat lebih mata!",
-    legendTitle: "Apa yang anda akan lihat semasa tahanan anda",
-    legendBall: "Bola akan hanyut jika anda bergoyang — cuba kekalkan ia dalam gelang.",
-    legendLine: "Angkat kaki anda melepasi garisan ini untuk mula dan kekalkan pengiraan masa.",
     // Langsung — arahan kaki & mesej
     legPromptRight: "Angkat kaki KANAN anda",
     legPromptLeft: "Angkat kaki KIRI anda",
@@ -582,7 +588,8 @@ const ms: Dict = {
     legRight: "Kaki kanan",
     legLeft: "Kaki kiri",
     standBothFeet: "Berdiri dengan kedua-dua kaki untuk mula.",
-    pressStartHold: "Tekan Mula Tahan untuk memulakan sesi.",
+    readyAutoMessage:
+      "Berdiri dengan kedua-dua kaki, sepenuhnya dalam bingkai — kiraan detik bermula secara automatik.",
     liftAboveLine: "Angkat kaki melepasi garisan untuk mula mengira masa.",
     holdSteady: "Tahan stabil — kekalkan bola dalam bulatan untuk lebih mata!",
     footDropped: "Kaki jatuh di bawah garisan. Tahan dihentikan.",
@@ -590,7 +597,7 @@ const ms: Dict = {
     cueWrongLegDetail: "Kekalkan {{leg}} anda di atas lantai",
     notVisible: "Badan tidak kelihatan sepenuhnya. Sila laraskan kamera anda.",
     timeReached: "Masa dicapai. Bagus — tukar kaki apabila bersedia.",
-    startHold: "Mula Tahan",
+    autoStartingLabel: "Sedang bersedia...",
     getReadyCaption: "Sediakan kedudukan anda — tahan bermula secara automatik.",
     stop: "Berhenti",
     retry: "Cuba semula",
@@ -629,6 +636,20 @@ const ms: Dict = {
     stopReason_unknown: "tamat",
     disclaimer:
       "Ini ialah semakan kendiri fungsi, bukan diagnosis klinikal. Ia tidak memberitahu sama ada keseimbangan atau buku lali anda sihat. Berhenti serta-merta jika anda berasa sakit, pening, atau tidak selamat.",
+    instrTitle: "Berdiri Sebelah Kaki — cara melakukannya",
+    instrStep1:
+      "Berdiri dengan kedua-dua kaki, menghadap kamera, dengan seluruh badan anda dalam bingkai.",
+    instrStep2: "Sebaik sahaja badan anda dikesan, kiraan detik pendek bermula secara automatik.",
+    instrStep3:
+      "Angkat kaki yang diminta melepasi garisan pada skrin — pemasa bermula sebaik anda melepasinya, tiada butang diperlukan.",
+    instrStep4: "Tahan sestabil mungkin, sehingga 45 saat.",
+    instrStep5:
+      "Jika kaki anda jatuh semula ke bawah garisan, tahan akan tamat serta-merta dan direkodkan mengikut keadaan itu.",
+    instrCameraCaption:
+      "Pandangan hadapan — hadap kamera secara langsung supaya kedua-dua pinggul dan lutut kelihatan.",
+    instrOverlayTitle: "Apa yang anda akan lihat semasa tahanan anda",
+    instrOverlayBody:
+      "Gelang menunjukkan keseimbangan anda — kekalkan bola di tengah. Garisan menandakan ketinggian yang kaki anda perlu kekal di atasnya.",
   },
   wblt: {
     setupGuidanceSide:
@@ -708,8 +729,7 @@ const ms: Dict = {
       "Keputusan ini hampir dengan sempadan gred — anggap sebagai anggaran.",
     warn_retry_lateral_alignment:
       "Sudut kamera tidak cukup dari sisi — pusing supaya kamera melihat kaki anda betul-betul dari sisi.",
-    warn_retry_leg_visibility:
-      "Lutut, buku lali, tumit, atau kaki anda keluar dari bingkai — undur supaya seluruh kaki kelihatan.",
+    warn_retry_leg_visibility: "Undur supaya seluruh kaki anda kelihatan.",
     warn_retry_landmark_conf:
       "Penjejakan terlalu tidak boleh dipercayai — cuba pencahayaan yang lebih baik atau latar belakang yang lebih ringkas.",
     warn_calibration_failed:
@@ -723,14 +743,23 @@ const ms: Dict = {
     trendDistanceNoChange: "jarak lebih kurang sama",
     trendAngleChanged: "sudut {{sign}}{{value}}°",
     trendAngleNoChange: "sudut lebih kurang sama",
+    instrTitle: "Ujian Lunge Menahan Berat — cara melakukannya",
+    instrStep1:
+      "Berdiri sisi menghadap kamera supaya lutut, buku lali, tumit dan tapak kaki anda kelihatan jelas.",
+    instrStep2:
+      "Berdiri pada jarak yang ditunjukkan dari dinding, kemudian lunge ke hadapan apabila bersedia.",
+    instrStep3: "Kekalkan tumit anda rata di lantai dan cuba sentuhkan lutut anda ke dinding.",
+    instrStep4:
+      "Jika tumit anda terangkat dari lantai, percubaan itu tidak akan dikira — anda akan mendapat percubaan lain (3 percubaan setiap kaki, ditambah bonus jika perlu).",
+    instrCameraCaption:
+      "Pandangan sisi — kekalkan lutut, buku lali, tumit dan tapak kaki anda menghadap kamera.",
+    positionGuidanceShort:
+      "Kekalkan badan anda dari bahu ke buku lali (kedua-dua kaki) dalam bingkai.",
+    instrEquipment: "Anda memerlukan dinding untuk lunge ke arahnya.",
   },
   squat: {
     reportTitle: "Squat",
     livePrompt: "Squat mengikut rentak anda sendiri, kemudian tamatkan set apabila selesai.",
-    setupGuidanceSide: "Berdiri sebelah kamera supaya pinggul, lutut, dan buku lali anda jelas.",
-    setupGuidanceSpace: "Pastikan seluruh badan anda kekal dalam bingkai semasa setiap squat.",
-    setupGuidancePace:
-      "Bergerak pada rentak terkawal dan semula jadi — tiada sasaran ulangan untuk dikejar.",
     setupTargetPrompt:
       "Anda boleh menetapkan sasaran ulangan peribadi secara pilihan — ini tidak menjejaskan skor anda.",
     noTarget: "Tiada sasaran",
@@ -765,6 +794,28 @@ const ms: Dict = {
     cueHeelLift: "Tumit ke lantai",
     cueHeelLiftDetail: "Tumit anda terangkat",
     cueRepCounted: "Bagus!",
+    instrTitle: "Squat — cara melakukannya",
+    instrStep1: "Berdiri sisi menghadap kamera supaya pinggul, lutut dan buku lali anda kelihatan.",
+    instrStep2: "Pastikan seluruh badan anda kekal dalam bingkai sepanjang setiap squat.",
+    instrStep3:
+      "Bergerak pada rentak yang terkawal dan semula jadi — tiada sasaran ulangan untuk dikejar.",
+    instrStep4:
+      "Ulangan hanya dikira jika ia melepasi semakan kedalaman, condong dan tumit — ulangan yang gagal akan ditanda dan tidak dikira ke arah sasaran anda, jadi cuba semula sahaja.",
+    instrCameraCaption:
+      "Pandangan sisi — kekalkan pinggul, lutut dan buku lali sisi kerja anda menghadap kamera.",
+    targetPromptTitle: "Berapa banyak ulangan?",
+  },
+  sts: {
+    instrTitle: "Duduk ke Berdiri — cara melakukannya",
+    instrStep1:
+      "Duduk di kerusi menghadap kamera, dengan seluruh badan anda kelihatan dari tempat duduk ke atas.",
+    instrStep2: "Berdiri sepenuhnya, kemudian duduk semula — ulangi mengikut rentak anda sendiri.",
+    instrStep3: "Lengkapkan 5 ulangan duduk-ke-berdiri yang sah untuk menamatkan set.",
+    instrStep4:
+      "Sesi akan tamat secara automatik selepas 60 saat walaupun anda belum mencapai 5 — apa yang telah anda lengkapkan tetap direkodkan.",
+    instrCameraCaption:
+      "Pandangan sisi — letakkan kerusi di sisi kamera supaya pinggul dan lutut anda kelihatan.",
+    instrEquipment: "Anda memerlukan kerusi yang kukuh untuk duduk dan berdiri.",
   },
   moduleB: {
     subscore_rom_completeness: "Kesempurnaan julat gerakan",

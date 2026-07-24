@@ -228,15 +228,20 @@ function DashboardLayoutInner() {
 export function DashTopbar({
   title,
   subtitle,
+  eyebrow,
   actions,
 }: {
   title: string;
   subtitle?: string;
+  /** UAT remediation (Stage R9): small uppercase label above the title (e.g.
+   * "BEFORE YOU BEGIN" on the instruction page) -- optional, most pages omit it. */
+  eyebrow?: string;
   actions?: ReactNode;
 }) {
   return (
     <div className="topbar">
       <div>
+        {eyebrow && <p className="topbar-eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>
         {subtitle && <p>{subtitle}</p>}
       </div>

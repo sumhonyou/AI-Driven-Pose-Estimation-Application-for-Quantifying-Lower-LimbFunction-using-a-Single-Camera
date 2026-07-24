@@ -96,7 +96,7 @@ export default function ExerciseSelection() {
             /* Image-dominant bento card — reused as-is for any exercise with a real thumbnail. */
             <Link
               className="ex-card reveal"
-              to="/camera"
+              to="/instructions"
               key={exercise.code}
               onClick={() => setExerciseCode(exercise.code)}
             >
@@ -130,7 +130,7 @@ export default function ExerciseSelection() {
             /* Rehab mode: original compact card */
             <Link
               className="ex-card reveal"
-              to="/camera"
+              to="/instructions"
               key={exercise.code}
               onClick={() => setExerciseCode(exercise.code)}
             >

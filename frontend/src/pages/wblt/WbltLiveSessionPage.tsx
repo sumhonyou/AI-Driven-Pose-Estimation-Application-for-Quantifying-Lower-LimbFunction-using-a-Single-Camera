@@ -49,6 +49,7 @@ import {
 import WbltTouchSelfReportModal from "../../components/wblt/WbltTouchSelfReportModal";
 import WbltGetReadyCountdown from "../../components/wblt/WbltGetReadyCountdown";
 import WbltAttemptResultOverlay from "../../components/wblt/WbltAttemptResultOverlay";
+import WbltTargetPromptModal from "../../components/wblt/WbltTargetPromptModal";
 
 type Stage =
   | "loading"
@@ -268,13 +269,41 @@ export default function WbltLiveSessionPage() {
   }, [stage]);
   const legVisible = isWbltLegVisible(landmarks ?? [], leg);
   const hipsVisible = areWbltHipsVisible(landmarks ?? []);
+  // UAT remediation (Stage R9): the old fallback reused the long setupGuidanceSide
+  // sentence here; replaced with a short, uniform framing instruction (HY's wording)
+  // now that reading distance matters again on the live positioning box. The two
+  // "retry_*" messages stay as-is -- already short and specific to their failure.
   const positionGuidance = !landmarks?.length
-    ? t("wblt.setupGuidanceSide")
+    ? t("wblt.positionGuidanceShort")
     : !legVisible
       ? t("wblt.warn_retry_leg_visibility")
       : !hipsVisible
         ? t("wblt.warn_retry_lateral_alignment")
         : t("wblt.positioningHold");
+  // UAT remediation (Stage R9): this box previously stayed green through every one
+  // of the warning states above -- now only the genuine "you're framed, hold still"
+  // message is green; everything else (including the real backend `retry_*` fault
+  // tags this mirrors) reads amber.
+  const positionWarning =
+    stage === "positioning" && (!landmarks?.length || !legVisible || !hipsVisible);
+
+  // UAT remediation (Stage R9, HY's question -- "did you include this into audio
+  // feedback? I think this is also one of the error tags"): confirmed yes, the
+  // backend's warning_tags really does include a `retry_{limiting_factor}` entry
+  // for exactly this (analysis.py) -- but nothing spoke it. Edge-detected so it
+  // fires once per bad-framing episode, not every frame; SpeechCueQueue's own
+  // per-key throttle covers the rest.
+  const wasPositionWarningRef = useRef(false);
+  useEffect(() => {
+    if (stage !== "positioning") {
+      wasPositionWarningRef.current = false;
+      return;
+    }
+    if (positionWarning && !wasPositionWarningRef.current) {
+      speech.speakFault("wblt_framing", t("wblt.positionGuidanceShort"));
+    }
+    wasPositionWarningRef.current = positionWarning;
+  }, [stage, positionWarning, speech, t]);
 
   // Buffer frames + run the live tracker across BOTH the calibration window and the
   // lunge hold — the tracker calibrates its baseline during "calibrating", then
@@ -494,6 +523,12 @@ export default function WbltLiveSessionPage() {
       {stage === "attempt_result" && lastResult && (
         <WbltAttemptResultOverlay result={lastResult} onNext={nextAttempt} />
       )}
+      {/* UAT remediation (Stage R9): popup overlay instead of a sidebar panel --
+          the webcam feed and HUD underneath keep their exact layout whether this is
+          open or closed. */}
+      {stage === "setup" && targetDistanceCm != null && (
+        <WbltTargetPromptModal targetDistanceCm={targetDistanceCm} onStart={beginPositioning} />
+      )}
 
       <div className="topbar">
         <div>
@@ -559,6 +594,8 @@ export default function WbltLiveSessionPage() {
               <div className="hv">{legLabel}</div>
             </div>
             {stage !== "leg_result" && stage !== "session_result" && (
+              // UAT remediation (Stage R9): redesigned like Squat's Reps HUD card --
+              // big value + a progress bar toward attemptsPerLeg, instead of plain text.
               <div className="hud-card reveal">
                 <div className="hl2">{t("wblt.attemptLabel")}</div>
                 <div className="hv">
@@ -574,52 +611,20 @@ export default function WbltLiveSessionPage() {
                     </>
                   )}
                 </div>
+                {!isBonusAttempt && (
+                  <div className="track hud-progress">
+                    <div
+                      className="fill good"
+                      style={{
+                        width: Math.min(100, ((attemptNumber - 1) / attemptsPerLeg) * 100) + "%",
+                        transition: "width .5s var(--ease)",
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
-
-          {stage === "setup" && targetDistanceCm != null && (
-            <div className="panel reveal">
-              <div className="panel-head" style={{ marginBottom: 14 }}>
-                <h3>{t("wblt.targetInstruction")}</h3>
-              </div>
-              <div
-                style={{
-                  fontSize: "3.5rem",
-                  fontWeight: 800,
-                  lineHeight: 1.1,
-                  color: "var(--accent-text)",
-                  fontVariantNumeric: "tabular-nums",
-                  letterSpacing: "-0.03em",
-                  marginBottom: 16,
-                }}
-              >
-                {targetDistanceCm.toFixed(1)}
-                <span
-                  style={{
-                    fontSize: "1.5rem",
-                    fontWeight: 700,
-                    color: "var(--text-3)",
-                    marginLeft: 8,
-                  }}
-                >
-                  cm
-                </span>
-              </div>
-              <ol className="setup-guidance-list">
-                <li>{t("wblt.setupGuidanceSide")}</li>
-                <li>{t("wblt.setupGuidanceDistance")}</li>
-                <li>{t("wblt.setupGuidanceLunge")}</li>
-              </ol>
-              <button
-                className="btn btn-primary btn-block"
-                onClick={beginPositioning}
-                style={{ marginTop: 16 }}
-              >
-                {t("wblt.startAttempt")}
-              </button>
-            </div>
-          )}
 
           {stage === "positioning" && (
             <div className="panel reveal">
@@ -639,7 +644,7 @@ export default function WbltLiveSessionPage() {
                   {positionSecondsLeft}
                 </div>
               )}
-              <div className="sls-live-status-box">
+              <div className={"sls-live-status-box wblt" + (positionWarning ? " warn" : "")}>
                 <span className="sls-live-status-text">{positionGuidance}</span>
               </div>
               <button
@@ -668,7 +673,7 @@ export default function WbltLiveSessionPage() {
               >
                 {calibrationSecondsLeft}
               </div>
-              <div className="sls-live-status-box">
+              <div className="sls-live-status-box wblt">
                 <span className="sls-live-status-text">{t("wblt.calibrating")}</span>
               </div>
             </div>
@@ -690,7 +695,7 @@ export default function WbltLiveSessionPage() {
               >
                 {recordingSecondsLeft}
               </div>
-              <div className="sls-live-status-box">
+              <div className="sls-live-status-box wblt">
                 <span className="sls-live-status-text">{liveMessage}</span>
               </div>
             </div>

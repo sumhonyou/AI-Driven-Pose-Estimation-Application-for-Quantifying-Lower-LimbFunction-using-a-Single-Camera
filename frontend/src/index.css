@@ -14,6 +14,7 @@
   --ink-dark: #051d0c;
   --amber: #f5b731;
   --coral: #ff6b5e;
+  --info-blue: #3b82f6;
 
   --r-sm: 12px;
   --r-md: 16px;
@@ -52,6 +53,7 @@ html[data-theme="light"] {
      actually defined here, so the fallback always won and never adapted to dark mode.
      Derived from --amber's own rgb (245, 183, 49), same alpha convention as --good-bg. */
   --warn-bg: rgba(245, 183, 49, 0.14);
+  --info-blue-bg: rgba(59, 130, 246, 0.14);
   color-scheme: light;
 }
 
@@ -77,6 +79,7 @@ html[data-theme="dark"] {
   --good: var(--lime);
   --good-bg: rgba(155, 255, 0, 0.13);
   --warn-bg: rgba(245, 183, 49, 0.16);
+  --info-blue-bg: rgba(59, 130, 246, 0.18);
   color-scheme: dark;
 }
 
@@ -2611,6 +2614,29 @@ html[data-theme="dark"] .band.poor {
   background: var(--good-bg);
   border: 1px solid color-mix(in srgb, var(--good) 30%, var(--border));
 }
+/* UAT remediation: high-contrast instruction shown directly under the webcam frame
+   on Camera Setup -- deliberately not `.setup-guidance-note`'s muted surface/text-3
+   styling, which HY found easy to miss. Light-blue "info" treatment (heavy border +
+   a large icon sized to roughly match 2 lines of text) per HY's follow-up request. */
+.cam-instruction-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--info-blue-bg);
+  border: 3px solid var(--info-blue);
+  color: var(--text);
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.cam-instruction-card svg {
+  flex-shrink: 0;
+  width: 40px;
+  height: 25px;
+  color: var(--info-blue);
+}
 .setup-guidance-note {
   margin-top: 14px;
   padding: 12px 14px;
@@ -3384,7 +3410,15 @@ html[data-theme="dark"] .ex-card .ex-img {
   display: grid;
   grid-template-columns: 1.8fr 1fr;
   gap: 22px;
-  align-items: start;
+  /* UAT remediation: was `start` -- HY wants the right column's "Getting ready"
+     card to stretch down to match the left column's full height (video + the
+     blue instruction card), see `.cam-status-panel`. */
+  align-items: stretch;
+}
+/* Grows to fill whatever vertical space the left column's taller stack leaves
+   behind, so its bottom edge lines up with the instruction card under the video. */
+.cam-status-panel {
+  flex: 1;
 }
 .cam-stage {
   position: relative;
@@ -3471,7 +3505,7 @@ html[data-theme="dark"] .ex-card .ex-img {
 /* Single Leg Stance is a static reference photo, not a loop -- kept noticeably
    smaller than the video/gif overlays so it reads as a still, not a stalled clip. */
 .demo-overlay--sls {
-  width: 230px;
+  width: 280px;
 }
 .demo-overlay-media {
   display: block;
@@ -3534,7 +3568,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   background: color-mix(in srgb, var(--coral) 10%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--coral) 32%, var(--border));
   color: var(--text);
-  font-size: 1.12rem;
+  font-size: 1.28rem;
   font-weight: 700;
   line-height: 1.35;
 }
@@ -3780,43 +3814,6 @@ html[data-theme="dark"] .ex-card .ex-img {
   border-color: var(--good);
 }
 
-/* UAT remediation (Stage R8): the labelled preview still, shown once on the "ready"
-   screen before the hold starts (T1: "the ball metaphor is opaque", "user asked for
-   a preview image"). */
-.sls-overlay-legend-wrap {
-  margin-bottom: 18px;
-}
-.sls-overlay-legend-title {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 8px;
-}
-.sls-overlay-legend {
-  display: flex;
-  gap: 16px;
-  padding: 14px;
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-}
-.sls-overlay-legend-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-}
-.sls-overlay-legend-item p {
-  font-size: 0.78rem;
-  color: var(--text-2);
-  line-height: 1.35;
-  margin: 0;
-}
-
 /* UAT remediation (Stage R8): small secondary caption under the SLS Time HUD card,
    surfacing the 45s cap as a visible countdown (T1: "the 45s cap is not
    communicated"). */
@@ -3913,6 +3910,23 @@ html[data-theme="dark"] .ex-card .ex-img {
 .sls-modal-card h3 {
   margin-bottom: 8px;
 }
+/* UAT remediation (Stage R9): the big target-distance readout inside
+   WbltTargetPromptModal — was inline styles on the old sidebar panel. */
+.wblt-target-distance {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+.wblt-target-distance-unit {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-3);
+  margin-left: 8px;
+}
 .sls-modal-actions {
   display: flex;
   flex-direction: column;
@@ -3937,6 +3951,24 @@ html[data-theme="dark"] .ex-card .ex-img {
   padding: 16px 18px;
   margin-bottom: 18px;
   min-height: 72px;
+  transition:
+    background-color 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+/* UAT remediation (Stage R9): this box previously stayed green even while telling
+   the user their framing was wrong (WBLT positioning stage) -- a warning state now
+   reads amber, matching the app's other rejected/warning surfaces
+   (.live-feedback-panel.rejected). */
+.sls-live-status-box.warn {
+  background: var(--warn-bg);
+  border-color: var(--amber);
+}
+/* UAT remediation: WBLT's status text (positioning/calibrating/lunge feedback)
+   reads black -- HY's request, since the theme's accent-text green can be hard to
+   read on the amber warning background. Scoped to .wblt so SLS's reuse of this same
+   class is unaffected. */
+.sls-live-status-box.wblt .sls-live-status-text {
+  color: var(--ink-dark);
 }
 .sls-live-status-text {
   /* UAT remediation (Stage R4): enlarged for distance readability (Q9 = 3.38/5). */
@@ -5136,5 +5168,265 @@ html[data-theme="dark"] .ex-card .ex-img {
   }
   .side .brand .logo {
     height: 84px;
+  }
+}
+
+/* ============================================================
+   UAT remediation (Stage R9): shared, reusable Exercise Instructions template.
+   Reference: Figma "Exercise Instruction / Template" (node 12:37) -- structure and
+   copy follow that design; colours/typography/buttons use this app's own tokens and
+   `.btn`/`.panel` classes rather than the Figma file's raw values, per HY's call to
+   keep it standard with the rest of the site.
+   ============================================================ */
+.topbar-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-text);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+}
+.instr-body {
+  display: flex;
+  gap: 22px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.instr-panel-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 3px;
+}
+.instr-demo-panel {
+  flex: 1.3 1 380px;
+  display: flex;
+  flex-direction: column;
+}
+.instr-looping-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--surface-hi);
+  color: var(--emerald);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.instr-looping-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--emerald);
+}
+.instr-video-stage {
+  flex: 1;
+  min-height: 260px;
+  border-radius: var(--r-md);
+  background: var(--ink-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.instr-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.instr-play-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 24px;
+  color: rgba(234, 247, 236, 0.72);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+}
+.instr-play-hint svg {
+  width: 64px;
+  height: 64px;
+  padding: 18px;
+  border-radius: 50%;
+  background: var(--lime);
+  color: var(--on-accent);
+  box-sizing: border-box;
+}
+.instr-demo-caption {
+  font-size: 0.78rem;
+  color: var(--text-3);
+  margin-top: 12px;
+}
+.instr-doc-panel {
+  flex: 1 1 420px;
+  max-width: 500px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.instr-doc-accent {
+  position: absolute;
+  top: 24px;
+  left: -1px;
+  width: 4px;
+  height: 48px;
+  border-radius: 2px;
+  background: var(--lime);
+}
+.instr-doc-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-2);
+  margin-top: 4px;
+}
+.instr-divider {
+  height: 1px;
+  background: var(--border);
+}
+.instr-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.instr-steps li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.instr-step-number {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--lime);
+  color: var(--on-accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.instr-steps p {
+  font-size: 0.94rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.instr-camera-angle {
+  background: var(--surface-hi);
+  border: 1px solid color-mix(in srgb, var(--emerald) 22%, transparent);
+  border-radius: var(--r-md);
+  padding: 16px;
+}
+.instr-camera-eyebrow {
+  color: var(--emerald);
+}
+.instr-camera-angle h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.instr-camera-caption {
+  font-size: 0.78rem;
+  color: var(--text-2);
+  margin-top: 3px;
+  margin-bottom: 14px;
+}
+.instr-camera-diagram {
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.instr-camera-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+}
+.instr-expected-chip {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--lime);
+  color: var(--on-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.instr-equipment {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+}
+.instr-equipment-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--accent-text);
+}
+.instr-equipment p {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.instr-overlay-explainer {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.instr-overlay-explainer h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.instr-overlay-image {
+  width: 100%;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  display: block;
+  margin-bottom: 10px;
+}
+.instr-overlay-explainer p {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.instr-footer {
+  margin-top: 24px;
+  padding: 22px 24px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.instr-footer .muted {
+  font-size: 0.8rem;
+}
+@media (max-width: 860px) {
+  .instr-body {
+    flex-direction: column;
+  }
+  .instr-doc-panel {
+    max-width: none;
   }
 }
