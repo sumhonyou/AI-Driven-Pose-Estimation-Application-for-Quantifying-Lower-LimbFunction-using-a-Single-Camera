@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DashTopbar } from "../layouts/DashboardLayout";
-import { Activity, ArrowLeft, Balance, Check, Stretch } from "../components/Icons";
+import { Activity, Balance, Check, Stretch } from "../components/Icons";
 import { sessionService } from "../services/sessionService";
 import { exerciseService } from "../services/exerciseService";
 import Dropdown from "../components/Dropdown";
@@ -42,7 +42,6 @@ function qualityLabel(value: number | null) {
 
 export default function SessionHistory() {
   const { t } = useTranslation();
-  const nav = useNavigate();
   const [filter, setFilter] = useState<"all" | "functional" | "rehab">("all");
   // Gates only the picker's options, not the table -- a session run on a
   // since-retired exercise (e.g. the old Leg Lunge) stays visible in the
@@ -116,12 +115,6 @@ export default function SessionHistory() {
 
   return (
     <>
-      {/* UAT remediation (Stage R12): History previously had no way back except
-          the browser button itself -- same pattern as Report's back-link. */}
-      <button type="button" className="back-link" onClick={() => nav(-1)}>
-        <ArrowLeft />
-        {t("common.back")}
-      </button>
       <DashTopbar title={t("history.title")} subtitle={t("history.desc")} />
       {error && (
         <p className="muted" style={{ color: "var(--coral)", marginBottom: 18 }}>

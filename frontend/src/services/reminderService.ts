@@ -47,6 +47,18 @@ export const reminderService = {
   remove(id: string) {
     return apiRequest<void>(`/api/reminders/${id}`, { method: "DELETE" });
   },
+  /** Stage R13 (UAT): fire-and-forget complete, scoped to the reminder that
+   * launched the just-finished session (`session.tsx`'s `reminderId`) -- a
+   * no-op when null (every other entry point). Mirrors the existing
+   * `enqueueCancel` non-blocking pattern: a failure here shouldn't stop the
+   * user from reaching their report. */
+  completeIfLaunched(reminderId: string | null) {
+    if (!reminderId) return;
+    reminderService
+      .complete(reminderId)
+      .then(() => console.log("[reminders] auto-completed launching reminder", reminderId))
+      .catch((err) => console.warn("[reminders] auto-complete failed (non-blocking)", err));
+  },
   /** Fetches the .ics as a Blob and triggers a browser download -- the endpoint
    * returns `text/calendar`, not JSON, so this bypasses apiRequest directly. */
   async downloadIcs(id: string, filename = "reminder.ics") {

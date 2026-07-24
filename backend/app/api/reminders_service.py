@@ -97,7 +97,22 @@ def _fmt_ics_datetime(value: datetime) -> str:
     return _to_utc(value).strftime("%Y%m%dT%H%M%SZ")
 
 
-def build_ics(reminder: Any, now: datetime | None = None) -> str:
+def _calendar_title(reminder: Any, exercise_name: str | None) -> str:
+    """Event title for both the .ics and Google Calendar link.
+
+    Stage R13 (UAT): a reminder titled e.g. "Evening set" gave no hint which
+    exercise it was for once it landed in the user's own calendar app, away
+    from PhysioFit's own UI. `exercise_name` is resolved by the caller (the
+    router already looks it up for the API response) so this stays a pure
+    string helper -- None for a reminder with no linked exercise, or one whose
+    exercise has since been retired.
+    """
+    return f"{reminder.title} — {exercise_name}" if exercise_name else reminder.title
+
+
+def build_ics(
+    reminder: Any, now: datetime | None = None, exercise_name: str | None = None
+) -> str:
     """RFC-5545 VCALENDAR text with one VEVENT + a popup VALARM at the reminder time.
 
     `now` is only the DTSTAMP (when this file was generated) -- optional, tests can
@@ -106,6 +121,7 @@ def build_ics(reminder: Any, now: datetime | None = None) -> str:
     if now is None:
         now = datetime.now(UTC)
 
+    title = _calendar_title(reminder, exercise_name)
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -114,8 +130,8 @@ def build_ics(reminder: Any, now: datetime | None = None) -> str:
         f"UID:{reminder.id}@physiofit",
         f"DTSTAMP:{_fmt_ics_datetime(now)}",
         f"DTSTART:{_fmt_ics_datetime(reminder.reminder_time)}",
-        f"SUMMARY:{_ics_escape(reminder.title)}",
-        f"DESCRIPTION:{_ics_escape('PhysioFit reminder: ' + reminder.title)}",
+        f"SUMMARY:{_ics_escape(title)}",
+        f"DESCRIPTION:{_ics_escape('PhysioFit reminder: ' + title)}",
     ]
     rrule = _rrule_value(reminder.frequency)
     if rrule:
@@ -132,16 +148,17 @@ def build_ics(reminder: Any, now: datetime | None = None) -> str:
     return "\r\n".join(lines) + "\r\n"
 
 
-def build_google_calendar_url(reminder: Any) -> str:
+def build_google_calendar_url(reminder: Any, exercise_name: str | None = None) -> str:
     """A prefilled 'Add to Google Calendar' link -- no OAuth, just a render URL
     the browser opens; the user's own Google account handles the rest."""
+    title = _calendar_title(reminder, exercise_name)
     start = _to_utc(reminder.reminder_time)
     end = start + timedelta(minutes=30)
     params = {
         "action": "TEMPLATE",
-        "text": reminder.title,
+        "text": title,
         "dates": f"{start.strftime('%Y%m%dT%H%M%SZ')}/{end.strftime('%Y%m%dT%H%M%SZ')}",
-        "details": f"PhysioFit reminder: {reminder.title}",
+        "details": f"PhysioFit reminder: {title}",
     }
     rrule = _rrule_value(reminder.frequency)
     if rrule:

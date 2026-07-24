@@ -16,10 +16,10 @@ const ms: Dict = {
     next: "Seterusnya",
     viewAll: "Lihat semua",
     add: "Tambah",
-    startNow: "Mula sekarang",
     newSession: "Sesi baharu",
     confirm: "Sahkan",
     cancel: "Batal",
+    done: "Selesai",
     nonDiagnostic: "Alat bukan diagnostik",
     loading: "Memuatkan...",
     loadError: "Tidak dapat memuatkan data.",
@@ -48,10 +48,9 @@ const ms: Dict = {
     audioCuesOff: "Isyarat suara dimatikan",
   },
   landing: {
-    badge: "Satu kamera · AI pose dalam pelayar",
     title: "Ukur fungsi anggota bawah dengan",
     titleHl: "kamera web anda sahaja",
-    lead: "PhysioFit menjadikan kamera biasa sebagai jurulatih kualiti pergerakan. Jalankan semakan fungsi berpandu dan sesi penggredan pemulihan, kemudian dapatkan maklum balas Baik / Sederhana / Lemah yang jelas serta kemajuan yang boleh dijejak.",
+    lead: "PhysioFit menjadikan kamera anda sebagai jurulatih kualiti pergerakan. Jalankan semakan berpandu dan dapatkan skor Baik / Sederhana / Lemah yang jelas, serta kemajuan yang boleh dijejak.",
     ctaPrimary: "Mula semakan percuma",
     ctaSecondary: "Lihat cara ia berfungsi",
     stat1: "Semakan fungsi",
@@ -62,6 +61,7 @@ const ms: Dict = {
     captureQuality: "Kualiti tangkapan",
     disclaimer:
       "PhysioFit hanya memberikan maklum balas kualiti pergerakan. Ia bukan peranti perubatan dan tidak mendiagnosis, merawat atau memberi kelulusan perubatan. Jika anda berasa sakit atau ragu, berhenti dan rujuk profesional penjagaan kesihatan yang berkelayakan.",
+    mediaCaption: "Penggredan squat langsung dalam pelayar",
     modEyebrow: "Dua cara bergerak lebih baik",
     modTitle: "Satu platform, dua mod penilaian berpandu",
     modLead:
@@ -69,7 +69,7 @@ const ms: Dict = {
     modATag: "MODUL A",
     modATitle: "Semakan Fungsi",
     modADesc:
-      "Semakan kendiri berasaskan peraturan untuk fungsi lutut dan buku lali harian — tanpa persediaan selain kamera anda.",
+      "Semakan kendiri berasaskan peraturan untuk fungsi lutut dan buku lali harian. Tiada persediaan selain kamera anda.",
     modBTag: "MODUL B",
     modBTitle: "Penggredan Pemulihan",
     modBDesc:
@@ -93,7 +93,7 @@ const ms: Dict = {
       "Panduan bingkai memberitahu jarak dan pandangan sisi / depan yang betul untuk setiap senaman.",
     step2Title: "Bergerak dengan isyarat langsung",
     step2Desc:
-      "MediaPipe Pose menjejak 33 titik dalam pelayar anda dan mengira ulangan atau masa tahan secara langsung.",
+      "Penjejakan pose berjalan dalam pelayar anda dan mengira ulangan atau masa tahan secara langsung.",
     step3Title: "Dapatkan laporan bermarkah",
     step3Desc:
       "Gred Baik / Sederhana / Lemah dengan sub-markah, label ralat dan bimbingan mudah selepas setiap set.",
@@ -105,8 +105,7 @@ const ms: Dict = {
       "Tiada muat turun, tiada peranti pakai. Buka kamera anda dan selesaikan semakan fungsi pertama dalam masa kurang tiga minit.",
     ctaOpen: "Buka papan pemuka",
     ctaExplore: "Terokai modul",
-    footTagline:
-      "Fungsi anggota bawah dan penggredan pemulihan dikuasakan AI daripada satu kamera. Dibina untuk kegunaan di rumah, direka agar jelas, tenang dan dipercayai.",
+    footTagline: "Fungsi anggota bawah dan penggredan pemulihan daripada satu kamera.",
     footProduct: "Produk",
     footCompany: "Syarikat",
     fLink1: "Semakan fungsi",
@@ -201,8 +200,6 @@ const ms: Dict = {
     navProgress: "Kemajuan",
     navReminders: "Peringatan",
     navProfile: "Profil",
-    sideCardTitle: "Semakan harian tertunggak",
-    sideCardBody: "Kekalkan momentum — jalankan Duduk-ke-Berdiri hari ini.",
     note: "Keputusan ini hanya menerangkan kualiti pergerakan dan bukan diagnosis perubatan. Rujuk profesional kesihatan untuk kesakitan, kecederaan atau keputusan klinikal.",
     tagRom: "Julat pergerakan terhad",
     tagTempo: "Tempo tidak stabil",
@@ -616,6 +613,9 @@ const ms: Dict = {
     freq_weekly: "Mingguan",
     save: "Simpan peringatan",
     createError: "Tidak dapat menyimpan peringatan ini. Sila cuba lagi.",
+    createdTitle: "Peringatan disimpan",
+    createdAddToCalendar:
+      "Mahukan peringatan di luar PhysioFit juga? Tambahkannya ke kalendar anda.",
   },
   profile: {
     title: "Profil",

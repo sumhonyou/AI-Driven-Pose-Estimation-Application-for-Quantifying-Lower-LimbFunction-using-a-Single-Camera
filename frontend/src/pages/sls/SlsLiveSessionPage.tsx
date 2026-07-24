@@ -22,6 +22,7 @@ import StartHoldCountdown from "../../components/sls/StartHoldCountdown";
 import AutoStartCountdown from "../../components/AutoStartCountdown";
 import { Close } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
+import { reminderService } from "../../services/reminderService";
 import { slsApi, type SlsLegMetrics, type UsedSupport } from "../../services/sls/slsApi";
 import {
   createSlsLiveTracker,
@@ -79,7 +80,7 @@ const IDLE_UPDATE: SlsLiveUpdate = {
 export default function SlsLiveSessionPage() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { mode, sessionId, setSessionId } = useSessionFlow();
+  const { mode, sessionId, setSessionId, reminderId, setReminderId } = useSessionFlow();
 
   const [legIndex, setLegIndex] = useState(0);
   const leg = SLS_LEG_ORDER[legIndex] as SlsLeg;
@@ -271,6 +272,9 @@ export default function SlsLiveSessionPage() {
         capture_quality: avg(samples.map((s) => s.score)),
         valid_frame_ratio: avg(samples.map((s) => s.validFrameRatio)),
       });
+      // Stage R13 (UAT): scoped to the reminder that launched THIS session.
+      reminderService.completeIfLaunched(reminderId);
+      setReminderId(null);
       speech.speakSession("sls_end", t("live.speakSessionComplete"));
       nav(`/report?session=${sessionId}`);
     } catch (err) {
@@ -287,6 +291,7 @@ export default function SlsLiveSessionPage() {
     stopDetection();
     if (sessionId) enqueueCancel(sessionId);
     setSessionId(null);
+    setReminderId(null);
     console.log("[SlsLiveSessionPage] Cancel navigating");
     nav(`/exercise?mode=${mode}`);
   }

@@ -43,7 +43,10 @@ export default function Dropdown({
         aria-label={ariaLabel}
       >
         <span className="dropdown-trigger-label">{current?.label ?? placeholder}</span>
-        <ChevronDown className="dropdown-chevron" />
+        {/* UAT remediation (Stage R14 micro-fix): the chevron used to always
+            point down, giving no visual signal that the menu had opened --
+            same rotate-on-open pattern as Report.tsx's tech-details-toggle. */}
+        <ChevronDown className={"dropdown-chevron" + (open ? " open" : "")} />
       </button>
       {open && (
         <div className="dropdown-menu" role="listbox">

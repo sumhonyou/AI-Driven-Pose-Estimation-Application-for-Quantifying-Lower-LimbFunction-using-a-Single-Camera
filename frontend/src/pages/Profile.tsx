@@ -86,6 +86,7 @@ export default function Profile() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -108,6 +109,20 @@ export default function Profile() {
 
   // Re-run reveal after async profile load — panels don't exist on initial nav.
   useReveal([profile]);
+
+  // UAT remediation (Stage R14 micro-fix): clicking "Edit profile" swapped the
+  // panel to the form, but nothing was ever focused -- the user had to click
+  // into the name field themselves before typing. Focuses it and places the
+  // caret at the end of the existing name (not the start, which would make
+  // typing insert before it) once the edit panel's fields exist in the DOM.
+  useEffect(() => {
+    if (!isEditing) return;
+    const input = nameInputRef.current;
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  }, [isEditing]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -339,6 +354,7 @@ export default function Profile() {
                         <div className="field">
                           <label htmlFor="full_name">{t("auth.fullName")}</label>
                           <input
+                            ref={nameInputRef}
                             id="full_name"
                             name="full_name"
                             className="input"

@@ -5524,3 +5524,144 @@ control sit cleanly in the existing `.filters` row.
 per-leg isolation (only SLS was asked for); a server-side date-range param for
 Session History (unnecessary while the full list is already fetched in one
 request).
+
+### Phase 10 — Stage R13 (Reminder feature fixes) · 2026-07-25
+
+**Scope:** the discrete reminder-feature defects from UAT (concept scored 4.71/5
+& 67% "strongest", but 11/18 sessions hit small friction points).
+
+- **Sort newest-first:** [reminders_routes.py](./backend/app/api/reminders_routes.py)
+  `list_reminders` now orders by `Reminder.created_at.desc()` (was
+  `reminder_time` ascending). The Reminders page's own client-side
+  [`sortReminders`](./frontend/src/pages/Reminders.tsx) tiebreak (after
+  due-first, completed-last) changed from soonest-`reminder_time` to
+  newest-`created_at` to match — a reminder scheduled far out used to get
+  buried mid-list right after being created (S15/S18). Dashboard's "upcoming"
+  preview, which depended on the API's old soonest-first order, now sorts
+  explicitly (due-first, then soonest) rather than trusting API order.
+- **Auto-prompt "add to calendar?" on creation:** `ReminderFormModal`
+  ([Reminders.tsx](./frontend/src/pages/Reminders.tsx)) no longer closes on
+  save — it switches to a "Reminder saved" view with the Google Calendar link
+  and .ics download for the reminder just created, dismissed by a "Done"
+  button. The list refresh (`onCreated()`) still fires immediately.
+- **Exercise name in the calendar event title:** `build_ics`/
+  `build_google_calendar_url` ([reminders_service.py](./backend/app/api/reminders_service.py))
+  gained an `exercise_name: str | None` param and a shared `_calendar_title()`
+  helper (`"{title} — {exercise_name}"`, or just `title` when None/retired).
+  Both router call sites (`_to_response`, `export_reminder_ics`) now resolve
+  and pass the exercise name.
+- **Auto-tick scoped to the launched reminder:** `session.tsx`'s
+  `SessionFlow` gained `reminderId`/`setReminderId` (cleared by
+  `resetSession()`). `Reminders.tsx`'s `openExercise()` sets it after
+  `resetSession()`. All 4 `*LiveSessionPage.tsx` read it at their real session-
+  completion point and call the new `reminderService.completeIfLaunched(id)`
+  (fire-and-forget, mirrors the existing `enqueueCancel` non-blocking pattern),
+  then clear it — so a session NOT launched from a reminder card (Exercise
+  Selection, Retry from Report) never ticks anything. Each page's cancel
+  handler and `CameraSetup.tsx`'s back handler also clear it, so abandoning
+  before completion can't leak a stale id into a later, unrelated session.
+- **Status wording — "completed" vs "selected":** the whole `.rem-card` used
+  to be silently clickable-to-open (only a `title` tooltip hinted at it),
+  which testers conflated with the check button's "mark complete" action
+  (S5/S17). Replaced with an explicit Play-icon "Open" button in `.rem-actions`
+  (same `openExercise()` handler, `reminders.openExercise` label) — two
+  distinct, separately-labelled affordances instead of one ambiguous one.
+- **Recurrence display wrapping fix (S4/S9):** [index.css](./frontend/src/index.css)
+  `.chip` gained `white-space: nowrap` (a multi-word chip like "Mon · Wed ·
+  Fri" could wrap onto a second line inside the pill, breaking its rounded
+  shape) and `.rem-card` gained `flex-wrap: wrap` (so on a narrow viewport the
+  chips/time/actions wrap as whole units instead of squeezing, which was what
+  forced the pill text to wrap in the first place).
+- **Reminders out of "Account":** [DashboardLayout.tsx](./frontend/src/layouts/DashboardLayout.tsx)
+  moved the Reminders `NavLink` into the "Overview" nav group (after Progress);
+  "Account" now holds only Profile.
+
+**i18n:** new keys in all 3 locales — `common.done`, `reminders.createdTitle`,
+`reminders.createdAddToCalendar`.
+
+**Verification:** backend `pytest` **343 passed** (5 new reminders-service
+tests: 2 for exercise-name-in-title, kept the rest green), `black`/`isort`
+clean on touched files. Frontend `tsc --noEmit` clean, `vitest` **56/56**
+(no new component needed its own test — Dropdown/icons/CSS are existing,
+already-tested primitives), Prettier clean. Browser-verified via a static
+layout preview (Reminders is auth-gated, same convention as prior stages):
+the "Mon · Wed · Fri" chip no longer wraps inside its pill, the sidebar shows
+Reminders active under "Overview" with Profile alone under "Account", and the
+new Open (▶) button sits distinctly from the check-mark and calendar/download/
+delete icons.
+
+**Not done (optional per the plan):** "created-vs-scheduled columns + sort
+(S10)" was flagged optional in the plan and not built.
+
+### Phase 10 — Stage R14 (Navigation, discoverability & polish) · 2026-07-25
+
+**Scope:** the trimmed-down version of R14 in the plan (HY edited it down from the
+original draft — dark-theme logo, log-out-under-profile, font-size-control
+surfacing, and the standalone first-run disclaimer modal are no longer in this
+stage's scope; the ethics badge itself already shipped in R11).
+
+- **Removed the sidebar "Daily check due" card** (HY's explicit ask, not in the
+  plan text): [DashboardLayout.tsx](./frontend/src/layouts/DashboardLayout.tsx)'s
+  `.side-foot` had a hardcoded, always-on card naming a fixed exercise
+  ("run today's Sit-to-Stand") and implying a streak feature that was
+  documented as future work, not built (task.md's "Form streak" note) --
+  misleading regardless of what was actually due, and duplicating the real
+  `DueReminderBanner`. Removed the block, its now-orphaned CSS (`.side-card*`)
+  and i18n keys (`dash.sideCardTitle`, `dash.sideCardBody`, `common.startNow`,
+  checked for other usages first).
+- **Back buttons:** the plan now explicitly says the Session History **tab**
+  itself doesn't need one (only a "detail" view does) -- reverted the
+  `back-link` I'd added to [SessionHistory.tsx](./frontend/src/pages/SessionHistory.tsx)
+  in the R12 follow-up. Report.tsx (reached from History, functioning as the
+  "detail" view) already has its own back button from R11, so this item is
+  covered without new work.
+- **Sidebar collapse icon:** the collapse toggle's `Close` (X) icon reads as
+  "dismiss" rather than "shrink this panel" -- swapped for the existing
+  `ArrowLeft` icon (a real two-stroke arrow, not the X or a solid chevron/
+  triangle glyph). Only the collapsed→expanded toggle direction changed; the
+  expand-from-collapsed state keeps `Menu`.
+- **Micro-fixes:**
+  - *Name-edit cursor:* clicking "Edit profile" swapped in the name field but
+    never focused it -- [Profile.tsx](./frontend/src/pages/Profile.tsx) now
+    focuses the name input and places the caret at the end of the existing
+    text once the edit panel exists in the DOM.
+  - *New-session focus outline:* the sidebar's "New session" item was a plain
+    `<div onClick>`, not a real link -- unreachable by Tab and with no
+    focus-visible outline, unlike every other sidebar item. Converted to a
+    real `<Link to="/mode">`, keeping the multi-route `isSessionFlow` active-
+    class logic that `NavLink`'s own `isActive` can't express. The app's
+    global `:focus-visible` rule now applies to it for free.
+  - *Dashboard line-spacing:* `.topbar h1` had no line-height of its own and
+    inherited the page's generic 1.55 body-copy value, reading as loose dead
+    space under a single bold heading sitting right above a 2px-margin
+    subtitle -- set `line-height: 1.2`.
+  - *Toggle chevron:* [Dropdown.tsx](./frontend/src/components/Dropdown.tsx)'s
+    chevron always pointed down regardless of open/closed state -- added an
+    `.open` class + `transform: rotate(180deg)` with a transition, the same
+    pattern Report.tsx's Technical Details toggle already uses.
+  - *Reduce home copy:* trimmed the two longest marketing paragraphs on
+    [Landing.tsx](./frontend/src/pages/Landing.tsx) -- the hero `lead` (~39
+    words → ~27) and the footer `footTagline` (~22 words → ~11) -- in all 3
+    locales. Left the ethics `disclaimer` text and the per-step/per-module
+    one-sentence descriptions alone (already concise, and the disclaimer
+    shouldn't be trimmed for brevity).
+- **i18n audit:** `zh.ts`/`ms.ts` are typed as `const zh/ms: Dict = {...}`
+  where `Dict = typeof en` ([en.ts](./frontend/src/i18n/en.ts)) -- `tsc` fails
+  to compile if either locale is missing (or has an extra) any key present in
+  the other. Since `tsc --noEmit` passed clean after every R1-R14 edit this
+  session, exact key parity across all three locales is already continuously
+  enforced by the type system, not just spot-checked.
+
+**Verification:** `tsc --noEmit` clean (confirms the i18n audit), `vitest`
+**56/56** (no behavioural change needed new test coverage -- all edits are
+either JSX/CSS or the Profile focus effect, which is straightforward to
+verify by review), Prettier clean. Browser-verified: Landing page live (public,
+no auth needed) confirmed the trimmed hero + footer copy renders correctly;
+the sidebar's no-streak-card + left-arrow collapse icon and the dropdown's
+open/closed chevron rotation confirmed via a static layout preview using the
+app's real CSS classes (Dashboard/Profile are auth-gated, same convention as
+prior stages).
+
+**Not done (descoped by HY's plan edit):** dark-theme logo contrast, log-out
+also under Profile, font-size-control discoverability, and the standalone
+first-run non-diagnostic disclaimer modal + backend acknowledgement logging.

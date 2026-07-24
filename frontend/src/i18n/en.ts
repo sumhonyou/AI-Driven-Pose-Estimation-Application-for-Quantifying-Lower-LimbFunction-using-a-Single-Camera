@@ -14,10 +14,10 @@ const en = {
     next: "Next",
     viewAll: "View all",
     add: "Add",
-    startNow: "Start now",
     newSession: "New session",
     confirm: "Confirm",
     cancel: "Cancel",
+    done: "Done",
     nonDiagnostic: "Non-diagnostic tool",
     loading: "Loading...",
     loadError: "Could not load data.",
@@ -49,10 +49,9 @@ const en = {
     audioCuesOff: "Voice cues off",
   },
   landing: {
-    badge: "Single camera · Browser-based pose AI",
     title: "Quantify lower-limb function with",
     titleHl: "just your webcam",
-    lead: "PhysioFit turns an ordinary camera into a movement-quality coach. Run guided functional checks and rehab-grading sessions, then get clear Good / Fair / Poor feedback and progress you can track over time.",
+    lead: "PhysioFit turns your camera into a movement-quality coach. Run a guided check and get a clear Good / Fair / Poor score, plus progress you can track over time.",
     ctaPrimary: "Start a free check",
     ctaSecondary: "See how it works",
     stat1: "Functional checks",
@@ -63,6 +62,7 @@ const en = {
     captureQuality: "Capture quality",
     disclaimer:
       "PhysioFit provides movement-quality feedback only. It is not a medical device and does not diagnose, treat, or give medical clearance. If you feel pain or are unsure, stop and consult a qualified healthcare professional.",
+    mediaCaption: "Live squat grading in the browser",
     modEyebrow: "Two ways to move better",
     modTitle: "One platform, two modes of guided assessment",
     modLead:
@@ -70,7 +70,7 @@ const en = {
     modATag: "MODULE A",
     modATitle: "Functional Checking",
     modADesc:
-      "Deterministic, rule-based self-checks for everyday knee and ankle function — no setup beyond your camera.",
+      "Deterministic, rule-based self-checks for everyday knee and ankle function. No setup beyond your camera.",
     modBTag: "MODULE B",
     modBTitle: "Rehab Grading",
     modBDesc:
@@ -93,8 +93,7 @@ const en = {
     step1Desc:
       "Guided framing tells you the right distance and side / front view for each exercise.",
     step2Title: "Move with live cues",
-    step2Desc:
-      "MediaPipe Pose tracks 33 landmarks in your browser and counts reps or hold time as you go.",
+    step2Desc: "Pose tracking runs in your browser and counts reps or hold time as you go.",
     step3Title: "Get a scored report",
     step3Desc:
       "A Good / Fair / Poor band with sub-scores, error tags, and plain-language coaching after every set.",
@@ -105,8 +104,7 @@ const en = {
       "No download, no wearable. Open your camera and complete your first functional check in under three minutes.",
     ctaOpen: "Open the dashboard",
     ctaExplore: "Explore the modules",
-    footTagline:
-      "AI-driven lower-limb function and rehabilitation grading from a single camera. Built for home use, designed to be clear, calm, and trustworthy.",
+    footTagline: "Lower-limb function and rehab grading from a single camera.",
     footProduct: "Product",
     footCompany: "Company",
     fLink1: "Functional checks",
@@ -201,8 +199,6 @@ const en = {
     navProgress: "Progress",
     navReminders: "Reminders",
     navProfile: "Profile",
-    sideCardTitle: "Daily check due",
-    sideCardBody: "Keep your streak going — run today's Sit-to-Stand.",
     note: "These results describe movement quality only and are not a medical diagnosis. Consult a healthcare professional for pain, injury, or clinical decisions.",
     tagRom: "Limited range of motion",
     tagTempo: "Unstable tempo",
@@ -634,6 +630,8 @@ const en = {
     freq_weekly: "Weekly",
     save: "Save reminder",
     createError: "Could not save this reminder. Please try again.",
+    createdTitle: "Reminder saved",
+    createdAddToCalendar: "Want a heads-up outside PhysioFit too? Add it to your calendar.",
   },
   profile: {
     title: "Profile",

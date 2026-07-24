@@ -4,7 +4,17 @@ import { NavLink, Outlet, useLocation, Link, useNavigate } from "react-router-do
 import { useTranslation } from "react-i18next";
 import { Logo, ThemeToggle, FontSizeControl, LanguageSwitcher } from "../components/Controls";
 import AudioCueToggle from "../components/AudioCueToggle";
-import { Grid, CirclePlus, History, Chart, Bell, User, Menu, Close } from "../components/Icons";
+import {
+  Grid,
+  CirclePlus,
+  History,
+  Chart,
+  Bell,
+  User,
+  Menu,
+  Close,
+  ArrowLeft,
+} from "../components/Icons";
 import { useReveal } from "../useReveal";
 import { useAuth } from "../auth";
 import { RemindersProvider, useReminders } from "../reminders";
@@ -139,7 +149,11 @@ function DashboardLayoutInner() {
             aria-pressed={collapsed}
             title="Toggle sidebar"
           >
-            {collapsed ? <Menu /> : <Close />}
+            {/* UAT remediation (Stage R14): the collapse state used to show an
+                X (Close), which reads as "dismiss" rather than "shrink this
+                panel" -- a plain two-stroke left arrow is the conventional
+                sidebar-collapse glyph. */}
+            {collapsed ? <Menu /> : <ArrowLeft />}
           </button>
         </div>
         <div className="side-group">{t("dash.sideOverview")}</div>
@@ -148,16 +162,17 @@ function DashboardLayoutInner() {
             <Grid />
             <span className="nav-label">{t("dash.navDashboard")}</span>
           </NavLink>
-          <div
-            className={`nav-link ${isSessionFlow ? "active" : ""}`}
-            onClick={() => {
-              nav("/mode");
-              close();
-            }}
-          >
+          {/* UAT remediation (Stage R14 micro-fix): this was a plain <div
+              onClick>, not a real link -- unreachable by Tab and with no
+              focus-visible outline, unlike every other sidebar item. A real
+              <Link> keeps the multi-route "active" logic (isSessionFlow spans
+              /mode, /exercise, /camera, /live-session, /report, which
+              NavLink's own isActive can't express) while restoring normal
+              keyboard focusability. */}
+          <Link to="/mode" className={`nav-link ${isSessionFlow ? "active" : ""}`}>
             <CirclePlus />
             <span className="nav-label">{t("dash.navNew")}</span>
-          </div>
+          </Link>
           <NavLink to="/history" className={({ isActive }) => (isActive ? "active" : "")}>
             <History />
             <span className="nav-label">{t("dash.navHistory")}</span>
@@ -166,9 +181,10 @@ function DashboardLayoutInner() {
             <Chart />
             <span className="nav-label">{t("dash.navProgress")}</span>
           </NavLink>
-        </nav>
-        <div className="side-group">{t("dash.sideAccount")}</div>
-        <nav className="side-nav" onClick={close}>
+          {/* UAT remediation (Stage R13): reminders used to live under "Account"
+              alongside Profile, which testers didn't associate with a core,
+              frequently-used feature (concept scored 4.71/5 & 67% "strongest" --
+              S5/R19). Relocated under "Overview" with the rest of the main flow. */}
           <NavLink to="/reminders" className={({ isActive }) => (isActive ? "active" : "")}>
             <span className="nav-icon-badge">
               <Bell />
@@ -181,24 +197,22 @@ function DashboardLayoutInner() {
             </span>
             <span className="nav-label">{t("dash.navReminders")}</span>
           </NavLink>
+        </nav>
+        <div className="side-group">{t("dash.sideAccount")}</div>
+        <nav className="side-nav" onClick={close}>
           <NavLink to="/profile" className={({ isActive }) => (isActive ? "active" : "")}>
             <User />
             <span className="nav-label">{t("dash.navProfile")}</span>
           </NavLink>
         </nav>
         <div className="side-foot">
-          <div className="side-card">
-            <b>{t("dash.sideCardTitle")}</b>
-            <p>{t("dash.sideCardBody")}</p>
-            <Link className="btn btn-primary btn-block" to="/mode" onClick={close}>
-              {t("common.startNow")}
-            </Link>
-          </div>
-          <button
-            className="btn btn-ghost btn-block"
-            style={{ marginTop: 12 }}
-            onClick={handleLogout}
-          >
+          {/* UAT remediation: the "Daily check due" card was a hardcoded, always-
+              on prompt that named a fixed exercise (Sit-to-Stand) and implied a
+              streak feature that doesn't exist (see task.md's "Form streak --
+              documented, not built" future-work note) -- misleading regardless
+              of what's actually due. Removed per HY; the real due-reminder
+              banner (DueReminderBanner above) already covers this. */}
+          <button className="btn btn-ghost btn-block" onClick={handleLogout}>
             {t("auth.logout")}
           </button>
         </div>

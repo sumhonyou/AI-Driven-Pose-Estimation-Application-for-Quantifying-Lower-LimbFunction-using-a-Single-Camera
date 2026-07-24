@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DashTopbar } from "../layouts/DashboardLayout";
-import { Plus, Check, Clock, Calendar, Download, Trash, Alert } from "../components/Icons";
+import { Plus, Check, Clock, Calendar, Download, Trash, Alert, Play } from "../components/Icons";
 import Dropdown from "../components/Dropdown";
 import { useReminders } from "../reminders";
 import { useSessionFlow } from "../session";
@@ -45,14 +45,20 @@ function isCompletedVisible(r: Reminder) {
   return done.toDateString() === now.toDateString();
 }
 
-/** Due first, then soonest time; completed items sink to the bottom. */
+/** Due first, then newest-created; completed items sink to the bottom.
+ *
+ * UAT remediation (Stage R13): the tiebreak used to be soonest-scheduled-time,
+ * which buried a reminder just created for next week behind everything due
+ * sooner (S15/S18: "just made this, can't find it"). Newest-created-first
+ * puts a fresh reminder right after the due ones, every time.
+ */
 function sortReminders(list: Reminder[]) {
   return [...list].sort((a, b) => {
     const aDone = isCompletedVisible(a) ? 1 : 0;
     const bDone = isCompletedVisible(b) ? 1 : 0;
     if (aDone !== bDone) return aDone - bDone;
     if (a.is_due !== b.is_due) return a.is_due ? -1 : 1;
-    return new Date(a.reminder_time).getTime() - new Date(b.reminder_time).getTime();
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 }
 
@@ -80,6 +86,12 @@ function ReminderFormModal({
   const [exerciseCode, setExerciseCode] = useState(NO_EXERCISE);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  // UAT remediation (Stage R13): "auto-prompt add to calendar on creation" --
+  // rather than closing immediately on save, the same modal switches to a
+  // calendar-prompt view for the reminder that was just created. `onCreated()`
+  // (the list refresh) still fires right away; only the modal's own close is
+  // deferred until the user dismisses the prompt.
+  const [created, setCreated] = useState<Reminder | null>(null);
 
   const exerciseOptions = [
     { value: NO_EXERCISE, label: t("reminders.noExercise") },
@@ -92,20 +104,61 @@ function ReminderFormModal({
     setSubmitting(true);
     setError("");
     try {
-      await reminderService.create({
+      const reminder = await reminderService.create({
         title: title.trim(),
         reminder_time: new Date(when).toISOString(),
         frequency,
         exercise_code: exerciseCode || null,
       });
       onCreated();
-      onClose();
+      setCreated(reminder);
     } catch {
       setError(t("reminders.createError"));
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (created) {
+    return createPortal(
+      <div className="reminder-modal-overlay" role="dialog" aria-modal="true">
+        <div className="reminder-modal-card">
+          <h3>{t("reminders.createdTitle")}</h3>
+          <p className="muted" style={{ marginBottom: 18 }}>
+            {t("reminders.createdAddToCalendar")}
+          </p>
+          <div className="reminder-modal-actions" style={{ flexDirection: "column", gap: 10 }}>
+            <a
+              className="btn btn-ghost btn-block"
+              href={created.google_calendar_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Calendar />
+              {t("reminders.addToGoogleCalendar")}
+            </a>
+            <button
+              type="button"
+              className="btn btn-ghost btn-block"
+              onClick={() =>
+                reminderService.downloadIcs(
+                  created.id,
+                  `physiofit-${created.title.toLowerCase().replace(/\s+/g, "-")}.ics`,
+                )
+              }
+            >
+              <Download />
+              {t("reminders.downloadIcs")}
+            </button>
+            <button type="button" className="btn btn-primary btn-block" onClick={onClose}>
+              {t("common.done")}
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return createPortal(
     <div className="reminder-modal-overlay" role="dialog" aria-modal="true">
@@ -191,7 +244,7 @@ export default function Reminders() {
   const { t } = useTranslation();
   const nav = useNavigate();
   const { reminders, refresh, removeOptimistic } = useReminders();
-  const { resetSession, setMode, setExerciseCode } = useSessionFlow();
+  const { resetSession, setMode, setExerciseCode, setReminderId } = useSessionFlow();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -251,6 +304,9 @@ export default function Reminders() {
     resetSession();
     setMode(r.exercise_mode === "rehab" ? "rehab" : "functional");
     setExerciseCode(r.exercise_code);
+    // Stage R13 (UAT): scopes the auto-complete-on-finish to THIS reminder --
+    // resetSession() above already clears any stale id from an earlier flow.
+    setReminderId(r.id);
     nav("/camera");
   };
 
@@ -318,14 +374,14 @@ export default function Reminders() {
             >
               <Check />
             </button>
-            <div
-              className="rem-body"
-              style={{ flex: 1, cursor: r.exercise_name ? "pointer" : "default" }}
-              onClick={() => openExercise(r)}
-              title={
-                r.exercise_name ? t("reminders.openExercise", { name: r.exercise_name }) : undefined
-              }
-            >
+            {/* UAT remediation (Stage R13): the whole card used to be silently
+                clickable-to-open, with only a `title` tooltip hinting at it --
+                testers conflated that with the check button's "mark complete"
+                action (S5/S17). Opening the linked exercise is now its own
+                explicit button in .rem-actions (the Play icon below), so
+                "completed" and "open this exercise" are two distinct,
+                separately-labelled affordances. */}
+            <div className="rem-body" style={{ flex: 1 }}>
               <b>{r.title}</b>
               <span>{r.exercise_name ?? t("reminders.noExercise")}</span>
             </div>
@@ -346,6 +402,17 @@ export default function Reminders() {
               {formatWhen(r.reminder_time)}
             </span>
             <div className="rem-actions">
+              {r.exercise_name && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-icon rem-tip"
+                  onClick={() => openExercise(r)}
+                  data-tip={t("reminders.openExercise", { name: r.exercise_name })}
+                  aria-label={t("reminders.openExercise", { name: r.exercise_name })}
+                >
+                  <Play width={16} height={16} />
+                </button>
+              )}
               <a
                 className="btn btn-ghost btn-icon rem-tip"
                 href={r.google_calendar_url}

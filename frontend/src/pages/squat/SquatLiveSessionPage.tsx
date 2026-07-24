@@ -22,6 +22,7 @@ import StartSetCountdown from "../../components/squat/StartSetCountdown";
 import SquatTargetPromptModal from "../../components/squat/SquatTargetPromptModal";
 import { Close, Check, Alert, Play } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
+import { reminderService } from "../../services/reminderService";
 import { moduleBService } from "../../services/moduleBService";
 import { useSessionFlow } from "../../session";
 import { useWebcam } from "../../hooks/useWebcam";
@@ -93,7 +94,7 @@ const MOTION_EPSILON_DEG = 2;
 export default function SquatLiveSessionPage() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { mode, sessionId, setSessionId } = useSessionFlow();
+  const { mode, sessionId, setSessionId, reminderId, setReminderId } = useSessionFlow();
 
   const [stage, setStage] = useState<Stage>("setup");
   const [targetReps, setTargetReps] = useState<number | null>(null);
@@ -365,6 +366,9 @@ export default function SquatLiveSessionPage() {
         capture_quality: score,
         valid_frame_ratio: validFrameRatio,
       });
+      // Stage R13 (UAT): scoped to the reminder that launched THIS session.
+      reminderService.completeIfLaunched(reminderId);
+      setReminderId(null);
       speech.speakSession("squat_end", t("live.speakSessionComplete"));
       nav(`/report?session=${sessionId}`);
     } catch (err) {
@@ -382,6 +386,7 @@ export default function SquatLiveSessionPage() {
     stopDetection();
     if (sessionId) enqueueCancel(sessionId);
     setSessionId(null);
+    setReminderId(null);
     console.log("[SquatLiveSessionPage] Cancel navigating");
     nav(`/exercise?mode=${mode}`);
   }

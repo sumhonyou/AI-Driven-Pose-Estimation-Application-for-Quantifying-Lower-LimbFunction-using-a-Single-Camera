@@ -43,6 +43,12 @@ def _to_response(
     reminder: Reminder, exercises: dict[str, ExerciseCatalog], now: datetime
 ) -> ReminderResponse:
     exercise = exercises.get(reminder.exercise_code) if reminder.exercise_code else None
+    # Only surfaced when the linked exercise is still active -- the frontend
+    # gates the deep-link on this being present rather than trusting a
+    # possibly-retired exercise_code (e.g. the removed Lunge exercise). The same
+    # gate applies to the calendar title (Stage R13): a retired exercise's name
+    # shouldn't show up in a calendar event either.
+    exercise_name = exercise.name if exercise and exercise.is_active else None
     return ReminderResponse(
         id=reminder.id,
         title=reminder.title,
@@ -53,12 +59,9 @@ def _to_response(
         last_completed_at=reminder.last_completed_at,
         created_at=reminder.created_at,
         is_due=svc.is_due(reminder, now),
-        # Only surfaced when the linked exercise is still active -- the frontend
-        # gates the deep-link on this being present rather than trusting a
-        # possibly-retired exercise_code (e.g. the removed Lunge exercise).
-        exercise_name=exercise.name if exercise and exercise.is_active else None,
+        exercise_name=exercise_name,
         exercise_mode=exercise.mode if exercise and exercise.is_active else None,
-        google_calendar_url=svc.build_google_calendar_url(reminder),
+        google_calendar_url=svc.build_google_calendar_url(reminder, exercise_name),
         ics_url=f"/api/reminders/{reminder.id}/export.ics",
     )
 
@@ -68,11 +71,16 @@ def list_reminders(
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[ReminderResponse]:
+    # Stage R13 (UAT): newest-created first, not soonest-scheduled first -- a
+    # reminder scheduled far out used to get buried mid-list right after being
+    # created (S15/S18: "just made this, can't find it"). Callers that want
+    # "what's coming up soonest" (e.g. Dashboard's preview) sort their own view
+    # of this list rather than relying on the API's order.
     reminders = list(
         db.scalars(
             select(Reminder)
             .where(Reminder.user_id == current_user.id)
-            .order_by(Reminder.reminder_time)
+            .order_by(Reminder.created_at.desc())
         )
     )
     exercises = _exercise_catalog(db)
@@ -146,7 +154,13 @@ def export_reminder_ics(
     current_user: User = Depends(get_current_user),
 ) -> Response:
     reminder = _get_owned_reminder(db, reminder_id, current_user.id)
-    ics_text = svc.build_ics(reminder)
+    exercise = (
+        _exercise_catalog(db).get(reminder.exercise_code)
+        if reminder.exercise_code
+        else None
+    )
+    exercise_name = exercise.name if exercise and exercise.is_active else None
+    ics_text = svc.build_ics(reminder, exercise_name=exercise_name)
     return Response(
         content=ics_text,
         media_type="text/calendar",

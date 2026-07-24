@@ -38,7 +38,7 @@ type GuidanceKey = "noBody" | "partial" | "lowQuality" | null;
 export default function CameraSetup() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { mode, exerciseCode, sessionId, setSessionId } = useSessionFlow();
+  const { mode, exerciseCode, sessionId, setSessionId, setReminderId } = useSessionFlow();
   const [error, setError] = useState("");
   const [hasAutoStarted, setHasAutoStarted] = useState(false);
   const [frozenQuality, setFrozenQuality] = useState(0);
@@ -82,6 +82,10 @@ export default function CameraSetup() {
       enqueueCancel(sessionId);
       setSessionId(null);
     }
+    // Stage R13 (UAT): abandoning here (before the live page even mounts)
+    // must not let a leftover reminderId auto-tick that reminder on some
+    // later, unrelated session -- see session.tsx's doc comment.
+    setReminderId(null);
     // UAT remediation (Stage R9): Instructions now sits between Exercise Selection
     // and Camera Setup in the flow, so Back returns one step, not two.
     console.log("[CameraSetup] Back navigating");

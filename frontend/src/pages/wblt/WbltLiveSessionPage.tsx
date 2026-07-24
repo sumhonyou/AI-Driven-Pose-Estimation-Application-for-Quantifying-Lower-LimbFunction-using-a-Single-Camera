@@ -21,6 +21,7 @@ import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import AudioCueToggle from "../../components/AudioCueToggle";
 import { Close } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
+import { reminderService } from "../../services/reminderService";
 import {
   wbltApi,
   type WbltAttemptResult,
@@ -89,7 +90,7 @@ const IDLE_UPDATE: WbltLiveUpdate = { calibrated: false, heelLifted: false, thet
 export default function WbltLiveSessionPage() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { mode, sessionId, setSessionId } = useSessionFlow();
+  const { mode, sessionId, setSessionId, reminderId, setReminderId } = useSessionFlow();
 
   const [legOrder, setLegOrder] = useState<WbltLeg[]>(DEFAULT_LEG_ORDER);
   const [attemptsPerLeg, setAttemptsPerLeg] = useState(DEFAULT_ATTEMPTS_PER_LEG);
@@ -434,6 +435,9 @@ export default function WbltLiveSessionPage() {
       capture_quality: avg(samples.map((s) => s.score)),
       valid_frame_ratio: avg(samples.map((s) => s.validFrameRatio)),
     });
+    // Stage R13 (UAT): scoped to the reminder that launched THIS session.
+    reminderService.completeIfLaunched(reminderId);
+    setReminderId(null);
     speech.speakSession("wblt_end", t("live.speakSessionComplete"));
     nav(`/report?session=${sessionId}`);
   }
@@ -483,6 +487,7 @@ export default function WbltLiveSessionPage() {
     stopDetection();
     if (sessionId) enqueueCancel(sessionId);
     setSessionId(null);
+    setReminderId(null);
     console.log("[WbltLiveSessionPage] Cancel navigating");
     nav(`/exercise?mode=${mode}`);
   }

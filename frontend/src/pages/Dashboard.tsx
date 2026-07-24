@@ -138,9 +138,22 @@ export default function Dashboard() {
     return <Activity />;
   };
 
-  // Stage 7.3: real reminders (shared via RemindersContext), soonest-first,
-  // capped to a small preview -- the full list lives on the Reminders page.
-  const upcomingReminders = allReminders.slice(0, 4);
+  // Stage 7.3: real reminders (shared via RemindersContext), due-first then
+  // soonest-first, capped to a small preview -- the full list lives on the
+  // Reminders page. Stage R13: the API's own order changed to newest-created
+  // first (so a fresh reminder is easy to find on the Reminders page itself),
+  // so this preview -- whose job is "what's coming up" -- sorts explicitly
+  // rather than depending on API order.
+  const upcomingReminders = useMemo(
+    () =>
+      [...allReminders]
+        .sort((a, b) => {
+          if (a.is_due !== b.is_due) return a.is_due ? -1 : 1;
+          return new Date(a.reminder_time).getTime() - new Date(b.reminder_time).getTime();
+        })
+        .slice(0, 4),
+    [allReminders],
+  );
   const avgQuality = summary?.avg_capture_quality;
 
   // All exercise types' trend points pooled together, for the account-wide

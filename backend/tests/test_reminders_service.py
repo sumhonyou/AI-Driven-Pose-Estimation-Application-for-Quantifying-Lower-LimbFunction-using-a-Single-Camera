@@ -120,6 +120,20 @@ class BuildIcsTests(unittest.TestCase):
         ics = svc.build_ics(r, now=_WED)
         self.assertIn("SUMMARY:Knee\\, ankle\\; rehab", ics)
 
+    # Stage R13 (UAT): the calendar event title used to be the reminder's own
+    # title only, which gave no hint which exercise it was for once it landed in
+    # the user's own calendar app, away from PhysioFit's UI.
+    def test_exercise_name_appended_to_summary_when_provided(self):
+        r = _reminder(reminder_time=_WED, frequency="once", title="Evening set")
+        ics = svc.build_ics(r, now=_WED, exercise_name="Sit-to-Stand")
+        self.assertIn("SUMMARY:Evening set — Sit-to-Stand", ics)
+
+    def test_summary_unchanged_when_no_exercise_name(self):
+        r = _reminder(reminder_time=_WED, frequency="once", title="Evening set")
+        ics = svc.build_ics(r, now=_WED, exercise_name=None)
+        self.assertIn("SUMMARY:Evening set", ics)
+        self.assertNotIn("—", ics)
+
 
 class BuildGoogleCalendarUrlTests(unittest.TestCase):
     def test_base_url_and_action(self):
@@ -143,6 +157,11 @@ class BuildGoogleCalendarUrlTests(unittest.TestCase):
         r = _reminder(reminder_time=_WED, frequency="once")
         url = svc.build_google_calendar_url(r)
         self.assertNotIn("recur=", url)
+
+    def test_exercise_name_appended_to_event_title_when_provided(self):
+        r = _reminder(reminder_time=_WED, frequency="once", title="Evening set")
+        url = svc.build_google_calendar_url(r, exercise_name="Sit-to-Stand")
+        self.assertIn("text=Evening+set+%E2%80%94+Sit-to-Stand", url)
 
 
 if __name__ == "__main__":

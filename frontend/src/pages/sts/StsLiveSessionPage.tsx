@@ -10,6 +10,7 @@ import GetReadyCountdown from "../../components/GetReadyCountdown";
 import AudioCueToggle from "../../components/AudioCueToggle";
 import { Close } from "../../components/Icons";
 import { sessionService, enqueueCancel } from "../../services/sessionService";
+import { reminderService } from "../../services/reminderService";
 import { useSessionFlow } from "../../session";
 import { useWebcam } from "../../hooks/useWebcam";
 import { useMediaPipePose } from "../../hooks/useMediaPipePose";
@@ -52,7 +53,8 @@ function reasonCodeToI18nKey(code: InvalidReasonCode): string {
 export default function StsLiveSessionPage() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const { mode, exerciseCode, sessionId, setSessionId } = useSessionFlow();
+  const { mode, exerciseCode, sessionId, setSessionId, reminderId, setReminderId } =
+    useSessionFlow();
   const isSts = exerciseCode === "sit_to_stand";
 
   // UAT remediation (Stage R5): "countdown" is the 5s get-ready window, only entering
@@ -213,6 +215,9 @@ export default function StsLiveSessionPage() {
         } catch (err) {
           console.error("[LiveSession] sessionService.end failed (non-blocking)", err);
         }
+        // Stage R13 (UAT): scoped to the reminder that launched THIS session.
+        reminderService.completeIfLaunched(reminderId);
+        setReminderId(null);
         speech.speakSession("sts_end", t("live.speakSessionComplete"));
         nav(`/report?session=${sessionId}`);
       }
@@ -302,6 +307,7 @@ export default function StsLiveSessionPage() {
     stopDetection();
     if (sessionId) enqueueCancel(sessionId);
     setSessionId(null);
+    setReminderId(null);
     console.log("[LiveSession] Cancel navigating");
     nav(`/exercise?mode=${mode}`);
   };
