@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
+import ExerciseDemoOverlay from "../../components/ExerciseDemoOverlay";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import AudioCueToggle from "../../components/AudioCueToggle";
 import { Close } from "../../components/Icons";
@@ -518,6 +519,7 @@ export default function WbltLiveSessionPage() {
           className={"cam-stage reveal" + (stage === "recording" ? " cam-stage--recording" : "")}
         >
           <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
+          <ExerciseDemoOverlay kind="wblt" />
           <PoseCanvas
             videoRef={videoRef}
             setVideoRef={setVideoRef}

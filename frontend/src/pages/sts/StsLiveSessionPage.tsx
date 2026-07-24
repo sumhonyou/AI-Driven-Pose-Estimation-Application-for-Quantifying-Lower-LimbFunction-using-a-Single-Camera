@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
+import ExerciseDemoOverlay from "../../components/ExerciseDemoOverlay";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import LiveCueOverlay from "../../components/LiveCueOverlay";
 import GetReadyCountdown from "../../components/GetReadyCountdown";
@@ -389,6 +390,7 @@ export default function StsLiveSessionPage() {
           }
         >
           <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
+          <ExerciseDemoOverlay kind="sts" />
           <PoseCanvas
             videoRef={videoRef}
             setVideoRef={setVideoRef}

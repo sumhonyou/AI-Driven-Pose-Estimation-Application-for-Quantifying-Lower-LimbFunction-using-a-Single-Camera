@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import PoseCanvas from "../../components/PoseCanvas";
 import CaptureQualityBadge from "../../components/CaptureQualityBadge";
+import ExerciseDemoOverlay from "../../components/ExerciseDemoOverlay";
 import GeneratingReportOverlay from "../../components/GeneratingReportOverlay";
 import LiveCueOverlay from "../../components/LiveCueOverlay";
 import AudioCueToggle from "../../components/AudioCueToggle";
@@ -476,6 +477,7 @@ export default function SquatLiveSessionPage() {
           }
         >
           <CaptureQualityBadge quality={captureQuality} label={t("live.quality")} />
+          <ExerciseDemoOverlay kind="squat" />
           <PoseCanvas
             videoRef={videoRef}
             setVideoRef={setVideoRef}

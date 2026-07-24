@@ -4846,3 +4846,33 @@ alone had NOT fixed it.**
 - [ ] Still outstanding: HY to confirm live that squat/SLS/WBLT now speak reliably
       across a full real session (not just the diagnostic click), including after the
       engine has had time to potentially wedge again naturally.
+
+### Phase 10 — Stage R7: exercise demo media in the live camera stage (2026-07-24)
+
+- [x] **Goal (HY's request):** a small looping reference clip/photo of correct form,
+      pinned to the top-right corner of the live camera stage on all four live
+      session pages, so the user has something to check their form against without
+      leaving the page.
+- [x] Built `components/ExerciseDemoOverlay.tsx` — a `kind: "squat" | "sts" | "sls" |
+    "wblt"` prop selects the media: squat/STS render their looping `.gif`, WBLT
+      renders its looping `.mp4` (`autoPlay loop muted playsInline`), SLS renders the
+      static reference photo (`Single Leg Stance pic.png` — a still, not a loop, per
+      the source asset HY pointed at).
+- [x] CSS (`index.css`): `.demo-overlay` — `position: absolute; top:16px; right:16px;
+    z-index:3` inside `.cam-stage` (already `position: relative`), 150px wide,
+      rounded corners, translucent blurred backdrop matching `.q-badge`'s existing
+      look (same corner treatment, opposite side — badge is top-left, this is
+      top-right, so neither ever overlaps). `.demo-overlay--sls` narrows to 96px:
+      it's a still photo, not a loop, so keeping it visibly smaller stops it reading
+      as a stalled/broken clip next to the three that are actually playing.
+- [x] Wired `<ExerciseDemoOverlay kind="..." />` into all 4 live pages
+      (`SquatLiveSessionPage`, `SlsLiveSessionPage`, `StsLiveSessionPage`,
+      `WbltLiveSessionPage`), immediately after `<CaptureQualityBadge>` inside
+      `.cam-stage`, before `<PoseCanvas>`.
+- [x] Verified: `tsc --noEmit` clean; Prettier clean. Live pages need an
+      authenticated session + webcam to reach `.cam-stage` normally, so rather than
+      driving the full session flow, visually verified the actual compiled
+      component markup + CSS + real dev-server asset URLs side-by-side in the
+      Browser pane (all 4 kinds at once) — confirms rounded corner, correct
+      top-right position, SLS's smaller static size, and the WBLT video actually
+      playing.

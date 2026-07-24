@@ -3451,6 +3451,35 @@ html[data-theme="dark"] .ex-card .ex-img {
   color: var(--good);
 }
 
+/* UAT remediation (Stage R7): looping demo clip/photo, top-right corner of the live
+   camera stage, showing correct form as a live reference. */
+.demo-overlay {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  width: 280px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  line-height: 0;
+}
+/* Single Leg Stance is a static reference photo, not a loop -- kept noticeably
+   smaller than the video/gif overlays so it reads as a still, not a stalled clip. */
+.demo-overlay--sls {
+  width: 230px;
+}
+.demo-overlay-media {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
 /* Companion red border-glow on `.cam-stage` while a live hold/set is recording. */
 .cam-stage--recording {
   border-color: var(--coral);
