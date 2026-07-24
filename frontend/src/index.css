@@ -3710,88 +3710,139 @@ html[data-theme="dark"] .ex-card .ex-img {
   margin-top: 10px;
 }
 
-/* --- Single-Leg Stance live overlays --- */
-.sls-ball-gauge {
+/* --- Single-Leg Stance live overlays ---
+   UAT remediation (Stage R8): both indicators used to be detached corner/side
+   widgets (T1: "spatially divorced from the person", "reads as an abstract bar").
+   Replaced with transparent overlays drawn directly over the video: the ball+ring
+   centred on the frame, the lift-line as a horizontal marker at the calibrated
+   height. Neither is a hip-pixel projection -- see the component files for why. */
+.sls-ball-overlay {
   position: absolute;
-  left: 16px;
-  bottom: 16px;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 12px;
-  border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  border: 1.5px solid var(--border);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-}
-.sls-ball-gauge-label {
-  font-size: 0.78rem;
-  color: var(--text-2);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.sls-lift-gauge {
-  position: absolute;
-  right: 16px;
   top: 50%;
-  transform: translateY(-50%);
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 12px 10px;
-  border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(8px);
+  pointer-events: none;
 }
-.sls-lift-gauge-label {
-  font-size: 0.68rem;
-  color: var(--text-3);
+.sls-ball-overlay-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  text-shadow:
+    0 1px 5px rgba(0, 0, 0, 0.7),
+    0 0 3px rgba(0, 0, 0, 0.5);
+}
+.sls-lift-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.sls-lift-line-bar {
+  height: 3px;
+  width: 100%;
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
+}
+.sls-lift-line-bar.fair {
+  background: repeating-linear-gradient(to right, var(--amber) 0 14px, transparent 14px 24px);
+}
+.sls-lift-line-bar.good {
+  background: var(--good);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--good) 60%, transparent);
+}
+.sls-lift-line-label {
+  position: absolute;
+  left: 16px;
+  top: -30px;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
+  padding: 4px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  color: var(--text-2);
 }
-.sls-lift-track-vertical {
-  position: relative;
-  width: 28px;
-  height: 180px;
-  border-radius: 14px;
+.sls-lift-line-label.good {
+  color: var(--good);
+  border-color: var(--good);
+}
+
+/* UAT remediation (Stage R8): the labelled preview still, shown once on the "ready"
+   screen before the hold starts (T1: "the ball metaphor is opaque", "user asked for
+   a preview image"). */
+.sls-overlay-legend-wrap {
+  margin-bottom: 18px;
+}
+.sls-overlay-legend-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.sls-overlay-legend {
+  display: flex;
+  gap: 16px;
+  padding: 14px;
+  border-radius: var(--r-md);
   background: var(--surface-2);
-  border: 1.5px solid var(--border);
-  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.sls-overlay-legend-item {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
 }
-.sls-lift-tick {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--amber);
-  z-index: 1;
-  border-radius: 2px 2px 0 0;
+.sls-overlay-legend-item p {
+  font-size: 0.78rem;
+  color: var(--text-2);
+  line-height: 1.35;
+  margin: 0;
 }
-.sls-lift-fill {
-  width: 100%;
-  border-radius: 0 0 14px 14px;
-  transition: height 0.15s linear;
+
+/* UAT remediation (Stage R8): small secondary caption under the SLS Time HUD card,
+   surfacing the 45s cap as a visible countdown (T1: "the 45s cap is not
+   communicated"). */
+.hud-sub {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-weight: 600;
+  margin-top: 4px;
 }
-.sls-lift-fill.good {
-  background: linear-gradient(to top, var(--emerald), #6be0a0);
+
+/* UAT remediation (Stage R8, S6 "summary first, per-leg detail second"): a plain
+   text-button toggle revealing the secondary/technical per-leg detail (stability
+   score, stop reason) -- collapsed by default so the headline result reads first. */
+.btn-linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--emerald);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
-.sls-lift-fill.fair {
-  background: linear-gradient(to top, var(--amber), #ffd76b);
+.btn-linklike:hover {
+  color: var(--lime);
 }
 .sls-combo {
   position: absolute;
@@ -3825,7 +3876,8 @@ html[data-theme="dark"] .ex-card .ex-img {
 .sls-combo-multiplier {
   font-size: 1rem;
   font-weight: 800;
-  color: var(--lime);
+  /* Emerald reads clearly on the light frosted card; neon lime washed out. */
+  color: var(--emerald);
 }
 .sls-combo-meter {
   display: flex;
@@ -3838,7 +3890,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   background: var(--border);
 }
 .sls-combo-pip--lit {
-  background: var(--lime);
+  background: var(--emerald);
 }
 
 .sls-modal-overlay {

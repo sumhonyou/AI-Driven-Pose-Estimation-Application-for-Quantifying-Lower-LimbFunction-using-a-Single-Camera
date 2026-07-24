@@ -577,6 +577,11 @@ const en = {
     setupGuidanceTouchdown:
       "If your foot touches down or you lose balance, the hold ends automatically.",
     setupGuidanceBall: "Keep the ball inside the circle to earn more points!",
+    // UAT remediation (Stage R8): labelled preview shown once on the ready screen,
+    // explaining the two live overlays before the hold starts.
+    legendTitle: "What you'll see during your hold",
+    legendBall: "The ball drifts if you sway — try to keep it inside the ring.",
+    legendLine: "Lift your foot above this line to start and keep the timer running.",
     // Live — leg prompts & messages
     legPromptRight: "Lift your RIGHT leg",
     legPromptLeft: "Lift your LEFT leg",
@@ -602,6 +607,8 @@ const en = {
     continueNextLeg: "Continue to next leg",
     finishTest: "Finish test",
     liftLine: "Lift line",
+    // UAT remediation (Stage R8): the 45s hold cap as a visible, ticking countdown.
+    autoStopsIn: "Auto-stops in {{sec}}s",
     // Combo / gamified score
     comboPoints: "Points",
     comboMultiplier: "Combo",
@@ -614,6 +621,10 @@ const en = {
     supportNone: "No",
     supportSlight: "Yes, a little",
     supportFull: "Yes, for support",
+    // UAT remediation (Stage R8, S6 "summary first, per-leg detail second"): toggle
+    // for the collapsed technical detail under each leg's headline result.
+    showDetails: "Show details",
+    hideDetails: "Hide details",
     // Report
     reportTitle: "Single-Leg Stance Test",
     perLegHeading: "Per-leg results",

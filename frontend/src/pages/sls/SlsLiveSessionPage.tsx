@@ -17,6 +17,7 @@ import AudioCueToggle from "../../components/AudioCueToggle";
 import BallInCircleOverlay from "../../components/sls/BallInCircleOverlay";
 import LiftLineMarker from "../../components/sls/LiftLineMarker";
 import ComboScore from "../../components/sls/ComboScore";
+import OverlayLegend from "../../components/sls/OverlayLegend";
 import SupportSelfReportModal from "../../components/sls/SupportSelfReportModal";
 import StartHoldCountdown from "../../components/sls/StartHoldCountdown";
 import { Close } from "../../components/Icons";
@@ -61,6 +62,7 @@ const IDLE_UPDATE: SlsLiveUpdate = {
   multiplier: 1,
   cappedAtMax: false,
   wrongLegLifted: false,
+  lineYImgNorm: null,
 };
 
 export default function SlsLiveSessionPage() {
@@ -79,6 +81,10 @@ export default function SlsLiveSessionPage() {
   const [supportSubmitting, setSupportSubmitting] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(COUNTDOWN_START_SEC);
   const countdownTimerRef = useRef<number | null>(null);
+  // UAT remediation (Stage R8, S6 "summary first, per-leg detail second"): the
+  // technical detail (stability score, stop reason) under each leg's headline
+  // result is collapsed by default -- reset per leg in finalizeLeg().
+  const [showLegDetail, setShowLegDetail] = useState(false);
 
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
   const { landmarks, worldLandmarks, stopDetection } = useMediaPipePose(videoRef, webcamReady);
@@ -159,6 +165,7 @@ export default function SlsLiveSessionPage() {
       qualitySamplesRef.current.push({ score, validFrameRatio });
       const result = await slsApi.analyze(sessionId, leg, frames);
       setLegResults((prev) => ({ ...prev, [leg]: result.metrics }));
+      setShowLegDetail(false);
       setStage("leg_result");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("camera.startError"));
@@ -177,7 +184,10 @@ export default function SlsLiveSessionPage() {
       captureQuality,
     );
     if (worldLandmarks) {
-      const update = trackerRef.current.update(worldLandmarks, now);
+      // UAT remediation (Stage R8): 2D image-space landmarks feed the on-video
+      // lift-line height (lineYImgNorm) -- see liveGeometry.ts. The world landmarks
+      // above remain the sole source for the timer/hold FSM; this is display-only.
+      const update = trackerRef.current.update(worldLandmarks, now, landmarks);
       setLiveUpdate(update);
       if (update.wrongLegLifted && !wasWrongLegLiftedRef.current) {
         wrongRepAudio.current.currentTime = 0;
@@ -343,7 +353,7 @@ export default function SlsLiveSessionPage() {
             webcamError={webcamError}
           />
           <LiftLineMarker
-            liftProgress={liveUpdate.liftProgress}
+            lineYImgNorm={liveUpdate.lineYImgNorm}
             aboveLine={liveUpdate.aboveLine}
             visible={overlaysVisible}
           />
@@ -364,6 +374,15 @@ export default function SlsLiveSessionPage() {
             <div className="hud-card reveal">
               <div className="hl2">{t("live.timer")}</div>
               <div className="hv">{liveUpdate.holdSeconds.toFixed(1)}s</div>
+              {/* UAT remediation (Stage R8, T1 "the 45s cap is not communicated"):
+                  a visible, ticking countdown to the hold's auto-stop cap. */}
+              {stage === "recording" && (
+                <div className="hud-sub">
+                  {t("sls.autoStopsIn", {
+                    sec: Math.max(0, Math.ceil(SLS_MAX_HOLD_SEC - liveUpdate.holdSeconds)),
+                  })}
+                </div>
+              )}
             </div>
             <div className="hud-card reveal">
               <div className="hl2">{t("sls.legLabel")}</div>
@@ -381,10 +400,23 @@ export default function SlsLiveSessionPage() {
                 {t("common." + currentLegResult.band)} ({currentLegResult.combinedScore.toFixed(1)}
                 /10)
               </p>
-              <p className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
-                {t("sls.stability")}: {currentLegResult.stabilityScore.toFixed(1)}/10 ·{" "}
-                {t("sls.stopReasonLabel")}: {t("sls.stopReason_" + currentLegResult.stopReason)}
-              </p>
+              {/* UAT remediation (Stage R8, S6 "summary first, per-leg detail
+                  second"): the headline above is now the whole story by default --
+                  the technical detail is opt-in, not always-on. */}
+              <button
+                type="button"
+                className="btn-linklike"
+                style={{ marginTop: 8 }}
+                onClick={() => setShowLegDetail((v) => !v)}
+              >
+                {showLegDetail ? t("sls.hideDetails") : t("sls.showDetails")}
+              </button>
+              {showLegDetail && (
+                <p className="muted" style={{ fontSize: "0.85rem", marginTop: 6 }}>
+                  {t("sls.stability")}: {currentLegResult.stabilityScore.toFixed(1)}/10 ·{" "}
+                  {t("sls.stopReasonLabel")}: {t("sls.stopReason_" + currentLegResult.stopReason)}
+                </p>
+              )}
               <div className="sls-modal-actions" style={{ marginTop: 18 }}>
                 <button className="btn btn-ghost btn-block" onClick={retryLeg}>
                   {t("sls.retry")}
@@ -399,6 +431,9 @@ export default function SlsLiveSessionPage() {
               <div className="panel-head" style={{ marginBottom: 14 }}>
                 <h3>{t("live.liveBand")}</h3>
               </div>
+              {/* UAT remediation (Stage R8): labelled preview of the ball+ring and
+                  lift-line overlays, shown once before the first hold starts. */}
+              {stage === "ready" && <OverlayLegend />}
               <div className="sls-live-status-box">
                 <span className="sls-live-status-text">{liveMessage}</span>
               </div>

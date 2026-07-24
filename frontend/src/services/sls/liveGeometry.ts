@@ -5,7 +5,7 @@
 //
 // World-landmark convention: Y increases DOWNWARD (a lifted foot has a SMALLER y).
 
-import { LM, type WorldLandmark } from "../../types/pose";
+import { LM, type Landmark, type WorldLandmark } from "../../types/pose";
 import {
   SLS_CALIBRATION_SEC,
   SLS_CIRCLE_PERSIST_FRAMES,
@@ -30,6 +30,13 @@ export function otherLeg(leg: SlsLeg): SlsLeg {
 
 function dist(a: WorldLandmark, b: WorldLandmark): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2);
+}
+
+/** 2D (x/y only) distance between two IMAGE-space landmarks. Deliberately ignores z --
+ * MediaPipe's image-space z is a rough relative-depth guess, not on the same normalised
+ * scale as x/y, so mixing it in would corrupt an on-screen pixel measurement. */
+function dist2D(a: Landmark, b: Landmark): number {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
 export function hipWidth(w: WorldLandmark[]): number {
@@ -74,6 +81,16 @@ export interface SlsLiveUpdate {
    * sent to the backend, never affects the hold timer or the official result.
    */
   wrongLegLifted: boolean;
+  /**
+   * UAT remediation (Stage R8): normalised IMAGE-space (0=top, 1=bottom of the video
+   * frame) height for the on-video lift-line marker, or null until calibration has
+   * captured at least one usable frame of 2D landmarks. Computed the same way as the
+   * metric `lineY` (baseline ankle height minus SLS_LIFT_LINE_NORM * stance-leg
+   * length) but entirely in image-space, so it renders in the exact coordinate system
+   * PoseCanvas already uses for the skeleton overlay -- not a new world->pixel
+   * projection. Display-only: never affects the hold timer or the official result.
+   */
+  lineYImgNorm: number | null;
 }
 
 /** Multiplier for a given continuous seconds-inside, from the configured tiers. */
@@ -115,6 +132,17 @@ export function createSlsLiveTracker(leg: SlsLeg) {
   let wrongLegBelowSinceSec: number | null = null;
   let wrongLegLifted = false;
 
+  // UAT remediation (Stage R8): image-space counterpart of baselineAnkleYSum/lineY,
+  // built from 2D landmarks so the lift-line can be drawn directly over the video
+  // (see SlsLiveUpdate.lineYImgNorm above). Tracked with its own counter since image
+  // landmarks are an optional third argument to update() -- a caller that never
+  // passes them (e.g. existing unit tests) simply never populates this, and
+  // lineYImgNorm stays null.
+  let baselineAnkleImgYSum = 0;
+  let baselineImgLegLenSum = 0;
+  let imgBaselineCount = 0;
+  let lineYImgNorm: number | null = null;
+
   // Debounces the raw inside/outside-circle signal (mirrors backend CircleDebouncer)
   // so a single noisy frame can't flip the ball colour or reset the combo.
   let debouncedInside: boolean | null = null;
@@ -147,9 +175,13 @@ export function createSlsLiveTracker(leg: SlsLeg) {
     wrongLegAboveSinceSec = null;
     wrongLegBelowSinceSec = null;
     wrongLegLifted = false;
+    baselineAnkleImgYSum = 0;
+    baselineImgLegLenSum = 0;
+    imgBaselineCount = 0;
+    lineYImgNorm = null;
   }
 
-  function update(w: WorldLandmark[], nowMs: number): SlsLiveUpdate {
+  function update(w: WorldLandmark[], nowMs: number, img?: Landmark[] | null): SlsLiveUpdate {
     const idle: SlsLiveUpdate = {
       phase,
       holdSeconds,
@@ -161,8 +193,10 @@ export function createSlsLiveTracker(leg: SlsLeg) {
       multiplier: 1,
       cappedAtMax,
       wrongLegLifted,
+      lineYImgNorm,
     };
     if (!w || w.length < 33) return idle;
+    const hasImg = !!img && img.length >= 33;
 
     if (t0 === null) t0 = nowMs;
     const t = (nowMs - t0) / 1000;
@@ -177,6 +211,12 @@ export function createSlsLiveTracker(leg: SlsLeg) {
       baselineStanceAnkleYSum += w[ANKLE[stance]].y;
       baselineLegLenSum += stanceLegLength(w, stance);
       baselineCount += 1;
+      if (hasImg) {
+        const image = img as Landmark[];
+        baselineAnkleImgYSum += image[ANKLE[leg]].y;
+        baselineImgLegLenSum += dist2D(image[HIP[stance]], image[ANKLE[stance]]);
+        imgBaselineCount += 1;
+      }
       return { ...idle, phase: "calibrating" };
     }
     if (lineY === null) {
@@ -188,6 +228,11 @@ export function createSlsLiveTracker(leg: SlsLeg) {
       dropMargin = SLS_LIFT_HYSTERESIS_NORM * legLen;
       wrongLegLineY = baselineStanceAnkleY - SLS_LIFT_LINE_NORM * legLen;
       phase = "waiting";
+      if (imgBaselineCount > 0) {
+        const baselineAnkleImgY = baselineAnkleImgYSum / imgBaselineCount;
+        const imgLegLen = baselineImgLegLenSum / imgBaselineCount;
+        lineYImgNorm = baselineAnkleImgY - SLS_LIFT_LINE_NORM * imgLegLen;
+      }
     }
 
     const aboveLift = ankleY < lineY;
@@ -281,6 +326,7 @@ export function createSlsLiveTracker(leg: SlsLeg) {
       multiplier,
       cappedAtMax,
       wrongLegLifted,
+      lineYImgNorm,
     };
   }
 

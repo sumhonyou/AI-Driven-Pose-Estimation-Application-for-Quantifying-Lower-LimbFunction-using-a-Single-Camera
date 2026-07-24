@@ -572,6 +572,9 @@ const ms: Dict = {
     setupGuidanceTouchdown:
       "Jika kaki anda menyentuh tanah atau anda kehilangan keseimbangan, tahan akan tamat secara automatik.",
     setupGuidanceBall: "Kekalkan bola dalam bulatan untuk mendapat lebih mata!",
+    legendTitle: "Apa yang anda akan lihat semasa tahanan anda",
+    legendBall: "Bola akan hanyut jika anda bergoyang — cuba kekalkan ia dalam gelang.",
+    legendLine: "Angkat kaki anda melepasi garisan ini untuk mula dan kekalkan pengiraan masa.",
     // Langsung — arahan kaki & mesej
     legPromptRight: "Angkat kaki KANAN anda",
     legPromptLeft: "Angkat kaki KIRI anda",
@@ -594,6 +597,7 @@ const ms: Dict = {
     continueNextLeg: "Teruskan ke kaki seterusnya",
     finishTest: "Tamatkan ujian",
     liftLine: "Garisan angkat",
+    autoStopsIn: "Berhenti automatik dalam {{sec}}s",
     // Combo / markah gamifikasi
     comboPoints: "Mata",
     comboMultiplier: "Combo",
@@ -606,6 +610,8 @@ const ms: Dict = {
     supportNone: "Tidak",
     supportSlight: "Ya, sedikit",
     supportFull: "Ya, untuk sokongan",
+    showDetails: "Tunjukkan butiran",
+    hideDetails: "Sembunyikan butiran",
     // Laporan
     reportTitle: "Ujian Berdiri Sebelah Kaki",
     perLegHeading: "Keputusan setiap kaki",

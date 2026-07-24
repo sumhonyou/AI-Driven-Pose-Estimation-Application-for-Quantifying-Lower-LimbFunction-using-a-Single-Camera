@@ -534,6 +534,9 @@ const zh: Dict = {
     setupGuidanceLift: "抬起腿，直到抬腿进度条变绿后开始计时。",
     setupGuidanceTouchdown: "如果脚落地或失去平衡，保持会自动结束。",
     setupGuidanceBall: "让小球留在圆圈内以获得更多积分！",
+    legendTitle: "保持期间你会看到什么",
+    legendBall: "如果你摇晃，小球会偏移 — 尽量让它留在圆圈内。",
+    legendLine: "把脚抬到这条线以上以开始并保持计时。",
     // 实时 — 腿部提示与信息
     legPromptRight: "抬起你的右腿",
     legPromptLeft: "抬起你的左腿",
@@ -556,6 +559,7 @@ const zh: Dict = {
     continueNextLeg: "继续下一条腿",
     finishTest: "完成测试",
     liftLine: "抬腿线",
+    autoStopsIn: "{{sec}} 秒后自动停止",
     // 连击 / 游戏化得分
     comboPoints: "分数",
     comboMultiplier: "连击",
@@ -567,6 +571,8 @@ const zh: Dict = {
     supportNone: "没有",
     supportSlight: "有，一点点",
     supportFull: "有，用来支撑",
+    showDetails: "显示详情",
+    hideDetails: "隐藏详情",
     // 报告
     reportTitle: "单腿站立测试",
     perLegHeading: "各腿结果",

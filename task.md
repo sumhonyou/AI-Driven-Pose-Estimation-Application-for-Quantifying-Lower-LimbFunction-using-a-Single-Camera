@@ -4854,12 +4854,12 @@ alone had NOT fixed it.**
       session pages, so the user has something to check their form against without
       leaving the page.
 - [x] Built `components/ExerciseDemoOverlay.tsx` — a `kind: "squat" | "sts" | "sls" |
-    "wblt"` prop selects the media: squat/STS render their looping `.gif`, WBLT
+  "wblt"` prop selects the media: squat/STS render their looping `.gif`, WBLT
       renders its looping `.mp4` (`autoPlay loop muted playsInline`), SLS renders the
       static reference photo (`Single Leg Stance pic.png` — a still, not a loop, per
       the source asset HY pointed at).
 - [x] CSS (`index.css`): `.demo-overlay` — `position: absolute; top:16px; right:16px;
-    z-index:3` inside `.cam-stage` (already `position: relative`), 150px wide,
+  z-index:3` inside `.cam-stage` (already `position: relative`), 150px wide,
       rounded corners, translucent blurred backdrop matching `.q-badge`'s existing
       look (same corner treatment, opposite side — badge is top-left, this is
       top-right, so neither ever overlaps). `.demo-overlay--sls` narrows to 96px:
@@ -4876,3 +4876,76 @@ alone had NOT fixed it.**
       Browser pane (all 4 kinds at once) — confirms rounded corner, correct
       top-right position, SLS's smaller static size, and the WBLT video actually
       playing.
+
+### Phase 10 — Stage R8: SLS overhaul (worst exercise, 14/18) (2026-07-24)
+
+- [x] **Root cause (T1):** the stability ball sat in a bordered card in the
+      bottom-left corner and the lift-line was an abstract vertical fill bar to the
+      side — both fully detached from the user's body in frame, so their motion
+      carried no felt meaning ("the ball metaphor is opaque", S6/S10/S15; "the
+      lift-line reads as an abstract bar", S2/S3/S9/S10).
+- [x] **Decision point resolved: attempted the centred transparent overlay, and it
+      read well in preview — kept it** (did not need to fall back to the four safe
+      wins alone).
+- [x] **Ball + ring, `components/sls/BallInCircleOverlay.tsx`:** dropped the
+      `.sls-ball-gauge` corner card entirely. The ball's position is still the exact
+      same scale-invariant ratio it always was (`ballXNorm`, from metric WORLD
+      landmarks) — HY's explicit call was to avoid a "risky world→pixel hip
+      projection" that would draw the ball at the user's literal hip pixel. Instead
+      the same self-contained gauge just floats, transparent (no card/border/blur),
+      dead-centre over the video (`top:50%;left:50%;translate(-50%,-50%)`) — reads
+      as "on me" without pretending to be a real pixel measurement. Enlarged
+      192px→240px now that it's the focal centrepiece.
+- [x] **Lift-line, `components/sls/LiftLineMarker.tsx`:** dropped the vertical
+      side-bar entirely for a horizontal line drawn directly across the video at the
+      calibrated lift height (dashed amber below the line, solid glowing green once
+      crossed) — the user compares their own visible foot against the line instead
+      of reading a % fill bar. Unlike the ball, this genuinely needed a screen
+      position, so `services/sls/liveGeometry.ts`'s tracker gained an optional third
+      `img` (2D image-space landmarks) argument to `update()`: during calibration it
+      now also accumulates the target ankle's IMAGE-space y and the stance leg's
+      IMAGE-space length, then places `lineYImgNorm = baselineAnkleImgY -
+    SLS_LIFT_LINE_NORM * imgLegLen` — the _exact same formula_ as the existing
+      metric `lineY`, just computed in normalised image coordinates. This is
+      **not** a new world→pixel projection — it reuses PoseCanvas's own coordinate
+      system (2D landmark × canvas width/height), so the line lands exactly where
+      the skeleton overlay already does, with the same (pre-existing, accepted)
+      `object-fit: cover` imprecision the skeleton has always had. The world-based
+      FSM/timer logic is completely untouched; `lineYImgNorm` is display-only and
+      defaults to `null` (renders nothing) if no image landmarks are ever supplied —
+      fully backward compatible with the existing test suite, which doesn't pass
+      any.
+- [x] **Labelled preview still, `components/sls/OverlayLegend.tsx`:** a small
+      two-item legend (mini ball+ring, mini line) with plain-language captions,
+      shown once on the "ready" screen before the first hold starts (S15 "asked for
+      a preview image before the session").
+- [x] **45s cap as a visible countdown (T1 "the 45s cap is not communicated"):**
+      the Time HUD card now shows a ticking `Auto-stops in {{sec}}s` caption
+      alongside the existing elapsed-hold number during recording — additive only,
+      the official elapsed-seconds value is untouched.
+- [x] **Summary first, per-leg detail second (S6):** the per-leg result screen's
+      secondary technical line (stability score, stop reason) is now collapsed
+      behind a "Show details" toggle (`.btn-linklike`), off by default — the
+      headline (hold time, band, score) is the whole story until the user asks for
+      more.
+- [x] Leg announcement (which leg starts) was already covered by Stage R6's audio
+      cue + the existing on-screen leg prompt — no further change needed here.
+- [x] **Files:** `components/sls/{BallInCircleOverlay,LiftLineMarker}.tsx` (rewritten),
+      `components/sls/OverlayLegend.tsx` (new), `services/sls/liveGeometry.ts` (+
+      `lineYImgNorm`), `services/sls/liveGeometry.test.ts` (+3 regression tests),
+      `pages/sls/SlsLiveSessionPage.tsx`, `index.css` (SLS overlay block rewritten +
+      `.hud-sub` + `.btn-linklike` + legend styles), i18n `sls.{legendTitle,
+    legendBall,legendLine,autoStopsIn,showDetails,hideDetails}` in en/zh/ms.
+- [x] Verified: `tsc --noEmit` clean; `vitest` **53/53** (50 existing + 3 new
+      `lineYImgNorm` regression tests: stays null with no image landmarks, computes
+      correctly from a known calibration frame, doesn't populate from a single
+      missing-image frame); Prettier clean. Live SLS needs an authenticated session + webcam to reach `.cam-stage` normally, so — same approach as Stage R7 —
+      visually verified the actual compiled component markup + CSS over a
+      photographic stand-in in the Browser pane: ball+ring centred and transparent
+      in both inside/outside states, lift-line horizontal and colour-correct in both
+      above/below states, legend readable, HUD countdown caption and the per-leg
+      "Show details" toggle both render with correct on-theme colours.
+- [ ] Not yet done (future work, per the execution plan's own scope for R8): no
+      change to the SLS lift-sensitivity tuning (that's Stage R2, already done) or
+      to the combo/score overlay (bottom-right, unaffected — not flagged as
+      confusing in the UAT findings).

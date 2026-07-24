@@ -4,12 +4,27 @@
 // every later nowMs equals the elapsed seconds * 1000 directly.
 
 import { describe, expect, it } from "vitest";
-import type { WorldLandmark } from "../../types/pose";
+import type { Landmark, WorldLandmark } from "../../types/pose";
 import { LM } from "../../types/pose";
 import { createSlsLiveTracker } from "./liveGeometry";
 
 function landmark(x = 0, y = 0): WorldLandmark {
   return { x, y, z: 0, visibility: 1 };
+}
+
+function imgLandmark(x = 0, y = 0): Landmark {
+  return { x, y, z: 0, visibility: 1 };
+}
+
+/** Fixed 2D (image-space) frame: both feet planted at y=0.9, hips at y=0.5, so
+ * stance-leg image length is a known 0.4 for the lineYImgNorm assertions below. */
+function imgFrame(): Landmark[] {
+  const img = Array.from({ length: 33 }, () => imgLandmark(0, 0));
+  img[LM.LEFT_HIP] = imgLandmark(-0.1, 0.5);
+  img[LM.RIGHT_HIP] = imgLandmark(0.1, 0.5);
+  img[LM.LEFT_ANKLE] = imgLandmark(-0.1, 0.9);
+  img[LM.RIGHT_ANKLE] = imgLandmark(0.1, 0.9);
+  return img;
 }
 
 /** Left leg lifted (leg="left", stance="right"). ankleLiftOffset > 0 raises the left
@@ -119,5 +134,35 @@ describe("createSlsLiveTracker wrong-leg-lift detection", () => {
     const update = tracker.update(frame(0.5, 0), 2560);
     expect(update.phase).toBe("holding");
     expect(update.wrongLegLifted).toBe(false);
+  });
+});
+
+// UAT remediation (Stage R8): the on-video lift-line marker needs an IMAGE-space
+// height (lineYImgNorm), computed from an optional third `img` argument to update().
+// Mirrors the metric lineY calculation exactly, just in normalised image coordinates.
+describe("createSlsLiveTracker lineYImgNorm (Stage R8)", () => {
+  it("stays null when no image landmarks are ever supplied", () => {
+    const tracker = createSlsLiveTracker("left");
+    const update = calibrate(tracker);
+    expect(update.lineYImgNorm).toBeNull();
+  });
+
+  it("computes the image-space line height once calibration completes", () => {
+    const tracker = createSlsLiveTracker("left");
+    tracker.update(frame(0), 0, imgFrame());
+    tracker.update(frame(0), 2000, imgFrame());
+    // Crosses the 2.0s calibration window with a fixed image frame: baseline ankle
+    // image-y=0.9, stance image leg length=0.4, SLS_LIFT_LINE_NORM=0.15 ->
+    // 0.9 - 0.15*0.4 = 0.84.
+    const update = tracker.update(frame(0), 2100, imgFrame());
+    expect(update.lineYImgNorm).toBeCloseTo(0.84, 5);
+  });
+
+  it("does not populate lineYImgNorm from a single late/partial image frame", () => {
+    const tracker = createSlsLiveTracker("left");
+    tracker.update(frame(0), 0); // no image landmarks this frame
+    tracker.update(frame(0), 2000); // or this one
+    const update = tracker.update(frame(0), 2100);
+    expect(update.lineYImgNorm).toBeNull();
   });
 });
