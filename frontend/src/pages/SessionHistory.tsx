@@ -1,14 +1,31 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DashTopbar } from "../layouts/DashboardLayout";
-import { Activity, Balance, Check, Stretch } from "../components/Icons";
+import { Activity, ArrowLeft, Balance, Check, Stretch } from "../components/Icons";
 import { sessionService } from "../services/sessionService";
 import { exerciseService } from "../services/exerciseService";
 import Dropdown from "../components/Dropdown";
 import type { Exercise, SessionDTO } from "../types/api";
 
 const ALL_EXERCISES = "all";
+
+// Stage R12 (UAT): date-range filter, same 5 buckets + wording as Progress's
+// range picker for a consistent mental model across the two history surfaces.
+// All sessions are already fetched in one request (no server-side range param
+// on GET /api/sessions), so this filters the already-loaded list client-side.
+type Range = "7d" | "14d" | "30d" | "90d" | "all";
+const RANGE_DAYS: Record<Exclude<Range, "all">, number> = {
+  "7d": 7,
+  "14d": 14,
+  "30d": 30,
+  "90d": 90,
+};
+function withinRange(startedAt: string, range: Range): boolean {
+  if (range === "all") return true;
+  const cutoff = Date.now() - RANGE_DAYS[range] * 24 * 60 * 60 * 1000;
+  return new Date(startedAt).getTime() >= cutoff;
+}
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -25,11 +42,13 @@ function qualityLabel(value: number | null) {
 
 export default function SessionHistory() {
   const { t } = useTranslation();
+  const nav = useNavigate();
   const [filter, setFilter] = useState<"all" | "functional" | "rehab">("all");
   // Gates only the picker's options, not the table -- a session run on a
   // since-retired exercise (e.g. the old Leg Lunge) stays visible in the
   // "All exercises" view; it's just not offered as a new filter target.
   const [exerciseFilter, setExerciseFilter] = useState<string>(ALL_EXERCISES);
+  const [range, setRange] = useState<Range>("all");
   const [activeExercises, setActiveExercises] = useState<Exercise[]>([]);
   const [sessions, setSessions] = useState<SessionDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +95,8 @@ export default function SessionHistory() {
     (r) =>
       hasResult(r) &&
       (filter === "all" || r.mode === filter) &&
-      (exerciseFilter === ALL_EXERCISES || r.exercise_code === exerciseFilter),
+      (exerciseFilter === ALL_EXERCISES || r.exercise_code === exerciseFilter) &&
+      withinRange(r.started_at, range),
   );
   const filters: ("all" | "functional" | "rehab")[] = ["all", "functional", "rehab"];
   // Exercise picker only makes sense once a mode is chosen -- "All" already
@@ -96,6 +116,12 @@ export default function SessionHistory() {
 
   return (
     <>
+      {/* UAT remediation (Stage R12): History previously had no way back except
+          the browser button itself -- same pattern as Report's back-link. */}
+      <button type="button" className="back-link" onClick={() => nav(-1)}>
+        <ArrowLeft />
+        {t("common.back")}
+      </button>
       <DashTopbar title={t("history.title")} subtitle={t("history.desc")} />
       {error && (
         <p className="muted" style={{ color: "var(--coral)", marginBottom: 18 }}>
@@ -126,6 +152,27 @@ export default function SessionHistory() {
             ariaLabel={t("progress.exercisePicker")}
           />
         )}
+        {/* UAT remediation (Stage R12): date-range filter, same 5 buckets as
+            Progress's range picker. All sessions are already loaded client-side
+            (no server-side range param on this endpoint), so this filters `rows`
+            directly rather than refetching. */}
+        <div className="seg" style={{ marginLeft: "auto" }}>
+          <button className={range === "7d" ? "on" : ""} onClick={() => setRange("7d")}>
+            {t("progress.range7d")}
+          </button>
+          <button className={range === "14d" ? "on" : ""} onClick={() => setRange("14d")}>
+            {t("progress.range14d")}
+          </button>
+          <button className={range === "30d" ? "on" : ""} onClick={() => setRange("30d")}>
+            {t("progress.range30d")}
+          </button>
+          <button className={range === "90d" ? "on" : ""} onClick={() => setRange("90d")}>
+            {t("progress.range90d")}
+          </button>
+          <button className={range === "all" ? "on" : ""} onClick={() => setRange("all")}>
+            {t("progress.rangeAll")}
+          </button>
+        </div>
       </div>
       <div className="panel reveal">
         <div className="tbl-scroll">

@@ -34,8 +34,11 @@ import {
   humanizeExerciseType,
   severityClass,
 } from "../components/charts/dashboardChartUtils";
+import Dropdown from "../components/Dropdown";
+import GlossaryTerm from "../components/GlossaryTerm";
 
 const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+const ALL_EXERCISES = "all";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -83,6 +86,11 @@ export default function Dashboard() {
   const [errorTags, setErrorTags] = useState<DashboardErrorTags>({});
   const [activeExercises, setActiveExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
+  // Stage R12 (UAT): drill-down filters for the two account-wide panels below --
+  // both default to "all" (today's pooled-across-everything behaviour) so
+  // nothing changes until the user opts into a single exercise's view.
+  const [bandFilter, setBandFilter] = useState<string>(ALL_EXERCISES);
+  const [tagFilter, setTagFilter] = useState<string>(ALL_EXERCISES);
   // This page's real content only exists once `loading` flips false (and once
   // reminders load, for the due-banner/panel) -- DashboardLayout's own
   // useReveal([pathname]) fires on mount, before any of that async data has
@@ -183,6 +191,42 @@ export default function Dashboard() {
       .map(([tag_code, v]) => ({ tag_code, ...v }))
       .sort((a, b) => b.count - a.count);
   }, [errorTags]);
+
+  // Stage R12 (UAT): "drill-down by exercise" for Band distribution -- the panel
+  // pools every exercise type by default (the account-wide view), but a picker
+  // lets it narrow to one. Options are exercises the account actually has trend
+  // data for (mirrors Progress's own "only exercises with data" gate).
+  const bandFilterOptions = useMemo(
+    () => [
+      { value: ALL_EXERCISES, label: t("dash.allExercises") },
+      ...activeTrendEntries.map(([exerciseType]) => ({
+        value: exerciseType,
+        label: humanizeExerciseType(exerciseType, sessions),
+      })),
+    ],
+    [activeTrendEntries, sessions, t],
+  );
+  const bandPoints = bandFilter === ALL_EXERCISES ? allPoints : (trends[bandFilter]?.points ?? []);
+
+  // Stage R12 (UAT): "filter by exercise" for Common error tags -- only Module B
+  // exercise types ever carry a key in `errorTags` (Stage 7.0's presence signal),
+  // so the option list is built off that map, not the full exercise catalog.
+  const tagFilterOptions = useMemo(
+    () => [
+      { value: ALL_EXERCISES, label: t("dash.allExercises") },
+      ...Object.keys(errorTags)
+        .filter((exerciseType) => activeExerciseCodes.has(exerciseType))
+        .map((exerciseType) => ({
+          value: exerciseType,
+          label: humanizeExerciseType(exerciseType, sessions),
+        })),
+    ],
+    [errorTags, activeExerciseCodes, sessions, t],
+  );
+  // A single exercise's tags are already ranked most-frequent-first by the
+  // backend (build_error_tags) -- only the "all" view needs the client-side merge.
+  const displayedErrorTags =
+    tagFilter === ALL_EXERCISES ? rankedErrorTags : (errorTags[tagFilter] ?? []);
 
   return (
     <>
@@ -289,13 +333,25 @@ export default function Dashboard() {
         </div>
 
         <div className="panel reveal">
-          <div className="panel-head">
+          <div className="panel-head" style={{ flexWrap: "wrap", gap: 8 }}>
             <div>
-              <h3>{t("dash.bandDist")}</h3>
+              <h3>
+                {t("dash.bandDist")}
+                <GlossaryTerm id="goodFairPoor" />
+              </h3>
               <span className="sub">{t("dash.bandDistSub")}</span>
             </div>
+            {bandFilterOptions.length > 1 && (
+              <Dropdown
+                options={bandFilterOptions}
+                value={bandFilter}
+                onChange={setBandFilter}
+                placeholder={t("dash.allExercises")}
+                ariaLabel={t("progress.exercisePicker")}
+              />
+            )}
           </div>
-          <BandDistributionBar points={allPoints} />
+          <BandDistributionBar points={bandPoints} />
           {avgConfidence != null && (
             <div
               style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--border-soft)" }}
@@ -382,19 +438,28 @@ export default function Dashboard() {
 
       <div className="dash-grid-2">
         <div className="panel reveal">
-          <div className="panel-head">
+          <div className="panel-head" style={{ flexWrap: "wrap", gap: 8 }}>
             <div>
               <h3>{t("dash.errorTags")}</h3>
               <span className="sub">{t("dash.errorTagsSub")}</span>
             </div>
+            {tagFilterOptions.length > 1 && (
+              <Dropdown
+                options={tagFilterOptions}
+                value={tagFilter}
+                onChange={setTagFilter}
+                placeholder={t("dash.allExercises")}
+                ariaLabel={t("progress.exercisePicker")}
+              />
+            )}
           </div>
-          {rankedErrorTags.length === 0 ? (
+          {displayedErrorTags.length === 0 ? (
             <p className="muted center" style={{ padding: "24px 0" }}>
               {t("dash.noErrorTags")}
             </p>
           ) : (
             <div className="tags">
-              {rankedErrorTags.map((tag) => (
+              {displayedErrorTags.map((tag) => (
                 <span className="tag" key={tag.tag_code}>
                   <span className={"sev " + severityClass(tag.severity)} />
                   {t("moduleB.tag_" + tag.tag_code, { defaultValue: tag.tag_code })}{" "}

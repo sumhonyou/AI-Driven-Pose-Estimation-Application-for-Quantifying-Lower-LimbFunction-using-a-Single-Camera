@@ -356,6 +356,19 @@ export default function Report() {
           value: session?.rep_count != null ? `${session.rep_count}` : "—",
           info: t("report.attemptsMeaning"),
         },
+        // Stage R12 (UAT): "valid reps" -- the reps that actually counted toward the
+        // score. HY asked for this alongside Attempts, since the two together explain
+        // the score directly (score = 10 * valid / attempts, Stage 5.18). Only shown
+        // when per-rep verdicts exist; reuses the shared glossary "valid rep" def.
+        ...(hasRepVerdicts
+          ? [
+              {
+                label: t("report.validReps"),
+                value: `${countedReps}`,
+                info: t("glossary.validRep.def"),
+              },
+            ]
+          : []),
         ...(session?.target_rep_count != null
           ? [
               {

@@ -75,7 +75,12 @@ def get_trends(
     # Oldest-first so each exercise's series reads left-to-right on the chart.
     stmt = (
         select(SessionModel)
-        .options(selectinload(SessionModel.module_b_result))
+        .options(
+            selectinload(SessionModel.module_b_result),
+            # Stage R12: per-exercise raw-metric series (STS time, SLS hold,
+            # WBLT distance) are read off the Module A result / its metrics_json.
+            selectinload(SessionModel.module_a_result),
+        )
         .where(SessionModel.user_id == current_user.id)
         .order_by(SessionModel.started_at.asc())
     )

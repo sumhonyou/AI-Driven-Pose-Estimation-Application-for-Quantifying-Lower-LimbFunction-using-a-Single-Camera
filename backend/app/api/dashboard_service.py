@@ -52,11 +52,30 @@ def build_latest(sessions: Iterable[Any]) -> dict[str, ExerciseLatest]:
     return latest
 
 
+def _leg_metric(
+    metrics: dict | None, container: str, leg: str, key: str
+) -> float | None:
+    """Pull one per-leg value out of a Module A `metrics_json` blob, safely.
+
+    SLS stores `perLeg.{left,right}.holdSeconds` and WBLT stores
+    `legs.{left,right}.best_distance_cm`; any missing layer just yields None so a
+    partial or legacy row never raises here.
+    """
+    if not metrics:
+        return None
+    leg_data = (metrics.get(container) or {}).get(leg) or {}
+    return _to_float(leg_data.get(key))
+
+
 def build_trends(sessions: Iterable[Any]) -> dict[str, ExerciseTrend]:
     """Score/quality/confidence points per exercise_type. `sessions` oldest-first."""
     grouped: dict[str, list[TrendPoint]] = {}
     for s in sessions:
         mb = getattr(s, "module_b_result", None)
+        # Stage R12: the per-exercise raw-metric series come off the Module A
+        # result -- a queryable column for STS finish time, JSON for the rest.
+        ma = getattr(s, "module_a_result", None)
+        ma_metrics = getattr(ma, "metrics_json", None) if ma is not None else None
         point = TrendPoint(
             session_id=str(s.id),
             date=s.started_at,
@@ -65,6 +84,18 @@ def build_trends(sessions: Iterable[Any]) -> dict[str, ExerciseTrend]:
             capture_quality=_to_float(s.capture_quality),
             confidence=_to_float(mb.confidence) if mb is not None else None,
             rep_count=s.rep_count,
+            completion_time_sec=_to_float(getattr(ma, "completion_time_sec", None)),
+            avg_rep_time_sec=(
+                _to_float(ma_metrics.get("avg_rep_time_sec")) if ma_metrics else None
+            ),
+            hold_left_sec=_leg_metric(ma_metrics, "perLeg", "left", "holdSeconds"),
+            hold_right_sec=_leg_metric(ma_metrics, "perLeg", "right", "holdSeconds"),
+            distance_left_cm=_leg_metric(
+                ma_metrics, "legs", "left", "best_distance_cm"
+            ),
+            distance_right_cm=_leg_metric(
+                ma_metrics, "legs", "right", "best_distance_cm"
+            ),
         )
         grouped.setdefault(s.exercise_type, []).append(point)
     # mdc stays default "none": no published MDC on the 0-10 score (see schema).

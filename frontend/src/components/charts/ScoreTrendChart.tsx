@@ -112,6 +112,7 @@ export default function ScoreTrendChart({
   // these at all) is unaffected unless it opts in.
   thresholds?: ScoreBandThresholds;
 }) {
+  const { t } = useTranslation();
   const isMini = variant === "mini";
   return (
     <>
@@ -166,7 +167,13 @@ export default function ScoreTrendChart({
                 tick={{ fill: "var(--text-3)", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
-                width={26}
+                width={38}
+                label={{
+                  value: t("progress.axisScore"),
+                  angle: -90,
+                  position: "insideLeft",
+                  style: { textAnchor: "middle", fill: "var(--text-3)", fontSize: 11 },
+                }}
               />
               <Tooltip content={<ScoreTooltip />} />
             </>

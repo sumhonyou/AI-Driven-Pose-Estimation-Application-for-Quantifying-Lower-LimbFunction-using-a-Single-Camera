@@ -78,6 +78,16 @@ export type TrendPoint = {
   confidence: number | null;
   // Denormalized like score/band. Null for exercises with no rep concept (SLS, WBLT).
   rep_count: number | null;
+  // Stage R12: per-exercise raw-metric series that replace the capture-quality
+  // trend on Progress. Only the field owned by the point's exercise type is set
+  // (all others null): STS finish/avg-rep time, SLS best hold per leg, WBLT best
+  // distance per leg. Squat's valid-rep series is derived from score * rep_count.
+  completion_time_sec: number | null;
+  avg_rep_time_sec: number | null;
+  hold_left_sec: number | null;
+  hold_right_sec: number | null;
+  distance_left_cm: number | null;
+  distance_right_cm: number | null;
 };
 
 export type ExerciseTrend = {

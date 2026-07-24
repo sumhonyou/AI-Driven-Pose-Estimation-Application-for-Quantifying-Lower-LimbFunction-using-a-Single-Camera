@@ -6,7 +6,7 @@ import { exerciseService } from "../services/exerciseService";
 import type { DashboardErrorTags, DashboardTrends, Exercise } from "../types/api";
 import ScoreTrendChart from "../components/charts/ScoreTrendChart";
 import BandDistributionBar from "../components/charts/BandDistributionBar";
-import PercentTrendChart from "../components/charts/PercentTrendChart";
+import MetricTrendChart, { type MetricSeries } from "../components/charts/MetricTrendChart";
 import ErrorTagBarChart from "../components/charts/ErrorTagBarChart";
 import RepAttemptsBarChart from "../components/charts/RepAttemptsBarChart";
 import { scoreBandThresholdsFor } from "../components/charts/dashboardChartUtils";
@@ -37,6 +37,10 @@ export default function Progress() {
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Stage R12 follow-up (HY): the SLS best-hold-per-leg chart defaults to both
+  // legs combined, but two overlapping lines read as cluttered -- this lets the
+  // user isolate one leg on that card specifically.
+  const [legFilter, setLegFilter] = useState<"both" | "left" | "right">("both");
 
   // Active exercise catalog once -- /api/exercises already server-filters to
   // is_active=true, so this is also the "logic gate" that keeps a retired
@@ -97,6 +101,117 @@ export default function Progress() {
   // Presence in errorTags (even an empty list) is the Stage 7.0 signal for
   // "this exercise type has a Module B result" -- Module A types never get a key.
   const isModuleB = selected != null && errorTags[selected] !== undefined;
+
+  // Stage R12 (UAT): the second progress chart per exercise, replacing the
+  // unanimously-rejected capture-quality trend. Each exercise plots the raw
+  // metric that actually means something to that movement -- STS finish/avg-rep
+  // time, SLS best hold per leg, WBLT best reach per leg, squat valid reps --
+  // with axis labels ("Date" on X, the unit on Y) and hover detail. `selected`
+  // is the exercise code, which equals its exercise_type here (same key used for
+  // `trends[selected]`), so it's safe to match against the known type strings.
+  const secondChart = ((): {
+    titleKey: string;
+    subKey: string;
+    node: React.ReactNode;
+    // Rendered in the panel head next to the title -- currently only the SLS
+    // leg-select dropdown uses this.
+    headerExtra?: React.ReactNode;
+  } | null => {
+    if (!selected) return null;
+    if (isModuleB) {
+      // Squat: valid-rep volume (counted vs rejected). The score alone can't tell
+      // a hard session from a short one; this is the raw-metric view S4 asked for.
+      return {
+        titleKey: "progress.repVolumeTrend",
+        subKey: "progress.repVolumeTrendSub",
+        node: <RepAttemptsBarChart points={points} />,
+      };
+    }
+    if (selected === "sit_to_stand") {
+      const series: MetricSeries[] = [
+        {
+          dataKey: "completion_time_sec",
+          label: t("progress.metricCompletionTime"),
+          color: "var(--chart-line)",
+        },
+        {
+          dataKey: "avg_rep_time_sec",
+          label: t("progress.metricAvgRepTime"),
+          color: "var(--info-blue)",
+        },
+      ];
+      return {
+        titleKey: "progress.stsTimeTrend",
+        subKey: "progress.stsTimeTrendSub",
+        node: (
+          <MetricTrendChart
+            points={points}
+            series={series}
+            unit="s"
+            yAxisLabel={t("progress.axisSeconds")}
+          />
+        ),
+      };
+    }
+    if (selected.includes("single_leg")) {
+      const bothSeries: MetricSeries[] = [
+        { dataKey: "hold_left_sec", label: t("sls.legLeft"), color: "var(--chart-line)" },
+        { dataKey: "hold_right_sec", label: t("sls.legRight"), color: "var(--info-blue)" },
+      ];
+      // Isolating a leg keeps its own line's colour so switching the dropdown
+      // doesn't also change which colour means "this leg" elsewhere on the page.
+      const series: MetricSeries[] =
+        legFilter === "left"
+          ? [bothSeries[0]]
+          : legFilter === "right"
+            ? [bothSeries[1]]
+            : bothSeries;
+      return {
+        titleKey: "progress.slsHoldTrend",
+        subKey: "progress.slsHoldTrendSub",
+        headerExtra: (
+          <Dropdown
+            options={[
+              { value: "both", label: t("progress.bothLegs") },
+              { value: "left", label: t("sls.legLeft") },
+              { value: "right", label: t("sls.legRight") },
+            ]}
+            value={legFilter}
+            onChange={(v) => setLegFilter(v as "both" | "left" | "right")}
+            placeholder={t("progress.bothLegs")}
+            ariaLabel={t("sls.perLegHeading")}
+          />
+        ),
+        node: (
+          <MetricTrendChart
+            points={points}
+            series={series}
+            unit="s"
+            yAxisLabel={t("progress.axisSeconds")}
+          />
+        ),
+      };
+    }
+    if (selected === "weight_bearing_lunge_test") {
+      const series: MetricSeries[] = [
+        { dataKey: "distance_left_cm", label: t("wblt.legLeft"), color: "var(--chart-line)" },
+        { dataKey: "distance_right_cm", label: t("wblt.legRight"), color: "var(--info-blue)" },
+      ];
+      return {
+        titleKey: "progress.wbltDistanceTrend",
+        subKey: "progress.wbltDistanceTrendSub",
+        node: (
+          <MetricTrendChart
+            points={points}
+            series={series}
+            unit=" cm"
+            yAxisLabel={t("progress.axisCentimetres")}
+          />
+        ),
+      };
+    }
+    return null;
+  })();
 
   return (
     <>
@@ -195,57 +310,40 @@ export default function Progress() {
                 </div>
                 <BandDistributionBar points={points} />
               </div>
-              <div className="panel" style={{ background: "var(--surface-2)" }}>
-                <div className="panel-head">
-                  <div>
-                    <h3 style={{ fontSize: "0.94rem" }}>{t("progress.captureQualityTrend")}</h3>
-                    <span className="sub">{t("progress.captureQualityTrendSub")}</span>
+              {/* Stage R12 (UAT): the capture-quality trend that used to sit here was
+                  the one unanimously-rejected chart (6/18). It's replaced by the
+                  raw metric each exercise's users actually track -- squat valid
+                  reps, STS finish/avg-rep time, SLS best hold per leg, WBLT best
+                  reach per leg. */}
+              {secondChart && (
+                <div className="panel" style={{ background: "var(--surface-2)" }}>
+                  <div className="panel-head" style={{ flexWrap: "wrap", gap: 8 }}>
+                    <div>
+                      <h3 style={{ fontSize: "0.94rem" }}>{t(secondChart.titleKey)}</h3>
+                      <span className="sub">{t(secondChart.subKey)}</span>
+                    </div>
+                    {secondChart.headerExtra}
                   </div>
+                  {secondChart.node}
                 </div>
-                <PercentTrendChart
-                  points={points}
-                  dataKey="capture_quality"
-                  color="var(--emerald)"
-                  label={t("dash.avgQuality")}
-                  variant="full"
-                />
-              </div>
+              )}
             </div>
 
             {isModuleB && tags && (
-              <div className="dash-grid" style={{ marginTop: 18, marginBottom: 0 }}>
-                {/* Stage 5.22: replaces the old Confidence trend -- a model-internal
-                    diagnostic (P(Good) vs P(Poor)) a patient cannot act on, and one
-                    that never moves for squat in practice (confidence == P(Good) in
-                    every recorded repetition, Stage 5.18's finding). Attempts vs
-                    counted reps is directly actionable and shows training volume the
-                    score alone can't -- since Stage 5.18 the score already equals
-                    10 * counted/attempts, so a percentage chart here would just
-                    replot the score series a second time. */}
-                <div className="panel" style={{ background: "var(--surface-2)" }}>
-                  <div className="panel-head">
-                    <div>
-                      <h3 style={{ fontSize: "0.94rem" }}>{t("progress.repVolumeTrend")}</h3>
-                      <span className="sub">{t("progress.repVolumeTrendSub")}</span>
-                    </div>
+              <div className="panel" style={{ background: "var(--surface-2)", marginTop: 18 }}>
+                <div className="panel-head">
+                  <div>
+                    <h3 style={{ fontSize: "0.94rem" }}>{t("dash.errorTags")}</h3>
+                    <span className="sub">{t("dash.errorTagsSub")}</span>
                   </div>
-                  <RepAttemptsBarChart points={points} />
                 </div>
-                <div className="panel" style={{ background: "var(--surface-2)" }}>
-                  <div className="panel-head">
-                    <div>
-                      <h3 style={{ fontSize: "0.94rem" }}>{t("dash.errorTags")}</h3>
-                      <span className="sub">{t("dash.errorTagsSub")}</span>
-                    </div>
-                  </div>
-                  {tags.length === 0 ? (
-                    <p className="muted center" style={{ padding: "16px 0" }}>
-                      {t("dash.noErrorTags")}
-                    </p>
-                  ) : (
-                    <ErrorTagBarChart tags={tags} />
-                  )}
-                </div>
+                {tags.length === 0 ? (
+                  <p className="muted center" style={{ padding: "16px 0" }}>
+                    {t("dash.noErrorTags")}
+                  </p>
+                ) : (
+                  <ErrorTagBarChart tags={tags} />
+                )}
               </div>
             )}
           </>

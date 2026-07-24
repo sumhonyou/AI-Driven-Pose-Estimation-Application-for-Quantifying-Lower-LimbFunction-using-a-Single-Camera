@@ -5386,3 +5386,141 @@ reasonable set), and **make charts meaningful and interactive**, not decorative.
       pages); not independently screenshotted with real data since Report
       needs an authenticated session + real analyzed data to reach normally
       (same constraint as prior stages).
+
+---
+
+### Phase 10 — Stage R12 (Dashboard / Progress second chart + squat valid reps) · 2026-07-25
+
+**Scope (this pass):** HY's explicit brief — replace the unanimously-rejected
+capture-quality trend on the Progress page with a **per-exercise second chart**,
+add a **valid-reps** metric to the squat post-session report, and give the new
+trend charts **axis labels** (unit on Y, "Date" on X). The remaining R12 items
+(band-distribution drill-down, error-tag exercise filter, session-history
+date-range filter + back button) are **not** in this pass — logged as remaining
+R12 work below.
+
+**Per-exercise second chart** (replaces the capture-quality `PercentTrendChart`):
+- **STS** → completion time + avg rep time (two lines, seconds).
+- **SLS** → best hold per leg, left vs right (two lines, seconds).
+- **WBLT** → best reach per leg, left vs right (two lines, cm).
+- **Squat** → valid reps (existing `RepAttemptsBarChart`, counted vs didn't-count)
+  — moved up into this slot; the old duplicate rep-volume panel in the Module B
+  grid was removed and error tags now render as a single full-width panel.
+
+**Data path:** the raw series come off each session's **Module A result** — STS
+`completion_time_sec` (queryable column) + `avg_rep_time_sec` (metrics_json), SLS
+`perLeg.{left,right}.holdSeconds`, WBLT `legs.{left,right}.best_distance_cm`.
+Squat "valid reps" is derived on the frontend from `score * rep_count` (Stage
+5.18), so it needs no new backend field.
+
+**Backend:**
+- [db/schemas.py](./backend/app/db/schemas.py) `TrendPoint`: +6 nullable fields
+  (`completion_time_sec`, `avg_rep_time_sec`, `hold_left_sec`, `hold_right_sec`,
+  `distance_left_cm`, `distance_right_cm`) — each populated only for the exercise
+  type that owns it, else None.
+- [api/dashboard_service.py](./backend/app/api/dashboard_service.py) `build_trends`:
+  reads `module_a_result` + its `metrics_json` via a new `_leg_metric()` helper
+  that tolerates missing/legacy rows (any absent layer → None, never raises).
+- [api/dashboard_routes.py](./backend/app/api/dashboard_routes.py) `get_trends`:
+  eager-loads `module_a_result` alongside `module_b_result`.
+- [tests/test_dashboard.py](./backend/tests/test_dashboard.py): `_session` helper
+  gained `completion_time_sec`/`metrics_json`; +4 tests (STS time series, SLS
+  per-leg hold, WBLT per-leg distance, missing-Module-A → all None).
+
+**Frontend:**
+- New [MetricTrendChart.tsx](./frontend/src/components/charts/MetricTrendChart.tsx)
+  — one generic recharts `LineChart` (1–2 series) with an explicit Y-axis unit
+  label + "Date" X-axis label, per-series hover tooltip, and a legend only when
+  >1 line. `MetricSeries.dataKey` is a union of the numeric TrendPoint fields so
+  a typo can't point at `band`/`date`.
+- [Progress.tsx](./frontend/src/pages/Progress.tsx): picks the second chart off
+  `selected` (code == exercise_type); removed the capture-quality panel; error
+  tags now full-width for Module B.
+- Deleted the now-orphaned `PercentTrendChart.tsx` (only Progress used it; the
+  confidence trend it also served was already dropped in Stage 5.22) and removed
+  `progress.captureQualityTrend`/`captureQualityTrendSub` from all 3 locales.
+- [types/api.ts](./frontend/src/types/api.ts) `TrendPoint`: mirrored the 6 fields.
+- New i18n `progress.*` keys (en/zh/ms): `stsTimeTrend(+Sub)`, `slsHoldTrend(+Sub)`,
+  `wbltDistanceTrend(+Sub)`, `metricCompletionTime`, `metricAvgRepTime`,
+  `axisDate`, `axisSeconds`, `axisCentimetres`; `repVolumeTrend` reworded to
+  "Valid reps".
+
+**Squat report valid reps:** [Report.tsx](./frontend/src/pages/Report.tsx)
+`moduleBRows` gained a "Valid reps" row (the counted-rep total) beside Attempts,
+shown only when per-rep verdicts exist, reusing the shared `glossary.validRep`
+definition. Attempts + Valid reps together explain the score directly
+(score = 10 · valid / attempts).
+
+**Verification:** backend `pytest` **340 passed** (incl. 4 new dashboard tests);
+frontend `tsc --noEmit` clean, `vitest` **56/56** (added a `MetricTrendChart`
+render/empty-state/single-series smoke test — real jsdom mount, since the
+DOM-injection mockup can't exercise a React/recharts chart — and locked the new
+squat "Valid reps" row in `Report.test.tsx`), Prettier clean. The Progress page
+is auth-gated (ProtectedRoute) and needs seeded history, so — as in prior
+chart/stage passes — the recharts chart wasn't screenshotted with live data;
+instead a static layout preview injected with the app's real CSS classes/tokens
+confirmed the panel framing, the "Seconds" Y-axis + "Date" X-axis labels, the
+two per-leg lines (lime `--chart-line` left, blue `--info-blue` right), and the
+legend all read correctly. `MetricTrendChart` mounts via the same recharts
+pattern already shipped in `ScoreTrendChart`/`RepAttemptsBarChart`.
+
+**Remaining R12 (future pass):** band-distribution drill-down by exercise;
+error-tag filter-by-exercise + per-tag tooltips; session-history date-range
+filter + back button; score-trend explicit axis labels.
+
+### Phase 10 — Stage R12 follow-up (remaining items + SLS leg-select) · 2026-07-25
+
+**Scope:** the rest of R12 flagged as a follow-up above, plus two fixes HY asked
+for after reviewing the first pass: a Y-axis label on the score trend, and an
+isolate-one-leg control for the SLS best-hold chart.
+
+- **Score trend Y-axis label:** [ScoreTrendChart.tsx](./frontend/src/components/charts/ScoreTrendChart.tsx)
+  now labels its Y-axis `progress.axisScore` ("Score"), same pattern as the
+  Stage R12 metric charts. Widened the axis gutter (26→38px) so the rotated
+  label doesn't clip.
+- **SLS leg isolation (HY):** the "Best hold per leg" card on
+  [Progress.tsx](./frontend/src/pages/Progress.tsx) was two overlapping lines by
+  default and read as cluttered. Added a `legFilter` dropdown ("Both legs" /
+  left / right) in the card's own header — default stays combined, selecting a
+  leg narrows `MetricTrendChart`'s `series` to just that leg's line, keeping its
+  original colour. `secondChart` gained an optional `headerExtra` slot so only
+  this card renders a control; WBLT's per-leg chart is unchanged (not asked for).
+- **Band distribution — drill-down + "explain":** [Dashboard.tsx](./frontend/src/pages/Dashboard.tsx)'s
+  Band distribution panel used to pool every exercise type unconditionally.
+  Added a `bandFilter` dropdown (default "All exercises", per-exercise options
+  built from `activeTrendEntries`) that narrows `BandDistributionBar`'s points
+  to one exercise. Also wired the previously-unused `goodFairPoor` glossary term
+  (defined in Stage R10, never consumed) onto the panel heading — the "explain"
+  half of this backlog item.
+- **Error tags — filter by exercise:** same panel pattern for Common error tags:
+  a `tagFilter` dropdown (default "All exercises", options built from the
+  Module-B-only `errorTags` keys) switches between the merged `rankedErrorTags`
+  and one exercise's own already-ranked list. Per-tag explanation was **not**
+  added as a separate tooltip — the tag pills already render the full coaching
+  sentence (`moduleB.tag_<code>`) as their label everywhere in the app (Report,
+  Progress's `ErrorTagBarChart` hover), so a second explanation would duplicate
+  the same text, not add new information.
+- **Session History — back button + date-range filter:**
+  [SessionHistory.tsx](./frontend/src/pages/SessionHistory.tsx) gained the same
+  `.back-link` pattern as Report (`nav(-1)`), and a 5-bucket range picker
+  (7d/14d/30d/90d/all, same wording as Progress's). `GET /api/sessions` has no
+  server-side range param and the page already loads the full list once, so the
+  filter runs client-side (`withinRange` on `started_at`) rather than adding a
+  backend query param for what's already in memory.
+
+**i18n:** new keys in all 3 locales — `progress.axisScore`, `progress.bothLegs`,
+`dash.allExercises`.
+
+**Verification:** `tsc --noEmit` clean; `vitest` **56/56** (unchanged --  no new
+component needed its own test, since Dropdown/GlossaryTerm/back-link/range-
+picker are all existing, already-tested primitives being reused, not new
+logic); Prettier clean. Browser-verified via a static layout preview (same
+auth-gated-page convention as the first R12 pass): the Band-distribution info
+icon + exercise dropdown fit the panel head without crowding the title, the
+error-tags dropdown does the same, and History's back-link + range `.seg`
+control sit cleanly in the existing `.filters` row.
+
+**Not done (still future work, unchanged from the first R12 pass):** WBLT
+per-leg isolation (only SLS was asked for); a server-side date-range param for
+Session History (unnecessary while the full list is already fetched in one
+request).

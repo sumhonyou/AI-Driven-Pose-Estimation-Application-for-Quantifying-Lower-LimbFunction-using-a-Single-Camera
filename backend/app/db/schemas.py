@@ -184,6 +184,18 @@ class TrendPoint(BaseModel):
     # reps per session without a second endpoint -- `score` alone can't distinguish a
     # hard session from a short one.
     rep_count: int | None = None
+    # Stage R12 (UAT): per-exercise raw-metric series that replace the rejected
+    # capture-quality trend on the Progress page. Each is populated only for the
+    # exercise type that owns it (all None otherwise), read from the session's
+    # Module A result -- STS finish time / avg rep time, SLS best hold per leg,
+    # WBLT best reach distance per leg. Squat's "valid reps" is derived on the
+    # frontend from score * rep_count (Stage 5.18), so it needs no field here.
+    completion_time_sec: float | None = None  # STS
+    avg_rep_time_sec: float | None = None  # STS
+    hold_left_sec: float | None = None  # SLS best hold, left leg
+    hold_right_sec: float | None = None  # SLS best hold, right leg
+    distance_left_cm: float | None = None  # WBLT best distance, left leg
+    distance_right_cm: float | None = None  # WBLT best distance, right leg
 
 
 class ExerciseTrend(BaseModel):

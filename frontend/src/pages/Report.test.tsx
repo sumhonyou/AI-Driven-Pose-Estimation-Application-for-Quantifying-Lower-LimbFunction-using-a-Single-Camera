@@ -176,6 +176,8 @@ describe("Report", () => {
     renderReport("s1");
 
     expect(await screen.findByText(/2 reps counted · 3 didn't count/i)).toBeInTheDocument();
+    // Stage R12: the "Valid reps" metric row shows the counted-rep total (2 here).
+    expect(screen.getByText("Valid reps")).toBeInTheDocument();
     expect(screen.getByText(/no specific fault identified/i)).toBeInTheDocument();
     expect(screen.getByText(/no specific fault identified/i).textContent).toContain("×2");
     // And the live-vs-final discrepancy is explained rather than left mysterious.

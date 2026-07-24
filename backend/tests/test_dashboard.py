@@ -37,10 +37,22 @@ def _session(
     is_module_b: bool = False,
     tags: list | None = None,
     rep_count: int | None = None,
+    completion_time_sec=None,
+    metrics_json: dict | None = None,
 ) -> SimpleNamespace:
     # A Module B session always carries a module_b_result (even if confidence is
     # None); that presence is how the builders classify the exercise type.
     module_b_result = SimpleNamespace(confidence=confidence) if is_module_b else None
+    # Stage R12: Module A result is the source of the per-exercise raw-metric
+    # series (STS finish time column + avg_rep_time_sec/perLeg/legs JSON). Absent
+    # for Module B / unscored sessions, so build_trends must tolerate None.
+    module_a_result = (
+        SimpleNamespace(
+            completion_time_sec=completion_time_sec, metrics_json=metrics_json
+        )
+        if (completion_time_sec is not None or metrics_json is not None)
+        else None
+    )
     return SimpleNamespace(
         id=uuid4(),
         exercise_type=exercise_type,
@@ -49,6 +61,7 @@ def _session(
         band=band,
         capture_quality=capture_quality,
         module_b_result=module_b_result,
+        module_a_result=module_a_result,
         module_b_error_tags=tags or [],
         rep_count=rep_count,
     )
@@ -120,6 +133,67 @@ class BuildTrendsTests(unittest.TestCase):
         trends = build_trends(sessions)
         self.assertEqual(trends["squat"].points[0].rep_count, 9)
         self.assertIsNone(trends["supported_single_leg_stance"].points[0].rep_count)
+
+    def test_sts_time_series_read_from_module_a_result(self) -> None:
+        # Stage R12: STS finish time is a queryable column; avg rep time is JSON.
+        sessions = [
+            _session(
+                "sit_to_stand",
+                score=Decimal("7.0"),
+                completion_time_sec=Decimal("13.4"),
+                metrics_json={"avg_rep_time_sec": 2.2},
+            )
+        ]
+        point = build_trends(sessions)["sit_to_stand"].points[0]
+        self.assertEqual(point.completion_time_sec, 13.4)
+        self.assertEqual(point.avg_rep_time_sec, 2.2)
+        # Per-leg fields stay None for a non-per-leg exercise.
+        self.assertIsNone(point.hold_left_sec)
+        self.assertIsNone(point.distance_right_cm)
+
+    def test_sls_best_hold_per_leg_read_from_metrics_json(self) -> None:
+        sessions = [
+            _session(
+                "supported_single_leg_stance",
+                score=Decimal("8.0"),
+                metrics_json={
+                    "perLeg": {
+                        "left": {"holdSeconds": 12.5},
+                        "right": {"holdSeconds": 9.0},
+                    }
+                },
+            )
+        ]
+        point = build_trends(sessions)["supported_single_leg_stance"].points[0]
+        self.assertEqual(point.hold_left_sec, 12.5)
+        self.assertEqual(point.hold_right_sec, 9.0)
+        self.assertIsNone(point.completion_time_sec)
+
+    def test_wblt_best_distance_per_leg_read_from_metrics_json(self) -> None:
+        sessions = [
+            _session(
+                "weight_bearing_lunge_test",
+                score=Decimal("7.5"),
+                metrics_json={
+                    "legs": {
+                        "left": {"best_distance_cm": 9.0},
+                        "right": {"best_distance_cm": 11.5},
+                    }
+                },
+            )
+        ]
+        point = build_trends(sessions)["weight_bearing_lunge_test"].points[0]
+        self.assertEqual(point.distance_left_cm, 9.0)
+        self.assertEqual(point.distance_right_cm, 11.5)
+
+    def test_missing_module_a_result_leaves_metric_series_none(self) -> None:
+        # A session that never produced a Module A result (e.g. squat/Module B, or
+        # an unscored session) must not raise -- every new field is simply None.
+        point = build_trends([_session("squat", is_module_b=True)])["squat"].points[0]
+        self.assertIsNone(point.completion_time_sec)
+        self.assertIsNone(point.avg_rep_time_sec)
+        self.assertIsNone(point.hold_left_sec)
+        self.assertIsNone(point.distance_left_cm)
 
     def test_score_trend_never_asserts_published_mdc(self) -> None:
         # No published MDC exists on the 0-10 score, even for WBLT.
