@@ -179,7 +179,7 @@ Annotations: `[HAVE]` exists in repo · `[NEW]` needs writing · `[RUN]` needs a
 ### 4.7 User Acceptance Testing (~6 p)
 
 - **4.7.1 Participants and Procedure** — 22 participants / 21 questionnaires, scenario tasks, moderated observation. `[HAVE]`
-- **4.7.2 Functionality** — core-function results per module; defects identified; **before-and-after improvements** (R1 squat heel-lift false positive · R2 SLS lift over-sensitivity · R3 LLM fallback telemetry · R4 live-feedback redesign · R5 uniform start + recording state · R6 audio cues), presented as _finding → fix → verification_. **Direct evidence for Project Goal 5.** `[HAVE — task.md Phase 10]`
+- **4.7.2 Functionality** — core-function results per module; defects identified; **before-and-after improvements**. UAT remediation ran to **14 stages (R1–R14)**, not just the first few — pick a representative ~6–8 for the report table (the 2 correctness defects R1/R2 plus the highest-evidence usability fixes: R5 start-protocol, R6 audio, R9 instructions, R10 glossary, R11 report redesign, R13 reminders), presented as _finding → fix → verification_. **Direct evidence for Project Goal 5**, several times over. `[HAVE — docs/UAT_REMEDIATION_SUMMARY.md, distilled from task.md Phase 10]`
 - **4.7.3 Ease-of-Use** — navigation and task completion; clarity of instructions and feedback; language/accessibility. `[HAVE]`
 - **4.7.4 Discussion** — R1 and R2 were _correctness_ defects found only by real users; that is itself a result about the limits of self-testing.
 
