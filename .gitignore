@@ -7,8 +7,8 @@ development-log.md
 Session_Summary_Log.md
 
 # Local research / working docs (not for version control)
-docs/*
-!docs/module_b_decisions.md
+# docs/*
+# !docs/module_b_decisions.md
 
 # Local agent instructions (not for version control)
 /AGENTS.md
