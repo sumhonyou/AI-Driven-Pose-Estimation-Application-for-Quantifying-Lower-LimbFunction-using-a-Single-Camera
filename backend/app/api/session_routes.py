@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -15,6 +16,7 @@ from app.db.models import User
 from app.db.schemas import SessionEnd, SessionRead, SessionStart, SessionStartResponse
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
+logger = logging.getLogger(__name__)
 
 
 def _decimal_to_float(value: Decimal | None) -> float | None:
@@ -50,6 +52,15 @@ def _get_owned_session(
     )
 
 
+def _require_in_progress(session: SessionModel, action: str) -> None:
+    """Keep a finished or cancelled session from being changed later."""
+    if session.status != "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Only an in-progress session can be {action}.",
+        )
+
+
 @router.post(
     "/start", response_model=SessionStartResponse, status_code=status.HTTP_201_CREATED
 )
@@ -66,12 +77,32 @@ def start_session(
             status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found"
         )
 
+    # A user can only have one active browser session. This also cleans up a
+    # previous session if its browser closed before its page-exit request arrived.
+    abandoned_sessions = db.scalars(
+        select(SessionModel).where(
+            SessionModel.user_id == current_user.id,
+            SessionModel.status == "in_progress",
+        )
+    ).all()
+    now = datetime.now(UTC)
+    for abandoned_session in abandoned_sessions:
+        abandoned_session.ended_at = now
+        abandoned_session.status = "cancelled"
+
+    if abandoned_sessions:
+        logger.info(
+            "cancelled abandoned sessions user=%s count=%d",
+            current_user.id,
+            len(abandoned_sessions),
+        )
+
     session = SessionModel(
         user_id=current_user.id,
         exercise_id=exercise.id,
         mode=payload.mode,
         exercise_type=exercise.code,
-        started_at=datetime.now(UTC),
+        started_at=now,
         status="in_progress",
         device_info=payload.device_info,
     )
@@ -93,6 +124,7 @@ def end_session(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
+    _require_in_progress(session, "ended")
 
     session.ended_at = datetime.now(UTC)
     session.status = "completed"
@@ -116,6 +148,12 @@ def cancel_session(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
+
+    # A second close-page/cancel request is harmless, but a completed session
+    # must never be overwritten as cancelled.
+    if session.status == "cancelled":
+        return _session_response(session)
+    _require_in_progress(session, "cancelled")
 
     session.ended_at = datetime.now(UTC)
     session.status = "cancelled"

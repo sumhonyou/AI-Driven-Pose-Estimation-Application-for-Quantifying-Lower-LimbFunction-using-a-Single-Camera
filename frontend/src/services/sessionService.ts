@@ -1,4 +1,4 @@
-import { apiRequest } from "./apiClient";
+import { API_BASE_URL, apiRequest, TOKEN_KEY } from "./apiClient";
 import type { SessionDTO } from "../types/api";
 
 export const sessionService = {
@@ -40,4 +40,24 @@ export function enqueueCancel(sessionId: string) {
     .cancel(sessionId)
     .catch((err) => console.error("[Session] Cancel failed", err))
     .finally(() => pendingCancelIds.delete(sessionId));
+}
+
+/**
+ * Best-effort cancellation for a tab close, reload, or hard navigation.
+ * `keepalive` lets the browser continue this small authenticated request while
+ * the page is being discarded. Starting another session is the server fallback
+ * if a browser cannot deliver the request.
+ */
+export function cancelOnPageExit(sessionId: string) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return;
+
+  console.log("[Session] Cancelling active session on page exit", sessionId);
+  void fetch(`${API_BASE_URL}/api/sessions/${sessionId}/cancel`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    keepalive: true,
+  }).catch(() => {
+    // The tab is closing, so there is nowhere useful to surface this error.
+  });
 }

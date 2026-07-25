@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { cancelOnPageExit } from "./services/sessionService";
 
 type SessionFlow = {
   mode: "functional" | "rehab";
@@ -26,6 +27,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [exerciseCode, setExerciseCode] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [reminderId, setReminderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const cancelWhenPageExits = (event: PageTransitionEvent) => {
+      // A page stored in the back/forward cache can resume its active session.
+      if (!event.persisted) cancelOnPageExit(sessionId);
+    };
+
+    window.addEventListener("pagehide", cancelWhenPageExits);
+    return () => window.removeEventListener("pagehide", cancelWhenPageExits);
+  }, [sessionId]);
 
   const value = useMemo(
     () => ({
