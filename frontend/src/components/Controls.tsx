@@ -79,28 +79,26 @@ export function LanguageSwitcher() {
 
   return (
     <div className="lang" ref={ref}>
-      <CtrlHint text={t("nav.languageHint")} align="end">
-        <button
-          className="ctrl"
-          onClick={() => setOpen((o) => !o)}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-label={t("nav.language")}
+      <button
+        className="ctrl"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={t("nav.language")}
+      >
+        <Globe />
+        <span
+          className="desktop-only"
+          style={{
+            maxWidth: 70,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
         >
-          <Globe />
-          <span
-            className="desktop-only"
-            style={{
-              maxWidth: 70,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {current.label}
-          </span>
-        </button>
-      </CtrlHint>
+          {current.label}
+        </span>
+      </button>
       {open && (
         <div className="lang-menu" role="listbox">
           {LANGUAGES.map((l) => (
