@@ -7,18 +7,29 @@ Transcribed and verified directly against `Segmentation.txt` and a live read of
 - **Rows:** 1072 (data rows, excluding header).
 - **One row = one repetition** (not one video).
 
+---
+
+## Table of Contents
+
+- [Columns](#columns)
+- [Known documentation inconsistency (flagged, not silently resolved)](#known-documentation-inconsistency-flagged-not-silently-resolved)
+- [Joints (joints_names.txt)](#joints-joints_namestxt)
+- [Video files](#video-files)
+
+---
+
 ## Columns
 
 | Column                       | Type                  | Meaning                                                                                                                                                                                                                                                                                                   |
 | ---------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `video_id`                   | string, e.g. `PM_008` | Id of the video file. Matches the `PM_###` prefix of every file in `videos/Ex{n}/`.                                                                                                                                                                                                                       |
 | `repetition_number`          | int                   | Rep number within the given video (1-indexed).                                                                                                                                                                                                                                                            |
-| `exercise_id`                | int, 1-6              | Exercise id. Per the Zenodo dataset page (cited in `task.md`'s Locked Assumptions, HY 2026-07-15): **Ex5 = Leg lunge, Ex6 = Squats** — the only two this project trains on.                                                                                                                               |
+| `exercise_id`                | int, 1-6              | Exercise id. Per the Zenodo dataset page (cited in `task.md`'s Locked Assumptions, HY 2026-07-15): **Ex6 = Squats**, the only exercise this project trains on.                                                                                                                                            |
 | `person_id`                  | int                   | Id of the exercising person (subject). Used as the LOSO grouping key.                                                                                                                                                                                                                                     |
 | `first_frame` / `last_frame` | int                   | Frame range (inclusive) of this repetition within the video, at the video's native fps. These are the dataset's physio-verified rep boundaries — **ground truth for Stage 5.3 windowing**, not our FSM's output.                                                                                          |
 | `cam17_orientation`          | enum                  | Orientation of the exercising person **towards camera17**. Observed literal values in the CSV: `front`, `half-profile`, `profile`. See "Known documentation inconsistency" below — camera18 is placed orthogonally to camera17, so this column also implies camera18's orientation via the mapping table. |
 | `mocap_erroneous`            | int, 0/1              | 1 = some mocap markers were not correctly detected for this rep (candidate for exclusion from the Stage 5.4 mocap-agreement check).                                                                                                                                                                       |
-| `exercise_subtype`           | string, may be empty  | For exercises with a right/left-sided distinction (e.g. Ex5 leg lunge: `front leg right` / `front leg left` — the lead-leg tag). **Empty for Ex6 (squats)** — squats have no side variant.                                                                                                                |
+| `exercise_subtype`           | string, may be empty  | For exercises with a right/left-sided distinction. **Empty for Ex6 (squats)** — squats have no side variant.                                                                                                                                                                                              |
 | `lights_on`                  | int, 0/1              | Whether the recording lights were switched on. (Note: `task.md`'s Stage 5.0 checklist calls this "lighting distribution" — the actual column name is `lights_on`, a boolean, not a categorical lighting variable.)                                                                                        |
 | `extra_person_in_cam17`      | int, 0-3              | 0 = no extra person visible; 1 = negligible part visible briefly; 2 = noticeable part visible (e.g. whole arm) for more than a few frames; 3 = large part of an extra person visible.                                                                                                                     |
 | `extra_person_in_cam18`      | int, 0-3              | Same semantics as `extra_person_in_cam17`, for camera18.                                                                                                                                                                                                                                                  |

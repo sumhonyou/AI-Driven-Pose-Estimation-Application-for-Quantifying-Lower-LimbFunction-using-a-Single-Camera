@@ -13,16 +13,46 @@ Annotations: `[HAVE]` exists in repo · `[NEW]` needs writing · `[RUN]` needs a
 
 ---
 
+## Table of Contents
+
+- [CHAPTER 3 — METHODOLOGY (~20 pages)](#chapter-3-methodology-20-pages)
+  - [3.1 Methodology Overview](#31-methodology-overview)
+  - [3.2 Data Acquisition and Dataset Preparation](#32-data-acquisition-and-dataset-preparation)
+  - [3.3 Data Preprocessing](#33-data-preprocessing)
+  - [3.4 System Development](#34-system-development)
+  - [3.5 System Deployment](#35-system-deployment)
+  - [3.6 Evaluation and Testing Methodology](#36-evaluation-and-testing-methodology)
+- [CHAPTER 4 — RESULTS AND DISCUSSION (~30 pages)](#chapter-4-results-and-discussion-30-pages)
+  - [4.1 Project Review (~3 p)](#41-project-review-3-p)
+  - [4.2 Feature and Measurement Validation (~4 p)](#42-feature-and-measurement-validation-4-p)
+  - [4.3 Model Evaluation (~5 p)](#43-model-evaluation-5-p)
+  - [4.4 Comparative Analysis (~3 p)](#44-comparative-analysis-3-p)
+  - [4.5 External Validation and the Transferability Finding ★ (~4 p)](#45-external-validation-and-the-transferability-finding-4-p)
+  - [4.6 Testing (~11 p)](#46-testing-11-p)
+  - [4.7 User Acceptance Testing (~6 p)](#47-user-acceptance-testing-6-p)
+  - [4.8 Achievement of Project Objectives (~1–2 p)](#48-achievement-of-project-objectives-12-p)
+- [CHAPTER 5 — CONCLUSION (~5 pages)](#chapter-5-conclusion-5-pages)
+  - [5.1 Summary of the Project (~1 p)](#51-summary-of-the-project-1-p)
+  - [5.2 Contributions](#52-contributions)
+  - [5.3 Limitations](#53-limitations)
+  - [5.4 Future Work](#54-future-work)
+  - [5.5 Concluding Remarks (~2 paragraphs)](#55-concluding-remarks-2-paragraphs)
+- [Effort notes](#effort-notes)
+
+---
+
 ## CHAPTER 3 — METHODOLOGY (~20 pages)
 
 > Keeps the proposal's skeleton. Rewrite future tense ("will") → past tense ("was").
 
 ### 3.1 Methodology Overview
+
 - **3.1.1 Research and Development Approach** — iterative, phase-based, evidence-driven: design decisions settled by measurement where possible. `[NEW, short]`
 - **3.1.2 Revised System Workflow** — updated Figure 6 (squat-only, per-rep ML + majority vote, fault-gate layer, LLM rewrite). `[NEW figure — old Fig 6 is out of date]`
-- **3.1.3 Summary of Deviations from the Proposal** — table: *proposed → as-built → why*. **Do not skip.** `[HAVE — plan §24; trim 15 rows to ~10]`
+- **3.1.3 Summary of Deviations from the Proposal** — table: _proposed → as-built → why_. **Do not skip.** `[HAVE — plan §24; trim 15 rows to ~10]`
 
 ### 3.2 Data Acquisition and Dataset Preparation
+
 - **3.2.1 Dataset Selection and Rationale** — REHAB24-6; public dataset over recruitment; side-view choice. `[HAVE]`
 - **3.2.2 Label Alignment and Usable Sample** — 98 reps, 9 subjects, 72 Good / 26 Poor. `[HAVE]`
 - **3.2.3 Landmark Extraction and Runtime Parity** — offline pipeline + parity check vs in-browser runtime. `[HAVE — PARITY_CHECK.md]`
@@ -30,6 +60,7 @@ Annotations: `[HAVE]` exists in repo · `[NEW]` needs writing · `[RUN]` needs a
 - **3.2.5 Participant-Level (LOSO) Splitting** `[HAVE]`
 
 ### 3.3 Data Preprocessing
+
 - **3.3.1 Confidence Filtering and Capture-Quality Gating** (Eq. 1–2) `[HAVE]`
 - **3.3.2 Missing Keypoint Handling** (interpolation, ≤5-frame gap) `[HAVE]`
 - **3.3.3 Smoothing** (One-Euro, Eq. 4–5) `[HAVE]`
@@ -39,12 +70,14 @@ Annotations: `[HAVE]` exists in repo · `[NEW]` needs writing · `[RUN]` needs a
 ### 3.4 System Development
 
 **3.4.1 Module A — Rule-Based Functional Quantification**
+
 - 3.4.1.1 Exercise protocols as built (STS; SLS both legs / 45 s cap; WBLT dual output) `[HAVE]`
 - 3.4.1.2 Metric computation and FSM segmentation (incl. the dwell-time fix) `[HAVE]`
 - 3.4.1.3 Conservative banding and capture-quality gating `[HAVE]`
 - 3.4.1.4 WBLT redesign: self-measured distance + published age/sex norms `[HAVE]`
 
 **3.4.2 Module B — Hybrid Rehabilitation Grading (Squat)**
+
 - 3.4.2.1 Scope decision: squat only (lunge removed — state the measurement-bias reason) `[HAVE]`
 - 3.4.2.2 Repetition segmentation and feature design (13 features) + **pre-training validity screening** `[HAVE]`
 - 3.4.2.3 Rule-based sub-score design (ROM / Tempo / Stability) `[HAVE]`
@@ -54,10 +87,12 @@ Annotations: `[HAVE]` exists in repo · `[NEW]` needs writing · `[RUN]` needs a
 - 3.4.2.7 Fault gates and error-tag taxonomy — incl. what was **deliberately excluded** (valgus, asymmetry, stance width) `[HAVE]`
 
 **3.4.3 After-Set Feedback Generation**
+
 - 3.4.3.1 Deterministic template layer
 - 3.4.3.2 LLM rewriting layer + safety filter (Groq replaced the proposal's "Transformer"; off by default; grade immutability) `[HAVE]`
 
 **3.4.4 Web Application Development**
+
 - 3.4.4.1 Requirement specification (FR/NFR) `[HAVE]`
 - 3.4.4.2 System architecture — pose runs in-browser, **raw video never leaves the device**; one post-set request. Update Fig 10. `[HAVE, figure edit]`
 - 3.4.4.3 Database design (flat columns vs JSONB) `[HAVE]`
@@ -66,9 +101,11 @@ Annotations: `[HAVE]` exists in repo · `[NEW]` needs writing · `[RUN]` needs a
 - 3.4.4.6 Privacy and non-diagnostic safeguards `[HAVE]`
 
 ### 3.5 System Deployment
+
 ~1 page: Cloud Run + Cloud SQL + hosted frontend, containerisation, env/CORS. Diagram + short prose. `[NEW]`
 
 ### 3.6 Evaluation and Testing Methodology
+
 - **3.6.1 Module A: measurement-agreement evaluation** — why classifier metrics don't apply to a rule engine; ICC(2,1), Bland–Altman, kappa. `[HAVE — plan §9.4]`
 - **3.6.2 Module B: classification evaluation** — standard metrics + the **severe-misclassification rate** as the metric that matters in rehab. `[HAVE]`
 - **3.6.3 External validation protocol** `[HAVE]`
@@ -79,38 +116,43 @@ Annotations: `[HAVE]` exists in repo · `[NEW]` needs writing · `[RUN]` needs a
 
 ## CHAPTER 4 — RESULTS AND DISCUSSION (~30 pages)
 
-> **Rule:** every subsection ends with a short discussion paragraph — what the number *means*.
+> **Rule:** every subsection ends with a short discussion paragraph — what the number _means_.
 > That is the main B→A difference.
 >
 > **Weight:** 4.1–4.5 analytical (~16 p) · 4.6–4.7 evidence-heavy tables + screenshots (~13 p).
 
 ### 4.1 Project Review (~3 p)
+
 - **4.1.1 Delivered System Walkthrough** — annotated screenshots: camera setup, live HUD, report, dashboard, progress. `[NEW screenshots]`
 - **4.1.2 Scope Delivered Against the Proposal** — short; refers back to §3.1.3. `[HAVE]`
 
 ### 4.2 Feature and Measurement Validation (~4 p)
+
 > No peer equivalent — a CNN project skips this. You engineered features by hand, so validating
-> them *is* a result.
+> them _is_ a result.
 
 - **4.2.1 Feature Validity Screening and Repetition-Detection Results** — kept/dropped features (AUC, per-subject direction consistency); segmentation vs ground-truth rep counts. `[HAVE — FEATURE_VALIDITY.md]`
 - **4.2.2 Agreement with Motion-Capture Ground Truth** — Bland–Altman; the ≈ −11.96° knee-flexion under-read that later anchored the depth gate. `[HAVE — MOCAP_AGREEMENT.md]`
 - **4.2.3 Discussion — What a Single Camera Can and Cannot Measure** — far-limb occlusion (0.59–0.78 vs 0.95–0.99); frontal-plane faults excluded by geometry, not omission.
 
 ### 4.3 Model Evaluation (~5 p)
+
 - **4.3.1 Training and Calibration Results** — LOSO CV, hyperparameter search, reliability curve. `[HAVE]`
 - **4.3.2 Feature Importance Analysis** `[HAVE]`
 - **4.3.3 Fusion Weight and Decision Threshold Selection** — the joint search that drove `w_rule → 0`. `[HAVE — SQUAT_FUSION_SWEEP.md]`
 - **4.3.4 Final Operating Point and Confusion Matrix** — recall(Poor) 0.077 → 1.000; 22/72 (31%) false alarms; **zero** poor-called-Good. `[HAVE — SQUAT_EVALUATION_REPORT_2BAND.md]`
 
 ### 4.4 Comparative Analysis (~3 p)
+
 > Merged: the old "Model Comparative Analysis" + "Comparison with Related Research".
 > No candidate-classifier bake-off — see §3.4.2.5.
 
-- **4.4.1 Rule-Based vs Machine Learning vs Hybrid** — your real comparison: the ROM rule was *inverted* for this population, so fusion collapsed to pure ML. `[HAVE]`
+- **4.4.1 Rule-Based vs Machine Learning vs Hybrid** — your real comparison: the ROM rule was _inverted_ for this population, so fusion collapsed to pure ML. `[HAVE]`
 - **4.4.2 Comparison with Published Pose-Based Grading Systems** `[HAVE — §7.6]`
 - **4.4.3 Why a Single Accuracy Figure Cannot Be Honestly Reported** — n = 98 / 9 subjects; accuracy breaks even against the majority baseline; different papers use different labels and split schemes. `[HAVE — §7.1]`
 
 ### 4.5 External Validation and the Transferability Finding ★ (~4 p)
+
 > Your strongest and most original section. No peer project will have one.
 
 - **4.5.1 EC3D Results and the Two Findings** — incompatible definitions of "incorrect"; construct inversion (≈56.7% of importance mass). `[HAVE]`
@@ -119,6 +161,7 @@ Annotations: `[HAVE]` exists in repo · `[NEW]` needs writing · `[RUN]` needs a
 - **4.5.4 Discussion** — internal cross-validation is not sufficient evidence for a clinical-adjacent grader.
 
 ### 4.6 Testing (~11 p)
+
 > Format: **test-case table first, one screenshot per case.**
 > Columns: `ID · Test Case · Input / Precondition · Expected · Actual · Status`
 
@@ -134,12 +177,14 @@ Annotations: `[HAVE]` exists in repo · `[NEW]` needs writing · `[RUN]` needs a
 - **4.6.5 Automated Regression Test Suite** — 330 backend + frontend vitest; fixed-seed replay determinism. ~1 page, already written, and stronger evidence than screenshots alone. `[HAVE]`
 
 ### 4.7 User Acceptance Testing (~6 p)
+
 - **4.7.1 Participants and Procedure** — 22 participants / 21 questionnaires, scenario tasks, moderated observation. `[HAVE]`
-- **4.7.2 Functionality** — core-function results per module; defects identified; **before-and-after improvements** (R1 squat heel-lift false positive · R2 SLS lift over-sensitivity · R3 LLM fallback telemetry · R4 live-feedback redesign · R5 uniform start + recording state · R6 audio cues), presented as *finding → fix → verification*. **Direct evidence for Project Goal 5.** `[HAVE — task.md Phase 10]`
+- **4.7.2 Functionality** — core-function results per module; defects identified; **before-and-after improvements** (R1 squat heel-lift false positive · R2 SLS lift over-sensitivity · R3 LLM fallback telemetry · R4 live-feedback redesign · R5 uniform start + recording state · R6 audio cues), presented as _finding → fix → verification_. **Direct evidence for Project Goal 5.** `[HAVE — task.md Phase 10]`
 - **4.7.3 Ease-of-Use** — navigation and task completion; clarity of instructions and feedback; language/accessibility. `[HAVE]`
-- **4.7.4 Discussion** — R1 and R2 were *correctness* defects found only by real users; that is itself a result about the limits of self-testing.
+- **4.7.4 Discussion** — R1 and R2 were _correctness_ defects found only by real users; that is itself a result about the limits of self-testing.
 
 ### 4.8 Achievement of Project Objectives (~1–2 p)
+
 Table: each of the 5 proposal goals → evidence → section. `[NEW, cheap, high value]`
 
 ---
@@ -150,9 +195,11 @@ Table: each of the 5 proposal goals → evidence → section. `[NEW, cheap, high
 > your strongest material.
 
 ### 5.1 Summary of the Project (~1 p)
+
 What was built and what was found, including the transferability result.
 
 ### 5.2 Contributions
+
 1. A working, non-diagnostic, single-camera lower-limb self-check and rehab-grading web application.
 2. A hybrid design using clinically-anchored rules where a validated cutoff exists and ML only where a threshold cannot decide — with the split justified empirically.
 3. A feature-validity screen and motion-capture agreement analysis quantifying what a monocular webcam can actually measure.
@@ -160,13 +207,16 @@ What was built and what was found, including the transferability result.
 5. A measurement-agreement (ICC / Bland–Altman / kappa) evaluation framing for deterministic rule-based functional checks.
 
 ### 5.3 Limitations
+
 - **5.3.1 Monocular single-camera** — depth axis, frontal-plane faults excluded, far-limb occlusion, no clinical goniometry.
 - **5.3.2 Dataset and model** — 98 reps / 9 subjects; population-specific "Poor" construct; 31% false-alarm cost; clinically-anchored (not learned) depth gate; no published MDC; one Module B exercise.
 - **5.3.3 Module A** — synthetic agreement corpus; STS/WBLT unevaluated; WBLT self-measurement dependency; heuristic thresholds.
 - **5.3.4 Feedback and platform** — LLM off by default and best-effort; client-side-only reminders; no email verification/recovery.
 
 ### 5.4 Future Work
+
 Pair each item to the limitation it answers:
+
 1. Larger multi-cohort clinician-labelled dataset (→ 5.3.2)
 2. Real pilot recordings + agreement harnesses for STS and WBLT (→ 5.3.3)
 3. Multi-view or depth capture to unlock valgus / asymmetry / stance width (→ 5.3.1)

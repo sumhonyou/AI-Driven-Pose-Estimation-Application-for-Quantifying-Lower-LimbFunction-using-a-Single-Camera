@@ -7,6 +7,16 @@ task.md flags that Groq's free-tier limits and model list have drifted before (a
 documented May–June 2026 model-list purge is precedent) and asks to re-verify at build
 time rather than trust the plan's original `llama-3.3-70b` shorthand.
 
+---
+
+## Table of Contents
+
+- [Model id](#model-id)
+- [Free-tier limits, as of the retrieval date](#free-tier-limits-as-of-the-retrieval-date)
+- [What this means for the implementation](#what-this-means-for-the-implementation)
+
+---
+
 ## Model id
 
 The production model id is **`llama-3.3-70b-versatile`** (not the bare `llama-3.3-70b`

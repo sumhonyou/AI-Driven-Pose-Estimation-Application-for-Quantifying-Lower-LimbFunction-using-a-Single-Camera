@@ -17,24 +17,40 @@ Nothing was re-tuned for this report; **6** of
 Cohort: **132 EC3D squat repetitions** — 41 Correct, 91 faulty —
 from **4 subjects** (Hugues, Isinsu, Sena, Vidit).
 
+---
+
+## Table of Contents
+
+- [The headline caveat, stated before any metric](#the-headline-caveat-stated-before-any-metric)
+- [Result](#result)
+  - [Two cells carry the whole result](#two-cells-carry-the-whole-result)
+- [Finding 1 — EC3D's poses are canonicalised, not raw mocap](#finding-1-ec3ds-poses-are-canonicalised-not-raw-mocap)
+- [Finding 2 — the two datasets disagree about what "incorrect" means](#finding-2-the-two-datasets-disagree-about-what-incorrect-means)
+  - [The inversion in one comparison](#the-inversion-in-one-comparison)
+- [Finding 3 — half of EC3D's fault class is invisible to this system by design](#finding-3-half-of-ec3ds-fault-class-is-invisible-to-this-system-by-design)
+- [What this stage does and does not establish](#what-this-stage-does-and-does-not-establish)
+- [Reproduce](#reproduce)
+
+---
+
 ## The headline caveat, stated before any metric
 
 EC3D has **4 subjects**. Nothing computed from it can be a generalisation
 claim about a population; at this size a single subject moves every number materially.
-The checklist called this an external *check*, never a headline, and that framing is
+The checklist called this an external _check_, never a headline, and that framing is
 kept here. The findings below make the caveat stronger, not weaker.
 
 ## Result
 
-| metric | value |
-| ------ | ----- |
+| metric                                 | value     |
+| -------------------------------------- | --------- |
 | `accuracy_strict` (Fair counted wrong) | **0.576** |
-| `accuracy_confident` (Fair excluded) | **0.576** |
-| `macro_f1` | 0.483 |
-| `fair_rate` (abstention) | 0.000 |
-| `recall_good` | 0.244 |
-| `recall_poor` | 0.725 |
-| n | 132 |
+| `accuracy_confident` (Fair excluded)   | **0.576** |
+| `macro_f1`                             | 0.483     |
+| `fair_rate` (abstention)               | 0.000     |
+| `recall_good`                          | 0.244     |
+| `recall_poor`                          | 0.725     |
+| n                                      | 132       |
 
 ![Fused 3-band output on EC3D. Rows are EC3D ground truth (Correct/faulty, collapsed to Good/Poor by Option A); columns are the band the user would be shown. Cells show counts with row-normalised percentages. Drawn by the same plotting function as `confusion_matrix_3band.png` (not a copy of it), so the two matrices are directly comparable side by side.](figures/ec3d_confusion_matrix.png)
 
@@ -73,19 +89,19 @@ confidently backwards. Finding 2 is why.
 
 Measured over the 10283 frames used here:
 
-| property | measured | what it means |
-| -------- | -------- | ------------- |
-| mid-hip (BODY_25 j8) max abs coordinate | `0.0e+00` | every frame is **root-centred**: the hip is pinned to the origin |
-| neck (j1) up-axis std | `4.7e-17` (value 0.19517662) | the torso is **orientation-normalised**: the neck never moves, in any frame, under any label |
-| neck (j1) anterior-axis std | `1.5e-17` | the trunk is pinned to y=0 — it cannot lean forward at all |
-| per-subject thigh length | Hugues 0.140393, Isinsu 0.140341, Sena 0.140252, Vidit 0.140477 | spread **0.160%** — four different people share one **template skeleton** |
+| property                                | measured                                                        | what it means                                                                                |
+| --------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| mid-hip (BODY_25 j8) max abs coordinate | `0.0e+00`                                                       | every frame is **root-centred**: the hip is pinned to the origin                             |
+| neck (j1) up-axis std                   | `4.7e-17` (value 0.19517662)                                    | the torso is **orientation-normalised**: the neck never moves, in any frame, under any label |
+| neck (j1) anterior-axis std             | `1.5e-17`                                                       | the trunk is pinned to y=0 — it cannot lean forward at all                                   |
+| per-subject thigh length                | Hugues 0.140393, Isinsu 0.140341, Sena 0.140252, Vidit 0.140477 | spread **0.160%** — four different people share one **template skeleton**                    |
 
 Three-point joint angles (knee, hip flexion) are invariant to rigid transforms, so they
 survive this intact and are physiologically plausible. Two classes of feature do not:
 
 - **Gravity-referenced features.** `trunk_lean_peak_deg`, `trunk_lean_mean_deg` and
   `ankle_df_proxy_deg` are angles against **world vertical**. After orientation
-  normalisation there is no world vertical left — the canonical up-axis *is* the torso
+  normalisation there is no world vertical left — the canonical up-axis _is_ the torso
   axis. `trunk_lean_peak_deg` collapses from a REHAB24-6 mean of ~35-44° to ~3-4°
   here, and the "Front bent" class shows **no more** trunk lean than the Correct class.
   The one fault trunk lean exists to detect is erased by the normalisation.
@@ -117,21 +133,21 @@ uninformative on EC3D, it is **backwards**.
 AUC below 0.5 means the feature separates the classes in the opposite direction. Means
 are Good/Poor.
 
-| feature | Gini imp. | REHAB24-6 mean | EC3D mean | REHAB AUC | EC3D AUC | direction |
-| ------- | --------- | -------------- | --------- | --------- | -------- | --------- |
-| `ankle_df_proxy_deg` | 0.2388 | 31.07 / 41.05 | 14.09 / 21.77 | 0.882 | 0.775 | same |
-| `knee_rom_deg` | 0.1270 | 78.03 / 96.95 | 113.28 / 106.84 | 0.859 | 0.425 | **INVERTED** |
-| `knee_flex_peak_deg` | 0.1043 | 91.64 / 107.96 | 119.58 / 113.32 | 0.837 | 0.418 | **INVERTED** |
-| `stance_width_norm` | 0.0777 | 0.77 / 0.71 | 0.73 / 0.87 | 0.374 | 0.657 | **INVERTED** |
-| `knee_flex_min_deg` | 0.0724 | 13.61 / 11.01 | 6.30 / 6.47 | 0.315 | 0.542 | **INVERTED** |
-| `trunk_lean_peak_deg` | 0.0649 | 34.74 / 44.12 | 3.70 / 3.84 | 0.762 | 0.536 | same |
-| `hip_flex_peak_deg` | 0.0624 | 97.69 / 114.65 | 121.90 / 105.04 | 0.784 | 0.244 | **INVERTED** |
-| `knee_ang_vel_max_dps` | 0.0608 | 144.57 / 178.31 | 187.24 / 184.11 | 0.750 | 0.480 | **INVERTED** |
-| `trunk_lean_mean_deg` | 0.0519 | 19.74 / 23.96 | 2.03 / 2.04 | 0.695 | 0.550 | same |
-| `rep_duration_s` | 0.0438 | 3.35 / 3.18 | 2.59 / 2.55 | 0.494 | 0.500 | **INVERTED** |
-| `symmetry_index_pct` | 0.0395 | 32.13 / 28.93 | 20.10 / 20.78 | 0.442 | 0.486 | same |
-| `hip_mid_jitter_norm` | 0.0375 | 0.00 / 0.00 | 0.00 / 0.00 | 0.650 | 0.568 | same |
-| `descent_ascent_ratio` | 0.0191 | 1.24 / 1.22 | 1.37 / 1.40 | 0.467 | 0.501 | **INVERTED** |
+| feature                | Gini imp. | REHAB24-6 mean  | EC3D mean       | REHAB AUC | EC3D AUC | direction    |
+| ---------------------- | --------- | --------------- | --------------- | --------- | -------- | ------------ |
+| `ankle_df_proxy_deg`   | 0.2388    | 31.07 / 41.05   | 14.09 / 21.77   | 0.882     | 0.775    | same         |
+| `knee_rom_deg`         | 0.1270    | 78.03 / 96.95   | 113.28 / 106.84 | 0.859     | 0.425    | **INVERTED** |
+| `knee_flex_peak_deg`   | 0.1043    | 91.64 / 107.96  | 119.58 / 113.32 | 0.837     | 0.418    | **INVERTED** |
+| `stance_width_norm`    | 0.0777    | 0.77 / 0.71     | 0.73 / 0.87     | 0.374     | 0.657    | **INVERTED** |
+| `knee_flex_min_deg`    | 0.0724    | 13.61 / 11.01   | 6.30 / 6.47     | 0.315     | 0.542    | **INVERTED** |
+| `trunk_lean_peak_deg`  | 0.0649    | 34.74 / 44.12   | 3.70 / 3.84     | 0.762     | 0.536    | same         |
+| `hip_flex_peak_deg`    | 0.0624    | 97.69 / 114.65  | 121.90 / 105.04 | 0.784     | 0.244    | **INVERTED** |
+| `knee_ang_vel_max_dps` | 0.0608    | 144.57 / 178.31 | 187.24 / 184.11 | 0.750     | 0.480    | **INVERTED** |
+| `trunk_lean_mean_deg`  | 0.0519    | 19.74 / 23.96   | 2.03 / 2.04     | 0.695     | 0.550    | same         |
+| `rep_duration_s`       | 0.0438    | 3.35 / 3.18     | 2.59 / 2.55     | 0.494     | 0.500    | **INVERTED** |
+| `symmetry_index_pct`   | 0.0395    | 32.13 / 28.93   | 20.10 / 20.78   | 0.442     | 0.486    | same         |
+| `hip_mid_jitter_norm`  | 0.0375    | 0.00 / 0.00     | 0.00 / 0.00     | 0.650     | 0.568    | same         |
+| `descent_ascent_ratio` | 0.0191    | 1.24 / 1.22     | 1.37 / 1.40     | 0.467     | 0.501    | **INVERTED** |
 
 **0.5674 of the forest's Gini importance mass
 (56.7%) sits on features whose Good/Poor
@@ -142,7 +158,7 @@ wrong way round.
 ### The inversion in one comparison
 
 The clearest evidence is not in the table above but in the outcome. Of EC3D's
-**21** *"Not low enough"* repetitions — the shallowest, most unambiguously
+**21** _"Not low enough"_ repetitions — the shallowest, most unambiguously
 faulty squats in the cohort — the system called **11
 (52.4%) Good**. Of its **41** genuinely
 **Correct** repetitions it called only **10
@@ -163,13 +179,13 @@ useful thing this stage produced.
 
 Per EC3D instruction label, with the band the system would have shown:
 
-| EC3D label | plane | n | Good | Fair | Poor |
-| ---------- | ----- | - | --- | --- | --- |
-| 1 — Correct | n/a (correct class) | 41 | 10 | 0 | 31 |
-| 2 — Feet too wide | frontal | 23 | 5 | 0 | 18 |
-| 3 — Knees inward | frontal | 23 | 8 | 0 | 15 |
-| 4 — Not low enough | sagittal | 21 | 11 | 0 | 10 |
-| 5 — Front bent | sagittal | 24 | 1 | 0 | 23 |
+| EC3D label         | plane               | n   | Good | Fair | Poor |
+| ------------------ | ------------------- | --- | ---- | ---- | ---- |
+| 1 — Correct        | n/a (correct class) | 41  | 10   | 0    | 31   |
+| 2 — Feet too wide  | frontal             | 23  | 5    | 0    | 18   |
+| 3 — Knees inward   | frontal             | 23  | 8    | 0    | 15   |
+| 4 — Not low enough | sagittal            | 21  | 11   | 0    | 10   |
+| 5 — Front bent     | sagittal            | 24  | 1    | 0    | 23   |
 
 **"Feet too wide" and "Knees inward" are frontal-plane faults.** Locked Assumption #3
 drops frontal valgus from the taxonomy as monocular-infeasible: there is no valgus
@@ -179,7 +195,7 @@ wrong for failing a test it was explicitly designed never to sit. They are
 46 of the 91 faulty
 repetitions.
 
-The checklist's instruction — *"do not evaluate frontal-plane features here"* — was
+The checklist's instruction — _"do not evaluate frontal-plane features here"_ — was
 aimed at not crediting the model for a valgus feature it does not have. The sharper
 problem is the other direction: EC3D's fault **class**, not just its features, is
 substantially frontal, so the Poor row of the matrix above cannot be read as a

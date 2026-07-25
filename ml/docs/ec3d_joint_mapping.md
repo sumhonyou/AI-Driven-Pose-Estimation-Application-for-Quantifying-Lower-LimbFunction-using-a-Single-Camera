@@ -10,6 +10,25 @@ Dataset: `data_3D.pickle`, from _3D Pose Based Feedback for Physical Exercises_
 (Zhao, Kiciroglu, Wang, Salzmann, Fua — ACCV 2022);
 repo [`Jacoo-Zhao/3D-Pose-Based-Feedback-For-Physical-Exercises`](https://github.com/Jacoo-Zhao/3D-Pose-Based-Feedback-For-Physical-Exercises).
 
+---
+
+## Table of Contents
+
+- [Why this needed proving](#why-this-needed-proving)
+- [File structure](#file-structure)
+- [How the order was confirmed (four independent checks)](#how-the-order-was-confirmed-four-independent-checks)
+  - [1. Bone rigidity — every published BODY_25 edge is rigid](#1-bone-rigidity-every-published-body_25-edge-is-rigid)
+  - [2. The foot triads — the decisive test](#2-the-foot-triads-the-decisive-test)
+  - [3. The root — j08 is the origin](#3-the-root-j08-is-the-origin)
+  - [4. The anatomical axes — two independent anterior checks agree](#4-the-anatomical-axes-two-independent-anterior-checks-agree)
+- [The 25 joints](#the-25-joints)
+- [The mapping actually used (validate_ec3d.py)](#the-mapping-actually-used-validate_ec3dpy)
+- [⚠ The poses are canonicalised, not raw mocap](#the-poses-are-canonicalised-not-raw-mocap)
+- [Instruction labels](#instruction-labels)
+- [Note for Phase 5B (recorded, not acted on)](#note-for-phase-5b-recorded-not-acted-on)
+
+---
+
 ## Why this needed proving
 
 `task.md`'s Q3 asks for the order "from the repo's data-loader before trusting any
@@ -144,8 +163,7 @@ convention, which the pickle does not record. It is not load-bearing for squat: 
 the L and R halves of the mapping above and re-extracting leaves **all 13 features
 bit-identical** (max |delta| = `0.0` across all 132 reps, verified). Every squat feature
 is a both-legs mean, an absolute difference, a midpoint, or an inter-ankle distance —
-each invariant to the relabel. **This does not extend to Phase 5B**: a lunge's lead leg
-is side-specific, so `knee_passes_toe` would need this resolved first.
+each invariant to the relabel.
 
 ## ⚠ The poses are canonicalised, not raw mocap
 
@@ -197,16 +215,3 @@ has it; and its meaning is undocumented, so guessing would be inventing ground t
 
 Under Option A (Locked Assumption #1) the model is binary, so label 1 → **Good** and
 labels 2–5 → **Poor**, the same collapse REHAB24-6's `correctness` column gets.
-
-## Note for Phase 5B (recorded, not acted on)
-
-`task.md` flags: _"`knee_passes_toe` needs a toe/foot-tip joint. If EC3D lacks one
-(Stage 5.9's open question), approximate from ankle **or drop it** — and say which."_
-
-**EC3D does not lack one.** `BODY_25` carries `LBigToe` (19) and `RBigToe` (22), both
-confirmed rigid against their ankles above, so no approximation is needed _on EC3D_. Two
-caveats before anyone builds on that: MediaPipe-33's nearest equivalent is
-`foot_index` (31/32), which is what the **live** runtime would have to supply — the
-constraint is the runtime's, not the dataset's; and the left/right ambiguity above must
-be resolved first, since a lunge's lead leg is side-specific. Phase 5B's decision, not
-this stage's.

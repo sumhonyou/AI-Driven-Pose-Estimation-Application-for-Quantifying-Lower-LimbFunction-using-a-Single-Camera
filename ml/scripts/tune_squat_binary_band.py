@@ -39,6 +39,27 @@ Four decisions this stage makes, each justified rather than asserted:
    called Good (guards against an inverted score silently shipping — the lunge-derived
    negative-Platt-slope hazard, here checked at the band level).
 
+   What the hazard is: Platt scaling calibrates via a sigmoid,
+   P = 1 / (1 + exp(a*raw_score + b)), and nothing in that fit constrains the sign of
+   `a`. `train_squat.py`'s per-fold monotonicity assertion
+   (`assert np.isclose(auc_uncal, auc_cal)`) implicitly assumes `a` comes out negative
+   (higher raw score -> higher P(Good), the intended direction) and so a calibrated
+   fold's AUC should equal its uncalibrated AUC. That assumption held for every squat
+   fold in practice, but it is not guaranteed by the fitting procedure itself: on the
+   now-removed lunge model, fit with the same code on a cohort where the inner folds'
+   raw score anti-correlated with the label, the sigmoid legitimately fit a *positive*
+   `a` in 2 of 5 folds, which reverses the ranking end to end and sends AUC to its
+   mirror about 0.5 (one fold moved 0.554 -> 0.446 -> those two values sum to exactly
+   1.000, confirming an exact reversal rather than noise). Had the calibrator been
+   exported in that state, every live verdict would have been inverted -- the reported
+   probability of good technique would *rise* as technique worsened -- and nothing
+   downstream would detect it, because the probabilities remain perfectly well-formed.
+   Squat's own slope has always come out negative, so `train_squat.py`'s assertion has
+   never needed the reversal-tolerant form the lunge finding motivated, but it is the
+   reason the check below does not simply trust the sign of the score: it independently
+   re-verifies, on the actual banded output, that "Poor" reps score lower than "Good"
+   reps, rather than assuming direction from the calibration step upstream.
+
 Deterministic (X8): reuses Stage 5.5's seeded `nested_cv()` for the out-of-fold
 calibrated P(Good), the real `fuse_scores()` for the fused score (X1 — the fusion blend
 is never re-implemented), sorted iteration, no RNG, no wall-clock.
@@ -51,11 +72,11 @@ from pathlib import Path
 import numpy as np
 from app.module_b.core.fusion import fuse_scores
 from evaluate_squat import plot_confusion_matrix_3band
-
 # X1: the per-rep rule score comes from the same live helper Stage 5.6/5.7 use, not a
 # re-derivation.
 from sweep_fusion_weights import _rule_score
-from train_squat import _build_xy, _choose_cv, _load_config, _read_rows, nested_cv
+from train_squat import (_build_xy, _choose_cv, _load_config, _read_rows,
+                         nested_cv)
 
 ML_ROOT = Path(__file__).resolve().parent.parent
 REPORT_MD = ML_ROOT / "reports" / "SQUAT_EVALUATION_REPORT_2BAND.md"

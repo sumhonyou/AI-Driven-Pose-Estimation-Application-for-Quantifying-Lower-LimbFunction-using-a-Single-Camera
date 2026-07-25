@@ -4,6 +4,17 @@
 against the actual in-browser MediaPipe runtime (the exact code path
 `useMediaPipePose.ts` uses in production) on the identical clip and frame range.
 
+---
+
+## Table of Contents
+
+- [Method](#method)
+- [Results](#results)
+- [Verdict](#verdict)
+- [Cleanup](#cleanup)
+
+---
+
 ## Method
 
 - **Clip:** `PM_008-Camera18-30fps-transposed.mp4`, frames 100–219 (120 frames,

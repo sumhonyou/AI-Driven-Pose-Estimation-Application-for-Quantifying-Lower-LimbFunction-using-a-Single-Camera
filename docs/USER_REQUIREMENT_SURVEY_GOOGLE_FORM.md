@@ -1,5 +1,41 @@
 # User Requirement Survey Google Form Design
 
+---
+
+## Table of Contents
+
+- [Researcher-only notes](#researcher-only-notes)
+- [Recommended Google Form settings](#recommended-google-form-settings)
+- [Form title](#form-title)
+- [Section 1 - Introduction and Consent](#section-1-introduction-and-consent)
+  - [Section description to paste into the first page](#section-description-to-paste-into-the-first-page)
+  - [Question 1 - Consent declaration](#question-1-consent-declaration)
+- [Section 2 - About You and Your Current Experience](#section-2-about-you-and-your-current-experience)
+  - [Question 2 - Age group](#question-2-age-group)
+  - [Question 3 - User background](#question-3-user-background)
+  - [Question 4 - Exercise frequency](#question-4-exercise-frequency)
+  - [Question 5 - Previous application experience](#question-5-previous-application-experience)
+  - [Question 6 - Current sources of guidance](#question-6-current-sources-of-guidance)
+  - [Question 7 - Current difficulties](#question-7-current-difficulties)
+  - [Question 8 - Comfort with webcam use](#question-8-comfort-with-webcam-use)
+- [Section 3 - What You Expect from the Application](#section-3-what-you-expect-from-the-application)
+  - [Question 9 - Needs during home exercise](#question-9-needs-during-home-exercise)
+  - [Question 10 - Most useful features](#question-10-most-useful-features)
+  - [Question 11 - Information shown during movement](#question-11-information-shown-during-movement)
+  - [Question 12 - Information shown after a session](#question-12-information-shown-after-a-session)
+  - [Question 13 - Preferred use of the application](#question-13-preferred-use-of-the-application)
+  - [Question 14 - Camera privacy preference](#question-14-camera-privacy-preference)
+  - [Question 15 - Reminder preference](#question-15-reminder-preference)
+  - [Question 16 - Preferred device](#question-16-preferred-device)
+  - [Question 17 - Application quality](#question-17-application-quality)
+  - [Question 18 - Likelihood of future use](#question-18-likelihood-of-future-use)
+- [Confirmation message](#confirmation-message)
+- [Synthetic Test Data - Not Participant Responses](#synthetic-test-data-not-participant-responses)
+  - [Compact codebook](#compact-codebook)
+  - [Twenty mock records, one record per line](#twenty-mock-records-one-record-per-line)
+
+---
+
 ## Researcher-only notes
 
 > **Ethics alignment:** The current ethics application describes task-based prototype testing followed by a usability survey involving approximately 5-10 adult participants. The form below is a pre-use user-requirements survey for the general adult public. Confirm with the supervisor or School Ethics whether an amendment or separate approval is required before distributing it.
@@ -181,6 +217,7 @@ Should participants have any concerns regarding their rights as a research parti
   3. I would like to see whether my movement improves across different sessions.
   4. Reminders would help me follow an exercise routine more consistently.
   5. I would like to add some gamification to increase my motivation to do it.
+
 ### Question 10 - Most useful features
 
 - **Question type:** Checkboxes

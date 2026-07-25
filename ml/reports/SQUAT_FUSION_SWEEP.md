@@ -2,6 +2,21 @@
 
 Source: the same 98 side-view repetitions and the same seeded `nested_cv()` Stage 5.5 used, so the calibrated P(Good) fed into this sweep is identical to Stage 5.5's out-of-fold predictions (re-run here rather than cached, since nothing about the model changed between stages).
 
+---
+
+## Table of Contents
+
+- [Why this is an iterated joint search, not one pass](#why-this-is-an-iterated-joint-search-not-one-pass)
+- [Scope: evaluated per repetition, not per session](#scope-evaluated-per-repetition-not-per-session)
+- [Capture quality — measured, not assumed](#capture-quality-measured-not-assumed)
+- [Method: no ground-truth Fair label exists](#method-no-ground-truth-fair-label-exists)
+- [confidence_low_threshold sweep (final, converged round)](#confidencelowthreshold-sweep-final-converged-round)
+- [Fusion weight (w_rule/w_ml) sweep (final, converged round)](#fusion-weight-wrulewml-sweep-final-converged-round)
+- [What changed](#what-changed)
+- [Deliberately not done here](#deliberately-not-done-here)
+
+---
+
 ## Why this is an iterated joint search, not one pass
 
 The obvious reading of the checklist sweeps `confidence_low_threshold` once at the existing Stage 4.0 fusion weight (0.4/0.6), then sweeps the fusion weight once at whatever threshold that picked. Running exactly that first (round 1 below) surfaced a real, mechanistic problem: **at `w_rule=0.4`, precision(Poor) is undefined at every one of the 9 candidate thresholds** — no repetition in the dataset can ever be banded Poor at that weight, no matter how the threshold is set.
@@ -11,10 +26,10 @@ The cause is checkable, not a sweep artefact. `rule_score`'s ROM component rewar
 **Fix: alternate the two sweeps until neither winner moves.** Sweep the threshold at the current weight, sweep the weight at that threshold, feed the result back in, repeat. This introduces no new sweep dimension beyond what the checklist specifies — it only recognises that the two must be resolved jointly. The full round history:
 
 | round | input w_rule | -> chosen threshold | -> chosen w_rule |
-| ----- | ------------ | -------------------- | ------------------ |
-| 1 | 0.4 | 0.55 | 0.2 |
-| 2 | 0.2 | 0.85 | 0.2 |
-| 3 | 0.2 | 0.85 | 0.2 |
+| ----- | ------------ | ------------------- | ---------------- |
+| 1     | 0.4          | 0.55                | 0.2              |
+| 2     | 0.2          | 0.85                | 0.2              |
+| 3     | 0.2          | 0.85                | 0.2              |
 
 **Round 1's threshold (0.55) was chosen no candidate reached the pre-declared 0.90 bar on both classes; fell back to maximising the worse of the two class precisions, preferring the smaller threshold on ties** — necessarily on Good-class precision alone, since Poor precision was undefined throughout that round. It is shown here rather than discarded, because it is the honest first answer and the reason it was revised is the point of this section.
 
@@ -39,16 +54,16 @@ Fusion weight held at the converged `w_rule=0.2` throughout this table — the r
 **Pre-declared selection rule:** the smallest candidate threshold at which precision reaches >= 0.90 on **both** confidently-classified classes — fixed before the sweep ran, so the bar is not fitted to the outcome. Rationale: R7's default (0.65) is already a conservative starting point above the 0.5 floor Option A's binary probabilities allow; once a precision bar is met, raising the threshold further only trades additional Fair-band abstention for no precision benefit, so the smallest sufficient value is preferred.
 
 | threshold | precision (Good) | precision (Poor) | Fair-band coverage |
-| --------- | ----------------- | ----------------- | ------------------ |
-| 0.55 | 0.841 | 0.667 | 0.265 |
-| 0.60 | 0.841 | 0.667 | 0.265 |
-| 0.65 | 0.855 | 0.667 | 0.276 |
-| 0.70 | 0.914 | 0.667 | 0.316 |
-| 0.75 | 0.927 | 0.571 | 0.367 |
-| 0.80 | 0.962 | 0.750 | 0.429 |
-| 0.85 | 1.000 | 1.000 | 0.469 **<-chosen** |
-| 0.90 | 1.000 | nan | 0.561 |
-| 0.95 | 1.000 | nan | 0.765 |
+| --------- | ---------------- | ---------------- | ------------------ |
+| 0.55      | 0.841            | 0.667            | 0.265              |
+| 0.60      | 0.841            | 0.667            | 0.265              |
+| 0.65      | 0.855            | 0.667            | 0.276              |
+| 0.70      | 0.914            | 0.667            | 0.316              |
+| 0.75      | 0.927            | 0.571            | 0.367              |
+| 0.80      | 0.962            | 0.750            | 0.429              |
+| 0.85      | 1.000            | 1.000            | 0.469 **<-chosen** |
+| 0.90      | 1.000            | nan              | 0.561              |
+| 0.95      | 1.000            | nan              | 0.765              |
 
 ![Confidence-threshold sweep](figures/confidence_threshold_sweep.png)
 
@@ -62,15 +77,15 @@ Fusion weight held at the converged `w_rule=0.2` throughout this table — the r
 
 **Selection criteria (HY, 2026-07-16):** Poor→Good — telling a poor-form user they are fine — is named as **the one failure mode that matters most**, so it is used as its own primary key (see `_pick_fusion_weight()`), not summed with Good→Poor into one aggregate that could let a rise in the worse failure mode hide behind a fall in the milder one; Good→Poor and macro-F1 break ties, in that order. A weight with slightly lower precision but a materially lower Poor→Good count is the better choice.
 
-| w_rule | w_ml | precision (confident calls) | macro-F1 | severe count (Poor→Good / Good→Poor) | severe rate | Fair coverage |
-| ------ | ---- | ---------------------------- | -------- | ------------------------------------- | ----------- | ------------- |
-| 0.2 | 0.8 | 1.000 | 0.481 | 0 (0 / 0) | 0.000 | 0.469 **<-chosen** |
-| 0.3 | 0.7 | 1.000 | 0.481 | 0 (0 / 0) | 0.000 | 0.469 |
-| 0.4 | 0.6 | 1.000 | 0.410 | 0 (0 / 0) | 0.000 | 0.490 (Stage 4.0 placeholder) |
-| 0.5 | 0.5 | 1.000 | 0.410 | 0 (0 / 0) | 0.000 | 0.490 |
-| 0.6 | 0.4 | 1.000 | 0.410 | 0 (0 / 0) | 0.000 | 0.490 |
-| 0.7 | 0.3 | 0.962 | 0.403 | 2 (2 / 0) | 0.020 | 0.469 |
-| 0.8 | 0.2 | 0.962 | 0.403 | 2 (2 / 0) | 0.020 | 0.469 |
+| w_rule | w_ml | precision (confident calls) | macro-F1 | severe count (Poor→Good / Good→Poor) | severe rate | Fair coverage                 |
+| ------ | ---- | --------------------------- | -------- | ------------------------------------ | ----------- | ----------------------------- |
+| 0.2    | 0.8  | 1.000                       | 0.481    | 0 (0 / 0)                            | 0.000       | 0.469 **<-chosen**            |
+| 0.3    | 0.7  | 1.000                       | 0.481    | 0 (0 / 0)                            | 0.000       | 0.469                         |
+| 0.4    | 0.6  | 1.000                       | 0.410    | 0 (0 / 0)                            | 0.000       | 0.490 (Stage 4.0 placeholder) |
+| 0.5    | 0.5  | 1.000                       | 0.410    | 0 (0 / 0)                            | 0.000       | 0.490                         |
+| 0.6    | 0.4  | 1.000                       | 0.410    | 0 (0 / 0)                            | 0.000       | 0.490                         |
+| 0.7    | 0.3  | 0.962                       | 0.403    | 2 (2 / 0)                            | 0.020       | 0.469                         |
+| 0.8    | 0.2  | 0.962                       | 0.403    | 2 (2 / 0)                            | 0.020       | 0.469                         |
 
 ![Fusion-weight sweep](figures/fusion_weight_sweep.png)
 

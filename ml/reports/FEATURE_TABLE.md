@@ -1,6 +1,17 @@
 # Stage 5.3 — squat feature table build
 
-Preprocesses each video's **entire** landmark stream through the live backend's confidence-filter → gap-fill → One-Euro pipeline (`app.module_b.core.preprocessing.preprocess_world_landmarks`, the cross-cutting change wired into `POST /api/module-b/analyze` ahead of `segment()`/`extract_features()`), run once per video over the full chronological stream — not per rep — since OneEuroFilter is stateful and windowing first would reset its history at every rep boundary. Then windows every **side-view** (`cam17_orientation == "front"`, Camera18 = profile) Ex6 rep of that *preprocessed* stream by Segmentation.csv's physio-verified `first_frame`/`last_frame`, and calls the backend's `extract_squat_features()` (X1). Half-profile reps are excluded per the Stage 5.0 gate decision (option a — side-view only).
+Preprocesses each video's **entire** landmark stream through the live backend's confidence-filter → gap-fill → One-Euro pipeline (`app.module_b.core.preprocessing.preprocess_world_landmarks`, the cross-cutting change wired into `POST /api/module-b/analyze` ahead of `segment()`/`extract_features()`), run once per video over the full chronological stream — not per rep — since OneEuroFilter is stateful and windowing first would reset its history at every rep boundary. Then windows every **side-view** (`cam17_orientation == "front"`, Camera18 = profile) Ex6 rep of that _preprocessed_ stream by Segmentation.csv's physio-verified `first_frame`/`last_frame`, and calls the backend's `extract_squat_features()` (X1). Half-profile reps are excluded per the Stage 5.0 gate decision (option a — side-view only).
+
+---
+
+## Table of Contents
+
+- [Feature table](#feature-table)
+  - [Windowed-rep sanity (not a gate — Stage 5.4 does the real validity check)](#windowed-rep-sanity-not-a-gate-stage-54-does-the-real-validity-check)
+  - [Far-limb occlusion (finding — feeds the monocular limitations write-up)](#far-limb-occlusion-finding-feeds-the-monocular-limitations-write-up)
+- [FSM vs. dataset segmentation agreement (free validation)](#fsm-vs-dataset-segmentation-agreement-free-validation)
+
+---
 
 ## Feature table
 
@@ -23,7 +34,7 @@ A single side-view camera tracks the **near** leg well and the **far** leg poorl
 
 This is a property of monocular side-view capture, not of this dataset: the live app's own squat guidance asks for exactly this camera placement, so the same occlusion occurs at runtime. It is recorded here as evidence for the limitations write-up, alongside the dropped frontal-plane valgus measure (Locked Assumption #3) — both are the same underlying constraint (one camera cannot see what the body occludes).
 
-The far leg's landmarks are *low-confidence but still tracking* — not missing. On PM_008 rep 1 the far knee's raw trajectory peaked at 99.9° against the near knee's 77.9°, a plausible squat depth. Preprocessing therefore releases hold-last beyond the gap-fill window rather than freezing the far limb at its standing angle (see `module_b/core/preprocessing._release_persistent_occlusions`); freezing it halved the bilateral mean knee flexion and collapsed FSM rep agreement to 32/98 front reps. Whether the far leg's estimate is *accurate* (not merely plausible) is exactly what Stage 5.4's `check_mocap_agreement.py` settles against the OptiTrack ground truth — it is not asserted here.
+The far leg's landmarks are _low-confidence but still tracking_ — not missing. On PM_008 rep 1 the far knee's raw trajectory peaked at 99.9° against the near knee's 77.9°, a plausible squat depth. Preprocessing therefore releases hold-last beyond the gap-fill window rather than freezing the far limb at its standing angle (see `module_b/core/preprocessing._release_persistent_occlusions`); freezing it halved the bilateral mean knee flexion and collapsed FSM rep agreement to 32/98 front reps. Whether the far leg's estimate is _accurate_ (not merely plausible) is exactly what Stage 5.4's `check_mocap_agreement.py` settles against the OptiTrack ground truth — it is not asserted here.
 
 ## FSM vs. dataset segmentation agreement (free validation)
 
@@ -37,16 +48,16 @@ Our squat FSM (`segment_squat_frames`, Stage 4.3) was run over each full Camera1
 - **Front (side-view, trained) reps matched:** 93 / 98 (94.9% recall).
 - **Boundary error on matched reps:** start median 20 frames (mean 21.2); end median 13 frames (mean 14.2). At 30 fps, 1 frame ≈ 33 ms.
 
-| video | GT reps | FSM detected | matched |
-| ----- | ------- | ------------ | ------- |
-| PM_008 | 27 | 28 | 27 |
-| PM_022 | 22 | 23 | 22 |
-| PM_029 | 20 | 20 | 20 |
-| PM_038 | 20 | 17 | 17 |
-| PM_043 | 20 | 20 | 16 |
-| PM_105 | 21 | 21 | 20 |
-| PM_113 | 22 | 22 | 22 |
-| PM_118 | 23 | 22 | 21 |
-| PM_126 | 20 | 19 | 19 |
+| video  | GT reps | FSM detected | matched |
+| ------ | ------- | ------------ | ------- |
+| PM_008 | 27      | 28           | 27      |
+| PM_022 | 22      | 23           | 22      |
+| PM_029 | 20      | 20           | 20      |
+| PM_038 | 20      | 17           | 17      |
+| PM_043 | 20      | 20           | 16      |
+| PM_105 | 21      | 21           | 20      |
+| PM_113 | 22      | 22           | 22      |
+| PM_118 | 23      | 22           | 21      |
+| PM_126 | 20      | 19           | 19      |
 
 > The dataset's boundaries remain ground truth for windowing (Stage 5.3); this comparison only characterises how closely the runtime FSM reproduces them. Boundary differences are expected — the FSM's enter/exit hysteresis starts a rep a few frames after true descent onset and ends it a few frames after return to standing — and are recorded, not corrected.

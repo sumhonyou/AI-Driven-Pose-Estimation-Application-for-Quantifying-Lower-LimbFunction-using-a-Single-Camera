@@ -4,11 +4,68 @@ _Draft source material for the Results and Discussion chapter. Sections 1–10 c
 squat model end to end: dataset audit, landmark extraction, feature engineering, feature
 validity analysis, Extra Trees classifier training, fusion threshold/weight selection,
 system evaluation including replay determinism, export to the production backend, and
-external validation against an independent dataset. Section 11 covers the lunge's own
-dataset audit, landmark extraction, and feature table; the lunge model's training and
-evaluation will extend this chapter as that work is completed. Written for direct
-adaptation into the dissertation; figures are embedded and referenced by their existing
-filenames in `ml/reports/figures/`._
+external validation against an independent dataset. Squat is the only Module B exercise
+in the shipped system; the Leg Lunge exercise (Phase 4/5B) was removed from the product
+on 2026-07-19 and its dataset audit, training, and evaluation work is no longer part of
+this chapter. Written for direct adaptation into the dissertation; figures are embedded
+and referenced by their existing filenames in `ml/reports/figures/`._
+
+---
+
+## Table of Contents
+
+- [1. Dataset](#1-dataset)
+  - [1.1 Camera view selection](#11-camera-view-selection)
+  - [1.2 Usable sample size and class balance](#12-usable-sample-size-and-class-balance)
+- [2. Landmark Extraction and Runtime Parity](#2-landmark-extraction-and-runtime-parity)
+- [3. Feature Engineering Pipeline](#3-feature-engineering-pipeline)
+  - [3.1 Preprocessing](#31-preprocessing)
+  - [3.2 A systematic camera-geometry limitation: far-limb occlusion](#32-a-systematic-camera-geometry-limitation-far-limb-occlusion)
+  - [3.3 Repetition-detection validation against ground truth](#33-repetition-detection-validation-against-ground-truth)
+- [4. Feature Validity Analysis](#4-feature-validity-analysis)
+  - [4.1 Method](#41-method)
+  - [4.2 Gate result and a reversed assumption](#42-gate-result-and-a-reversed-assumption)
+  - [4.3 Full feature verdicts](#43-full-feature-verdicts)
+  - [4.4 Selecting a normalisation reference](#44-selecting-a-normalisation-reference)
+  - [4.5 Validation against motion-capture ground truth](#45-validation-against-motion-capture-ground-truth)
+- [5. Classifier Training](#5-classifier-training)
+  - [5.1 Cross-validation scheme](#51-cross-validation-scheme)
+  - [5.2 Hyperparameter search](#52-hyperparameter-search)
+  - [5.3 Calibration](#53-calibration)
+  - [5.4 Feature importance and resolution of earlier open questions](#54-feature-importance-and-resolution-of-earlier-open-questions)
+  - [5.5 Summary of training result](#55-summary-of-training-result)
+- [6. Fusion Threshold and Weight Selection](#6-fusion-threshold-and-weight-selection)
+  - [6.1 Method](#61-method)
+  - [6.2 A mechanistic problem with the naive selection order](#62-a-mechanistic-problem-with-the-naive-selection-order)
+  - [6.3 An iterated joint search](#63-an-iterated-joint-search)
+  - [6.4 Selection criteria and result](#64-selection-criteria-and-result)
+  - [6.5 Why the comparison weights are not equivalent, despite an identical error count](#65-why-the-comparison-weights-are-not-equivalent-despite-an-identical-error-count)
+- [7. System Evaluation](#7-system-evaluation)
+  - [7.1 Why a single accuracy figure cannot honestly be reported](#71-why-a-single-accuracy-figure-cannot-honestly-be-reported)
+  - [7.2 Confusion over the three-band output](#72-confusion-over-the-three-band-output)
+  - [7.3 Fault-classification performance could not be evaluated](#73-fault-classification-performance-could-not-be-evaluated)
+  - [7.4 Robustness signals and a saturated quality metric](#74-robustness-signals-and-a-saturated-quality-metric)
+  - [7.5 Inference latency](#75-inference-latency)
+  - [7.6 Comparison against published work](#76-comparison-against-published-work)
+  - [7.7 Reproducibility and replay determinism](#77-reproducibility-and-replay-determinism)
+- [8. Model Export and Backend Integration](#8-model-export-and-backend-integration)
+  - [8.1 Artifact export](#81-artifact-export)
+  - [8.2 A finding specific to the shipped artifact: confident "Poor" verdicts may be](#82-a-finding-specific-to-the-shipped-artifact-confident-poor-verdicts-may-be)
+  - [8.3 Deterministic test corpus: a second confirmation of the same finding](#83-deterministic-test-corpus-a-second-confirmation-of-the-same-finding)
+  - [8.4 Integration verification](#84-integration-verification)
+  - [8.5 Revising the deployed output: a committed binary correct/incorrect verdict](#85-revising-the-deployed-output-a-committed-binary-correctincorrect-verdict)
+  - [8.6 Naming the fault: interpretable rule gates alongside the classifier](#86-naming-the-fault-interpretable-rule-gates-alongside-the-classifier)
+  - [8.7 Grading the whole set: per-repetition verdicts aggregated by majority](#87-grading-the-whole-set-per-repetition-verdicts-aggregated-by-majority)
+  - [8.8 Deployment evidence that the classifier cannot carry the reported score](#88-deployment-evidence-that-the-classifier-cannot-carry-the-reported-score)
+  - [8.9 A false-positive fault revealed by usability testing, and its correction](#89-a-false-positive-fault-revealed-by-usability-testing-and-its-correction)
+- [9. External Validation Against an Independent Dataset](#9-external-validation-against-an-independent-dataset)
+  - [9.1 Recovering the external dataset's skeleton format](#91-recovering-the-external-datasets-skeleton-format)
+  - [9.2 The external poses are canonicalised, not raw motion capture](#92-the-external-poses-are-canonicalised-not-raw-motion-capture)
+  - [9.3 The two datasets encode incompatible definitions of "incorrect"](#93-the-two-datasets-encode-incompatible-definitions-of-incorrect)
+  - [9.4 Half of the external fault class lies outside this system's design scope](#94-half-of-the-external-fault-class-lies-outside-this-systems-design-scope)
+  - [9.5 Result](#95-result)
+  - [9.6 What this establishes](#96-what-this-establishes)
+- [10. Summary of Limitations Established in This Phase](#10-summary-of-limitations-established-in-this-phase)
 
 ---
 
@@ -710,7 +767,7 @@ convention. Neither figure is reported here as _the_ accuracy. Both are reported
 with the abstention rate, which is the quantity that makes either of them interpretable.
 
 The defensible summary is the pair: **the system commits to a verdict on 52 of 98
-repetitions (53.1%), and every verdict it commits to is correct.** Table 4 gives the full
+repetitions (53.1%), and every verdict it commits to is correct.** Table 7 gives the full
 metric set.
 
 | Metric                                  | Value         |
@@ -724,7 +781,7 @@ metric set.
 | Precision / recall, correct class       | 1.000 / 0.694 |
 | Precision / recall, incorrect class     | 1.000 / 0.077 |
 
-_Table 4. Evaluation metrics for the fused three-band output across 98 side-view
+_Table 7. Evaluation metrics for the fused three-band output across 98 side-view
 repetitions, computed from out-of-fold predictions under the subject-grouped
 cross-validation scheme of Section 5.1._
 
@@ -1048,6 +1105,66 @@ repetition incorrect. The fusion weight was re-selected jointly under the same
 objective; because the rule-based component is inversely related to the ground truth for
 this population (Section 5.4), the selection assigned it zero weight, leaving the
 committed verdict a function of the calibrated classifier alone.
+
+That result was obtained from a coarse grid of four candidate weights (0.0, 0.1, 0.2 and
+0.3). Because it settles a question a reader could reasonably read as an abandonment of
+the fusion architecture set out for this system, it was re-examined afterward with the
+fusion weight swept across its entire admissible range, from 0.0 (the classifier alone)
+to 1.0 (the rule-based score alone) in steps of 0.1, re-optimising the decision threshold
+at each weight for the same macro-F1 objective. Table 8 reports the result.
+
+_Table 8. Fusion weight swept over its full admissible range under the committed binary
+objective; the decision threshold is re-optimised at each weight for maximum macro-F1._
+
+| Rule weight | Classifier weight | Macro-F1 | Recall (correct) | Recall (incorrect) | Incorrect→correct (severe) |
+| ----------- | ----------------- | -------- | ---------------- | ------------------ | -------------------------- |
+| 0.0         | 1.0               | 0.761    | 0.694            | 1.000              | 0                          |
+| 0.1         | 0.9               | 0.761    | 0.694            | 1.000              | 0                          |
+| 0.2         | 0.8               | 0.761    | 0.694            | 1.000              | 0                          |
+| 0.3         | 0.7               | 0.761    | 0.694            | 1.000              | 0                          |
+| 0.4         | 0.6               | 0.752    | 0.681            | 1.000              | 0                          |
+| 0.5         | 0.5               | 0.715    | 0.681            | 0.885              | 3                          |
+| 0.6         | 0.4               | 0.688    | 0.889            | 0.462              | 14                         |
+| 0.7         | 0.3               | 0.687    | 0.917            | 0.423              | 15                         |
+| 0.8         | 0.2               | 0.456    | 0.889            | 0.077              | 24                         |
+| 0.9         | 0.1               | 0.420    | 0.986            | 0.000              | 26                         |
+| 1.0         | 0.0               | 0.420    | 0.986            | 0.000              | 26                         |
+
+![Fusion weight swept over its full range under the committed binary objective. Left: macro-F1 and per-class recall against the rule weight. Right: the count of the safety-critical incorrect-rated-as-correct error against the same weight.](figures/fusion_weight_sweep_full_range.png)
+_Figure 15. Macro-F1, per-class recall, and the safety-critical error count, at the best
+threshold for each candidate, across the full range of the fusion weight._
+
+Macro-F1 is flat at its maximum for every rule weight from 0.0 to 0.3 inclusive. This is
+not four independent ties: at each of those four weights the operating point selects the
+identical set of 48 repetitions as incorrect, so every reported figure across that range
+is identical by construction rather than by coincidence of rounding. Performance then
+degrades once the rule weight exceeds that point — the first repetition changes hands at
+a rule weight of 0.4 — and degrades monotonically thereafter: by a rule weight of 1.0,
+the rule-based score used alone, recall of the incorrect class falls to zero, reproducing
+at the extreme of the sweep the finding already established in Section 6.2, that the
+rule-based score cannot on its own separate the two classes in this population. The
+zero-weight choice within the tied plateau follows the same principle used throughout
+this chapter to resolve such ties: the rule-based component's relationship to ground
+truth is inverted for this population, so the smallest weight consistent with the
+evidence is preferred, and any larger weight is shown here to buy no measured benefit
+while directly increasing the safety-critical error once the weight rises far enough to
+matter.
+
+That the maximising weight is zero should not be read as the fusion architecture having
+been abandoned in favour of the classifier considered alone, for two reasons. First, the
+finding is empirical rather than assumed: the weight was determined by evaluating the
+fused score's discriminative performance across its full range, using the same procedure
+and the same objective used to select every other parameter in this chapter, and the
+boundary value it selected is a measured result rather than a decision taken in the
+architecture's design. Second, and more substantively, the rule-based contribution to the
+deployed verdict was not removed by this result — it was relocated. Section 8.6
+introduces a set of interpretable fault checks that run independently of the fused score
+and can override it. The deployed system's final verdict is consequently still a function
+of both the rule-based and the learned components, combined by a gated rather than a
+linear rule: the weighted-sum blend evaluated in this section and the gated override
+introduced in the next were both live candidates for combining the two, the evidence
+favoured the gated form for this population, and the weighted-sum result recorded here is
+the record of why.
 
 At the selected operating point the recall of the incorrect class, measured out of fold,
 rose from the 0.077 reported in Section 7.1 to 1.000: every incorrect repetition in the
@@ -1430,7 +1547,7 @@ external dataset's fault _class_, not merely its features, is substantially fron
 ### 9.5 Result
 
 ![Confusion matrix over the fused three-band output on the external dataset](figures/ec3d_confusion_matrix.png)
-_Figure 15. Confusion matrix over the fused three-band output for the 132 external
+_Figure 16. Confusion matrix over the fused three-band output for the 132 external
 repetitions. Rows are external ground truth (correct/incorrect); columns are the verdict
 presented to the user. Drawn by the same plotting routine as Figure 11 to permit direct
 side-by-side comparison. **This matrix is derived from only four subjects and is not a
@@ -1653,840 +1770,3 @@ that the classifier informs but no longer produces the figure the user is shown.
 progression from "the model is the score" to "the model decides what the score counts" is the
 central methodological finding of this phase, and it was forced by measurement at each step
 rather than chosen in advance.
-
----
-
-## 11. The Lunge Dataset
-
-> **Editorial note (2026-07-19).** The leg lunge exercise described in this section
-> was subsequently withdrawn from the deployed application; the system now grades
-> the squat only. The investigation below is retained as a complete record of the
-> work undertaken and the findings it produced, several of which — the pooling
-> instability described in Section 11.9 and the calibration defect described in
-> Section 11.13 — proved relevant beyond the lunge exercise itself. No claim in
-> this section should be read as describing the current, shipped system.
-
-The second graded exercise, the leg lunge, draws on the same source as the squat —
-REHAB24-6, using exercise Ex5 — and was audited under the same constraints before any
-training work began. The audit is reported here because its findings differ from the
-squat's in ways that change what can be claimed, and because two of them are structural
-properties of the dataset that no modelling choice can remedy.
-
-### 11.1 Availability of labelled lunge data
-
-The project's working assumption had been that REHAB24-6 was the only public dataset of
-labelled lunge repetitions, leaving no independent source against which to cross-check a
-trained model. The audit established that this was incorrect. At least two other public
-sources contain lunges performed both correctly and incorrectly: the EC3D dataset, which
-contains 127 lunge sequences from 4 subjects, and UI-PRMD, which contains both inline and
-side lunge performed correctly and incorrectly by 10 subjects.
-
-The assumption's practical consequence nevertheless survives, for a reason worth stating
-precisely. Both alternatives distribute skeleton data only — EC3D as canonicalised 3D
-poses, UI-PRMD as Kinect and Vicon joint streams — whereas this project's feature
-pipeline is defined on landmarks extracted from RGB video by the same pose estimator the
-deployed system runs in the browser. REHAB24-6 is therefore the only viable _training_
-source, not because it is the only labelled lunge dataset, but because it is the only one
-carrying RGB video alongside repetition boundaries and correctness labels. The corrected
-statement is narrower than the original and better supported.
-
-The distinction matters because it changes the outlook for external validation. The squat
-model had no usable independent cohort (Section 9). The lunge has one already in hand: the
-same EC3D file, whose lunge partition is in fact larger than its squat partition (12,754
-frames against 11,109). Its label structure is also better matched to this system than the
-squat partition's was. EC3D annotates lunges with two faults, "Not low enough" and "Knee
-passes toe", both of which lie in the sagittal plane; neither is excluded by this project's
-decision to drop frontal-plane assessment, and the latter corresponds directly to a fault
-signal the lunge implementation already computes. The squat partition, by contrast,
-devoted roughly half its faulty repetitions to frontal-plane faults this system is
-designed never to detect (limitation 18).
-
-This is an improvement in prospect, not a result. Two of the three failure modes that
-made the squat's external check unusable are properties of the EC3D file as a whole and
-will apply unchanged to its lunge partition: the poses are canonicalised, which destroys
-gravity-referenced and translation-derived features (Section 9.2), and an insufficient-depth
-fault label raises the same risk of directional inversion that dominated the squat result
-(limitation 16), depending on whether REHAB24-6's incorrect lunges prove deeper or
-shallower than its correct ones — a question the feature-validity analysis has yet to
-answer. The honest position is that the lunge has a better-matched independent cohort
-available than the squat did, and that this does not yet establish the check will succeed.
-
-### 11.2 Camera view selection
-
-The camera-orientation mapping was re-verified for the lunge rather than carried over from
-the squat. This was not a formality: a lunge is a directional movement in which the subject
-steps along their facing axis, so the relationship between the orientation tag and the
-resulting sagittal geometry does not follow from the squat's verification on its own.
-
-Frames were extracted from both cameras at the mid-point of a repetition — the deepest
-position, where view geometry matters most — under each orientation label (Figure 16). The
-result matches the squat's. Where `cam17_orientation == "front"`, Camera 17 views the
-subject dead-on and the split stance is foreshortened almost to overlap, because the lunge
-travels along that camera's optical axis; Camera 18 shows a clean sagittal view in which
-the forward leg, the dropped rear knee, and the hip-knee-ankle chain are all separated in
-the image plane. Where the tag reads `half-profile`, both cameras show a diagonal and
-neither is usable. The `profile` tag does not occur for Ex5. Unlike the squat's
-verification, which rested on a single recording, this one was repeated on a second subject
-with the opposite lead leg, confirming the result is not specific to one subject's
-placement.
-
-_[Figure 16 removed from `ml/reports/figures/` along with the rest of the lunge investigation's figures — see the editorial note at the start of this section.]_
-_Figure 16. Visual verification of the camera-orientation mapping for the lunge. Top row: `cam17_orientation == "front"`, Camera 18 (right) shows a true sagittal view of the split stance. Bottom row: `cam17_orientation == "half-profile"`, neither camera is a usable side view._
-
-### 11.3 Usable sample size and class balance
-
-Before the view filter, Ex5 contains 174 repetitions across 8 subjects, with a Good/Poor
-split of 78/96. Two differences from the squat are already visible at this stage. The
-incorrect class is the _majority_ here, inverting the squat's 134/61 imbalance; and the
-exercise has 8 subjects rather than 9, one subject having performed no lunges at all.
-
-After restricting to usable side-view rows, 88 repetitions remain — 50.6% of the exercise's
-total — split 39 Good / 49 Poor. Table 7 gives the per-subject breakdown.
-
-_Table 7. Usable side-view lunge repetitions per subject after the camera-view filter, with each subject's lead leg._
-
-| Subject | Lead leg | Side-view reps | Good | Poor |
-| ------- | -------- | -------------- | ---- | ---- |
-| 2       | left     | 10             | 5    | 5    |
-| 3       | right    | 11             | 0    | 11   |
-| 4       | right    | 10             | 5    | 5    |
-| 5       | right    | 13             | 7    | 6    |
-| 6       | left     | 10             | 5    | 5    |
-| 7       | left     | 10             | 5    | 5    |
-| 8       | right    | 12             | 6    | 6    |
-| 9       | left     | 12             | 6    | 6    |
-
-The lunge cohort is therefore small but well balanced, where the squat's was larger but
-severely lopsided. This is a materially better starting position than the squat's in three
-respects. The class split is near-even (39/49) rather than 72/26, removing the
-minority-class scarcity that dominated the squat's training and evaluation findings. The
-view filter introduces no new single-class subject: subject 3 contributes only incorrect
-repetitions, but did so already in the unfiltered data, whereas the squat's filter turned
-three otherwise-healthy subjects single-class. And seven of eight subjects retain both
-classes, against six of nine for the squat. The total sample is comparable (88 against 98),
-so the improvement is in structure rather than size.
-
-The residual weakness is subject 3, whose fold would have no correct repetitions to
-predict. Excluding that subject entirely would leave 77 repetitions from 7 subjects split
-39 Good / 38 Poor — near-perfect balance at the cost of roughly an eighth of the data.
-
-### 11.4 A structural confound: lead leg is fixed per subject
-
-The audit examined the dataset's own lead-leg annotation and found that it is constant
-within every recording and, more consequentially, within every subject. Each of the eight
-subjects performed lunges leading with one leg only; not one performed both. Lead leg is
-thus a subject-level constant rather than a within-subject variable.
-
-Two consequences follow, and neither is a function of the view filter — they hold for any
-subset of this dataset.
-
-First, under leave-one-subject-out cross-validation, lead leg is perfectly collinear with
-the held-out subject. A model given lead leg as a feature would be given a subject
-identifier in disguise, and the validation scheme is structurally incapable of detecting
-the substitution. The apparent association between lead leg and label in the side-view
-data — 21 Good / 21 Poor for left-leading repetitions against 18 Good / 28 Poor for
-right-leading ones — is entirely attributable to subject 3, whose eleven repetitions are
-all incorrect and all right-leading; with that subject removed the right-leading split is
-18 Good / 17 Poor. The lead-leg signal that a naive reading would find in this data is a
-single-subject artefact.
-
-Second, the cross-repetition symmetry measurement the lunge implementation computes — which
-compares peak flexion and range of motion between left-leading and right-leading
-repetitions within a single set — has no ground truth in this dataset whatsoever. No
-recording and no subject contains both lead legs, so the quantity cannot be validated
-against REHAB24-6 by any filtering of it. The measurement was already specified as
-report-only, contributing no weight to the rule score, so nothing in the deployed system
-depends on an unvalidated number; but it cannot be evidenced by this phase, and should be
-presented as an uncorroborated descriptive statistic rather than a validated one.
-
-A related question is deferred rather than answered. Because each subject faces a fixed
-direction with a fixed lead leg, whether the leading limb is the near or the far limb from
-the sagittal camera may itself be fixed per subject, which would couple the far-limb
-occlusion problem established for the squat (Section 3.2) to lead leg and thus to subject
-identity. The extracted frames are consistent with this possibility but cannot establish
-it, since near and far limb identity is not reliably readable by eye from a single frame.
-It requires landmark-level measurement of per-limb visibility and depth ordering, and is
-recorded here as a risk to be measured rather than a finding.
-
-### 11.5 Additional limitations established by the lunge audit
-
-These extend the running list in Section 10 and are specific to the lunge scope.
-
-19. **Lead leg cannot be used as a feature without incurring subject leakage.** Every
-    subject in the lunge data leads with one leg only (Section 11.4), making lead leg
-    perfectly collinear with subject identity under leave-one-subject-out validation. Any
-    apparent lead-leg effect in this dataset is indistinguishable from a subject effect,
-    and the one visible in the raw counts is traceable to a single subject.
-20. **The cross-repetition symmetry measurement is unvalidated and cannot be validated on
-    this dataset.** It compares left-leading against right-leading repetitions within a
-    set, and no subject in REHAB24-6 performs both (Section 11.4). It is reported to users
-    as a descriptive measurement only and carries no weight in the rule score, but no
-    evidence exists as to its agreement with any ground truth.
-21. **The lunge training cohort is 88 repetitions from 8 subjects, one of which
-    contributes no correct repetitions.** Balance is better than the squat's and the
-    sample is comparable in size (Section 11.3), but it remains small, single-source, and
-    single-site. Every caveat in limitations 1 and 17 about single-dataset evidence
-    applies here unchanged.
-
-### 11.6 Landmark Extraction
-
-Landmark extraction for the lunge followed the same procedure as the squat (Section 2):
-the same self-hosted pose model, the same detection configuration, world landmarks only,
-one cached file per video. All nine side-view Ex5 recordings were processed, yielding
-26,087 frames with a pose detected in every single one — a slightly cleaner result than
-the squat's own extraction, which recorded one frame with no detection out of 30,028.
-
-The parity result established for the squat (Section 2) was not re-measured for the
-lunge. That check compared the same pose model, the same detection configuration, and the
-same delegate across the native Python runtime and the browser's WASM runtime, and found
-the divergence attributable to floating-point differences between the two backends rather
-than to any property of the movement being tracked. Because the infrastructure under test
-is identical for both exercises, re-running the comparison on a lunge clip would measure
-the same fact a second time rather than establish anything new, and the temporary
-browser-side harness used for the original check had already been removed once its
-purpose was served.
-
-Two further checks were specific to the lunge and had not arisen for the squat. The first
-concerns the joint used for the knee-passes-toe feature (Section 4.2 of the lunge
-implementation, not reproduced here): the pose model's foot-tip landmarks were present in
-every one of the 26,087 extracted frames, with mean visibility no lower than 0.826 on
-either side, and their coordinates changed frame to frame in a manner consistent with
-genuine tracking rather than a frozen or missing signal. No fallback to an ankle-based
-approximation was required.
-
-The second concerns the far-limb occlusion problem identified for the squat (Section
-3.2), where a single side-view camera tracks the leg nearer the camera substantially
-better than the leg farther from it. The same pattern recurs for the lunge, but with a
-finding that was not anticipated when the dataset audit was written. Mean knee and ankle
-visibility, measured within each recording's labelled repetition windows, is higher on
-the left side than the right in every one of the nine videos — and this holds regardless
-of which leg a given subject led with. Table 8 shows visibility split by both side and
-lead leg to make the pattern explicit.
-
-_Table 8. Mean knee and ankle visibility within labelled repetition windows, by video, alongside each video's lead leg._
-
-| Video     | Lead leg | Knee (L) | Knee (R) | Ankle (L) | Ankle (R) |
-| --------- | -------- | -------- | -------- | --------- | --------- |
-| `PM_021`  | left     | 0.982    | 0.825    | 0.994     | 0.931     |
-| `PM_028`  | right    | 0.996    | 0.966    | 0.995     | 0.990     |
-| `PM_037`  | right    | 0.998    | 0.979    | 0.980     | 0.993     |
-| `PM_042`  | right    | 0.995    | 0.957    | 0.987     | 0.985     |
-| `PM_104`  | left     | 0.981    | 0.773    | 0.988     | 0.893     |
-| `PM_112`  | right    | 0.996    | 0.967    | 0.985     | 0.988     |
-| `PM_117a` | left     | 0.974    | 0.743    | 0.989     | 0.906     |
-| `PM_117b` | left     | 0.988    | 0.672    | 0.988     | 0.899     |
-| `PM_125`  | left     | 0.988    | 0.778    | 0.995     | 0.939     |
-
-Left-side visibility exceeds right-side visibility in every row, whether the subject's
-lead leg for that recording was left or right. This partially resolves a question the
-dataset audit (Section 11.4) had left open — whether the near/far-limb asymmetry might be
-coupled to lead leg, and therefore, through Section 11.4's confound, to subject identity.
-It is not: the asymmetry tracks a fixed relationship between the subject and Camera18
-common to the whole cohort, independent of stance. The mechanism producing that fixed
-relationship — most plausibly a recording convention about which way subjects were asked
-to face — is not established by this measurement and remains unexplained.
-
-The severity of the asymmetry is milder here than it was for the squat, where the
-far knee's visibility fell as low as 0.59 across entire repetitions, below the
-threshold used to detect brief occlusion and severe enough to substantially damage
-the resulting joint-angle signal before that damage was corrected (Section 3.2). The
-lowest value recorded here, 0.672 for one subject's right knee, remains above that
-threshold when averaged over a repetition window. This is not sufficient to conclude the
-lunge is free of the same problem: a window average can conceal a lower minimum at the
-specific point in a repetition where flexion, and therefore occlusion, is greatest. Rather
-than assume either outcome, this is left as an explicit question for the feature-validity
-analysis to answer once per-frame data is examined at that resolution.
-
-### 11.7 Feature Table and a Failure of the Repetition Detector
-
-The lunge feature table was constructed exactly as the squat's was (Section 3): each
-video's full landmark stream was passed through the runtime preprocessing pipeline once,
-then windowed by the dataset's physio-verified repetition boundaries, and the backend's
-own feature extractor was called on each window. It contains 88 repetitions — 39 correct,
-49 incorrect — across 8 subjects, with 17 features per repetition, and rebuilds
-byte-identically across runs.
-
-Two decisions specific to the lunge were settled here. The lead leg was taken from the
-dataset's own annotation rather than inferred geometrically, since the annotation is
-given and is ground truth in the same sense the repetition boundaries are. And the
-knee-passes-toe measurement was retained as a genuine measured quantity rather than
-approximated from the ankle position: the fallback anticipated when the feature was
-designed proved unnecessary, because the pose model's foot-tip landmarks were present
-throughout the extracted data (Section 11.6).
-
-The lead-leg annotation is written alongside the feature table but is deliberately not a
-model input. Section 11.4 established that it is perfectly confounded with subject
-identity, so under leave-one-subject-out validation it would function as a subject
-identifier. This exclusion is structural rather than procedural: the feature vector was
-designed to be lead-leg invariant, expressing every quantity in terms of the front and
-rear limb rather than the left and right one, so that a left-leading repetition and an
-otherwise identical right-leading repetition produce the same vector. The annotation is
-retained only for traceability and for per-cohort analysis.
-
-#### A repetition detector that merged repetitions
-
-Building the feature table also permits a free comparison that the squat's own
-construction performed: the system's repetition-detection state machine can be run over
-the same recordings and its boundaries compared against the physio-verified ones. For the
-squat this comparison was reassuring, recovering 93 of 98 side-view repetitions. For the
-lunge it was not: only **50 of 88** side-view repetitions were recovered, a recall of
-56.8% against the squat's 94.9%.
-
-The cause is specific and measurable rather than a general degradation. It is not the
-threshold that begins a repetition: the signal the detector follows — the mean flexion of
-both knees — rises above that threshold in 173 of the 174 annotated repetitions, so every
-descent is seen. It is the threshold that _ends_ one.
-
-Understanding why requires noting what the dataset's repetition boundaries are. The
-repetitions are annotated back to back, with a median gap between consecutive
-repetitions of a single frame: a set is a continuous sequence of repetitions, and each
-boundary falls at the top of a movement cycle rather than in a period of rest. The
-detector closes a repetition only when the mean knee flexion falls back below a standing
-threshold. A subject who straightens fully at the top of each cycle sends the signal back
-under that threshold and the repetition closes; a subject who extends only partially
-between consecutive repetitions never does, so the repetition never closes and
-consecutive repetitions merge into a single detection. This explains the otherwise
-contradictory pairing of high precision (94.1%) with low recall: the detector is not
-firing incorrectly, it is firing too seldom.
-
-The mechanism accounts for the loss almost exactly. Fifty-nine cycle tops never return
-below the closing threshold, against sixty-two unrecovered repetitions. Seven of the nine
-recordings contain at least one such cycle top and three contain them in the majority of
-theirs. The extremes are instructive: in one recording eighteen of nineteen cycle tops
-never release — its median top-of-cycle flexion is 46.1°, more than twice the closing
-threshold — and twenty repetitions collapse into two detections; in two other recordings
-every cycle top releases and detection is near-perfect, at 24 of 25 and 14 of 14. The
-failure tracks a per-subject movement habit — how far a subject straightens between
-continuous repetitions — not measurement noise.
-
-This finding retires an assumption the system was built on. The lunge detector reuses the
-squat's driving signal and thresholds, a choice made on the grounds that the two
-movements have near-identical repetition-duration envelopes, and recorded at the time as
-provisional pending an empirical check against real lunge data. This is that check, and
-the assumption does not survive it. The relevant difference is not timing but terminal
-posture: a squat necessarily returns to a two-legs-extended stance, so its bilateral mean
-reliably falls to baseline between repetitions, whereas a lunge has no such requirement
-and for most subjects here does not.
-
-The consequence was not confined to offline analysis. The deployed application's live
-repetition counter and the server-side detector shared this signal and these thresholds,
-so a user who did not straighten fully between repetitions would have had their
-repetitions undercounted in the same way and for the same reason. The feature table
-itself was unaffected — every repetition in it is windowed by the dataset's annotation,
-never by the detector — so no result reported elsewhere in this chapter inherited the
-error.
-
-#### Why the obvious remedies do not work
-
-Three remedies suggest themselves, and each was measured against the data rather than
-argued about. None survives.
-
-Following the front knee alone, rather than the mean of both, performs _worse_. Subjects
-rest with the leading knee more flexed than the bilateral average, not less — in one
-recording the leading knee's typical cycle top sits at 37.5° against the mean's 26.0° —
-so the signal releases less often, not more.
-
-Raising the closing threshold cannot work at all, for an arithmetic reason. A single
-threshold pair applying to every subject would have to close above 60.0°, to release the
-subject whose cycle tops never fall below that, while opening below 14.8°, to catch the
-weakest repetition another subject performs — and closure must sit below opening. No such
-pair exists.
-
-Defining closure relative to each recording's own measured standing baseline, rather than
-as an absolute angle, fails for the same underlying reason at every baseline estimator
-tried. One subject rests 46.1° above their own baseline between repetitions, while
-another's repetitions peak only 24.7° above theirs.
-
-The common cause is now stateable precisely: resting posture and repetition depth
-**overlap across subjects**. One subject's rest is deeper than another subject's
-repetitions. No threshold on absolute posture, however it is referenced, can separate two
-populations that overlap; only the _shape_ of the movement distinguishes them.
-
-#### Cycle detection
-
-The detector was therefore replaced with one that segments repetitions as movement
-cycles: a flexion maximum, bracketed by the flexion minima either side of it, with an
-extremum confirmed only once the signal has reversed away from it by a set amount. That
-reversal depth performs the noise rejection the previous deadband and refractory window
-performed, but expressed in the movement's own terms rather than against a fixed posture,
-which is what allows it to accommodate subjects who rest at different depths.
-
-The reversal depth was selected by a rule fixed before the numbers were read: take the
-largest value that still recovers every side-view repetition, since a larger value is
-stricter and yields fewer spurious detections. Sweeping from 10° to 30° identified 17.5°.
-The choice sits in the middle of a plateau rather than on a knife edge — every value from
-10° to 17.5° recovers all 88 repetitions while precision rises steadily from 86.5% to
-99.4%, and recall only begins to fall at 20°.
-
-On the same recordings, measured in the same harness, the replacement recovers **88 of 88
-side-view repetitions (100%)** against the previous detector's 50 (56.8%), and 173 of 174
-overall at 99.4% precision. The recording whose twenty repetitions had collapsed into two
-detections now yields twenty. Boundary placement improved as a side effect that was not
-sought: the median start and end error against the physio-verified boundaries fell from
-25 and 12 frames to 7 and 7.
-
-Two caveats bound that result. The reversal depth was tuned on the same cohort it is
-measured against, so 99.4% is an in-sample figure and not a generalisation estimate; the
-plateau's width is the reason to think it is not an artefact of one threshold. And the
-squat detector was deliberately left alone: its threshold model fits the squat precisely
-because a squat necessarily returns to a two-legs-extended stance, and it scores 94.9%
-unchanged. The two exercises now segment by different principles because the movements
-genuinely differ, not by oversight.
-
-### 11.8 A further limitation established by the feature-table build
-
-This extends the running list in Section 10 and Section 11.5. The repetition-detection
-defect that this stage's validation uncovered is not listed here, because it was
-diagnosed and corrected rather than merely recorded (Section 11.7); what remains of it is
-the tuning caveat below.
-
-22. **The lunge repetition detector's reversal-depth setting is tuned in-sample.** The
-    replacement detector recovers 88 of 88 side-view repetitions at 99.4% precision
-    (Section 11.7), but its one free parameter was selected by sweeping against the same
-    cohort those figures are measured on, so they describe fit rather than
-    generalisation. Two things bound the risk: the selection rule was fixed before the
-    numbers were read (take the strictest setting costing no recall), and the chosen
-    value sits mid-plateau rather than at a sharp optimum, so the result does not depend
-    on the exact threshold. It has not been tested on any independent lunge cohort. Every
-    caveat in limitations 1 and 17 about single-dataset evidence applies.
-
-### 11.9 Feature Validity, and a Statistic That Inverts the Truth
-
-Before any lunge classifier was trained, each candidate feature was checked for whether
-it separates correct from incorrect repetitions at all. The check exists to catch a
-broken pipeline: a depth feature that does not distinguish the classes would indicate a
-fault in extraction, view filtering or windowing, and no amount of model tuning repairs
-that. The primary feature for the lunge is `front_knee_flex_peak_deg`, the peak flexion
-of the leading knee. It corresponds directly to the squat's gate feature, but the
-bilateral mean the squat used has no lunge equivalent: the two legs perform different
-roles within a single repetition, so no symmetric depth measure exists.
-
-The feature separates the classes, and the check passes. Its area under the curve is
-**0.639** (correct median 77.2°, incorrect median 83.8°), placing it 0.139 from the 0.5
-point of no separation, with the direction holding in five of the seven subjects able to
-vote on it. The separation is weaker than the squat's equivalent (0.837) but
-unambiguous. Notably it runs in the **same direction** as the squat's: incorrect
-repetitions are _deeper_, not shallower. That the same counter-intuitive relationship
-appears independently in two different exercises drawn from the same cohort strengthens
-the earlier conclusion that this population's deliberate faults are not shallow
-repetitions.
-
-Because lead leg is confounded with subject, the pooled figure was also computed within
-each lead-leg cohort separately, in case the apparent separation were merely an offset
-between two disjoint subject groups. It is not: the effect is present in both
-(0.580 left-lead, 0.728 right-lead) and points the same way in each.
-
-#### A pooled statistic that reverses every subject it is computed from
-
-The more consequential result of this check is methodological, and it materially
-qualifies the verdicts the check produced.
-
-Applying the squat's criteria unchanged returns **seven keep and ten drop** of the
-seventeen candidates. Several of those rejections are artefacts of pooling. The clearest
-is `back_knee_rom_deg`. Pooled, it appears inert — an area under the curve of 0.564, in
-the direction "incorrect lower", which the criteria score as a drop. Yet the
-direction vote is **0/7**: not one of the seven eligible subjects agrees with the pooled
-direction. Every individual subject shows incorrect repetitions with a _greater_ back-knee
-range of motion than their own correct ones. Subtracting each subject's own median and
-re-pooling — a centring that uses no label information, since the median is taken across
-a subject's repetitions irrespective of class — raises the figure to **0.860**, making it
-the strongest feature in the table rather than one of the weakest.
-
-This is Simpson's paradox, and its mechanism was measured rather than asserted. The
-reversal requires subject-level magnitude to correlate with subject-level class mix, and
-it does, at **−0.505**. One subject is responsible. That subject is the cohort's only
-single-class participant (eleven incorrect repetitions, no correct ones) and also has the
-lowest back-knee range of motion of anyone (40.1°, against 42–92° for the rest), while
-every other subject is close to an even split. Eleven low-magnitude repetitions therefore
-enter the incorrect pool with no counterpart in the correct pool, dragging the pooled
-incorrect median below the pooled correct median and inverting a relationship that holds
-within every subject. Excluding that subject alone lifts the pooled figure to 0.679 —
-still well short of 0.860, because the remaining between-subject differences continue to
-dilute the effect.
-
-Across the full table, **nine of the seventeen** features show pooled evidence that the
-within-subject evidence contradicts.
-
-The within-subject figure must not be read as attainable accuracy. At inference the model
-receives a single repetition and has no subject median to subtract, so it cannot exploit
-the within-subject contrast. The figure answers only whether a feature carries real
-signal that pooling conceals, which is precisely what a keep-or-drop decision needs to
-know.
-
-The pre-declared criteria were deliberately **not** rewritten in light of this. They were
-fixed before the squat's results were seen and are reported as they fell; substituting
-whichever statistic yields the more agreeable answer is the practice that declaring a
-rule in advance exists to prevent. The verdicts therefore stand, the contradicting
-evidence is published beside them, and the resolution is deferred to training, which
-trains on all seventeen features and reads the table as advisory. That is the same route
-the squat's training took, for the unrelated reason of avoiding selection bias against
-the held-out folds, so no feature is in fact lost to the artefact.
-
-The finding's reach extends past feature selection. A statistic pooled across subjects
-can invert the truth on this cohort. The leave-one-subject-out design planned for
-training is the correct response, since it never pools across the subject boundary, but
-any pooled summary reported later — a single confusion matrix, an aggregate figure over
-all folds — inherits the same hazard.
-
-_[Figure 17 removed — see the editorial note at the start of this section.]_
-_Figure 17. Distribution of each of the seventeen lunge features by class, across the 88 side-view repetitions._
-
-_[Figure 18 removed — see the editorial note at the start of this section.]_
-_Figure 18. Pearson correlation across the candidate lunge features. One pair reaches the redundancy threshold: `front_ankle_df_proxy_deg` and `knee_passes_toe_norm` (r = 0.95). Neither was removed — a tree ensemble is not destabilised by correlated inputs, and altering the vector would require a schema version change._
-
-### 11.10 Body-Scale Normalisation
-
-Three lunge features are divided by a body-scale reference to make them comparable across
-participants of different sizes: `hip_mid_jitter_norm`, `stance_length_norm` and
-`knee_passes_toe_norm`. Two candidate references were compared — trunk length
-(hip-midpoint to shoulder-midpoint) and thigh length (hip to knee) — by re-extracting the
-entire feature table once under each and measuring which leaves less variation between
-subjects performing the same movement.
-
-**Trunk length won**, on all three features, and the backend default was changed
-accordingly (it had been thigh length, carried over unexamined from the squat's starting
-configuration). This reproduces the squat's result on an independent exercise.
-
-The verdict statistic required a change the squat's did not, and the reason is specific
-to the lunge's feature set. The squat's comparison used the coefficient of variation of
-the per-subject means, having established that raw variance is scale-confounded: the two
-references differ in magnitude, so dividing by the larger one shrinks the feature and its
-variance regardless of how well it normalises anything. That reasoning still holds. But
-the coefficient of variation presumes a ratio scale with a stable non-zero mean, and
-`knee_passes_toe_norm` satisfies neither. It is a _signed_ excursion — positive when the
-leading knee travels past the toe, which is the fault it exists to detect, and negative
-when the knee stays behind it — and it genuinely crosses zero in this cohort: eighteen of
-88 repetitions are negative, and one subject's mean sits at +0.06. Near a zero mean the
-denominator collapses; had the cohort's zero fallen slightly differently, a verdict taken
-on that statistic would have flipped on the accident. The squat never encountered this,
-because both of its normalised features are unsigned magnitudes.
-
-The comparison was therefore decided on a **variance ratio** — between-subject variance
-of the per-subject means over the mean within-subject variance. Being a ratio of two
-variances in the same units, it is scale-invariant without requiring a non-zero mean, and
-it captures something the coefficient of variation cannot: a reference that suppresses
-between-subject spread by inflating within-subject noise is not normalising, and the
-ratio penalises that trade where the coefficient of variation would reward it. Trunk
-length won on the variance ratio for every feature (mean 1.606 against 2.118), and the
-coefficient of variation agrees on the two features where it remains valid — so the
-choice of statistic did not determine the outcome, only which number is honest to quote.
-
-_[Figure 19 removed — see the editorial note at the start of this section.]_
-_Figure 19. Per-subject means under each candidate body-scale reference. The first two panels scale each subject's mean by that candidate's own grand mean, so both centre on 1.0 and the visible spread is the quantity being compared; plotting raw values would have made the longer reference appear tighter through scale alone. `knee_passes_toe_norm` is shown raw against a zero line, for the same reason its coefficient of variation is omitted._
-
-### 11.11 Agreement With Marker-Based Motion Capture
-
-The knee angles this system derives from a single camera were compared against the same
-angles computed from the dataset's synchronised OptiTrack motion capture, on the same
-frames. Both sides pass through the identical geometry helper the live pipeline uses; an
-unsigned hip-knee-ankle angle is invariant to the coordinate frame, so the two systems'
-differing axes need no reconciliation. The motion capture serves as a validation
-reference only and is never a model input.
-
-For `front_knee_flex_peak_deg`, agreement is **ICC(2,1) = 0.623**, bias **−10.87°**, with
-95% limits of agreement **[−29.57°, 7.84°]** and r = 0.791 over 88 repetitions. As with
-the squat, the gap between a high correlation and a much lower intraclass coefficient is
-the whole story: the pipeline tracks the movement's shape faithfully and mis-states its
-magnitude.
-
-_[Figure 20 removed — see the editorial note at the start of this section.]_
-_Figure 20. Bland-Altman comparison of peak front-knee flexion per repetition against OptiTrack, over the 88 side-view lunge repetitions._
-
-#### Limb identity: a question the squat could not answer and the lunge could not avoid
-
-Comparing per-leg angles requires knowing which motion-capture leg corresponds to which
-estimated leg. The squat's analysis found this unverifiable and worked around it: both
-knees bend together in a squat, so the left-minus-right difference signal cancels to
-noise, and that analysis retreated to the bilateral mean, which is invariant to a
-left-right transposition and is what its gate feature used in any case.
-
-No such retreat exists for the lunge. Every lunge feature is split into front and back
-terms, so a transposed mapping would exchange them and corrupt all of them.
-
-The expectation was that the lunge's asymmetry would rescue the squat's test — the two
-knees do different work, so the difference signal should carry structure rather than
-cancelling. **It did not.** Correlated against the motion capture's own difference signal,
-the result is a mean r of **+0.28** with mixed signs across the nine recordings, failing
-a threshold fixed in advance. Recomputing at each recording's own alignment offset rather
-than at zero lag moves the correlation by less than 0.03, so the failure is not a
-synchronisation artefact. The reason it fails proves informative in its own right: the
-difference of two angles inherits the error of the worse-measured one, and here that error
-is large enough to swamp the anatomy.
-
-Identity was instead established from **foot position**, which occlusion perturbs far less
-than joint angle, and against an independent key the flexion test lacks — the dataset
-annotates which leg leads, and the leading foot is anterior by definition. Asked from
-geometry alone which foot is planted forward, the motion capture recovers the annotated
-lead leg in **9 of 9** recordings and the single-camera estimate does so in **9 of 9**.
-Both label sets are therefore correct as labelled, and the mapping between them is
-confirmed. The front-back split on which every lunge feature depends rests on verified
-ground.
-
-#### Occlusion large enough to invert the anatomy
-
-With identity settled, a second observation can be read correctly. The motion capture
-reports the right knee bending deeper in all nine recordings; the single-camera estimate
-reports the left knee deeper in all nine — a complete reversal, where chance would
-produce roughly four. Had identity been left open, this would have looked like decisive
-proof of a transposed mapping, since it is exactly the signature one produces.
-
-The position test excludes that reading, leaving one explanation: **the far limb's
-measurement error exceeds the anatomical difference it is meant to resolve.** The
-pipeline under-reads the occluded far limb by **18.2°** against **2.5°** for the near
-limb, a differential of roughly 15.7°, while the true left-right difference is only a few
-degrees. The artefact is larger than the signal, so the ordering inverts. This is the
-strongest available statement of what monocular occlusion costs this system: the far limb
-is not merely noisier, it is wrong by more than the anatomy it is measuring.
-
-This also answers a question deferred from the feature-table stage — whether the occluded
-limb's estimate is accurate or merely plausible. It is merely plausible. The far limb
-tracks the movement's shape well (r = 0.824, comparable to the near limb's 0.713) while
-mis-stating its magnitude by 18.2°, the characteristic signature of a landmark regressor
-hedging toward a mean pose where it cannot see the joint.
-
-Decomposing the error by cohort and limb against the estimator's own reported confidence
-separates two very different failure modes. The error follows **near versus far** (a
-15.7° gap), not front versus back (0.3°): the right knee is badly under-read whether it
-performs the front leg's role or the back leg's, and the left knee is well measured in
-both. Which side faced the camera is what matters. More troublingly, the error is
-**confident** rather than flagged. In the cohort where the far limb is the leading leg,
-it carries a mean reported visibility of 0.938 — far above the threshold at which the
-preprocessing filter would intervene — and is still biased by −15.1°. The system is not
-reporting that it cannot see the joint; it is reporting a wrong angle with conviction, and
-no confidence-threshold policy can intercept that.
-
-A separate measurement confirms the filter is not the mechanism. Examining raw landmark
-confidence in the deepest fifth of each repetition — where a whole-video average would
-conceal a transient dip — the far knee falls below the intervention threshold in **10 of
-88** repetitions. That vindicates the earlier concern that per-video means were the wrong
-instrument, but the affected repetitions belong exclusively to the cohort in which the far
-limb is the _back_ leg, which is the opposite of the pattern the bias follows. The
-repetitions the pipeline flags as uncertain are the smaller and more honest part of the
-problem; the larger part is invisible to any confidence-based defence.
-
-#### The consequence: a measurement bias that tracks the subject cohort
-
-The reach of this extends well past a measurement report, and it closes a question left
-open since landmark extraction: whether the leading limb is the near or the far limb is
-fixed per subject, which would bind occlusion to lead leg and therefore to subject
-identity. **It is, and it does.**
-
-The far limb is the right leg in every recording — an artefact of camera orientation, not
-of lead leg — and lead leg is fixed per subject. The leading leg is therefore the occluded
-limb for right-lead subjects and the clearly visible one for left-lead subjects. Measured,
-`front_knee_flex_peak_deg` carries a bias of **−6.2°** for the left-lead cohort and
-**−15.1°** for the right-lead cohort: a **8.9° systematic offset between two groups of
-subjects, produced entirely by which side of the body faced the lens.** No participant
-moves differently to produce it.
-
-The definitional caveat that qualifies any comparison against marker-based capture — that
-an unknown share of the absolute bias reflects differing conventions about where a joint
-centre lies, rather than pipeline error — does not weaken this particular result. A
-definitional offset applies to both cohorts equally and cannot generate a difference
-between them.
-
-### 11.12 Further limitations established by the lunge validation
-
-This extends the running list in Sections 10, 11.5 and 11.8.
-
-23. **The far limb's knee angle is wrong by more than the anatomy it measures, and the
-    error is confident rather than flagged.** Peak flexion of the occluded limb is
-    under-read by 18.2° against marker-based capture, versus 2.5° for the near limb —
-    enough to invert which knee appears to bend deeper in all nine recordings
-    (Section 11.11). Crucially the error is not accompanied by low reported confidence:
-    where the far limb leads, it carries 0.938 mean visibility and a −15.1° bias, so the
-    existing confidence filter cannot intercept it and no threshold policy would. The far
-    limb's estimate tracks the movement's shape (r = 0.824) but not its magnitude. Any
-    lunge feature computed on the far limb inherits this.
-
-24. **⚠ The lunge's primary depth feature carries an 8.9° measurement bias that is
-    perfectly aligned with the subject cohorts.** Because the far limb is the right leg in
-    every recording and lead leg is fixed per subject, the leading knee is occluded for
-    right-lead subjects and plainly visible for left-lead ones, biasing
-    `front_knee_flex_peak_deg` by −15.1° and −6.2° respectively (Section 11.11). This
-    converts limitation 19 from a hypothesis into a measured fact and sharpens it: the
-    lead-leg confound is **physically encoded in the feature values themselves**, so a
-    model can infer a subject's cohort from measurement bias alone without ever seeing a
-    lead-leg column. Excluding lead leg from the feature vector is therefore necessary but
-    **not sufficient** to remove the confound. It also bounds what any lunge range-of-motion
-    banding may claim: an error that differs by 8.9° according to which leg the user leads
-    with cannot be corrected by a single global constant, which is why the lunge's band
-    edges must be derived from this cohort's own distribution rather than asserted from a
-    coaching convention.
-
-25. **⚠ Pooling across subjects inverts the truth for a majority of lunge features.**
-    Nine of the seventeen candidates show pooled class separation that the within-subject
-    evidence contradicts, and one — `back_knee_rom_deg` — is reversed by pooling so
-    completely that the aggregate points the opposite way to every individual subject who
-    can vote on it (Section 11.9). The cause is measured: a single subject contributing
-    eleven repetitions of one class at an extreme magnitude, in a cohort whose remaining
-    subjects are evenly split. Two independent mechanisms therefore push the same way on
-    this cohort — this class-mix imbalance, and the cohort-aligned measurement bias of
-    limitation 24. Any aggregate statistic computed across these subjects, including any
-    pooled evaluation summary, must be read with both in view.
-
-### 11.13 Training the Lunge Classifier: A Negative Result, and What Reverses It
-
-The lunge classifier was trained exactly as the squat's was — the same Extra Trees
-estimator, the same hyperparameter grid, the same nested subject-disjoint
-cross-validation, the same calibration. Leave-one-subject-out was not available: one
-subject performed only incorrect repetitions, so a fold holding that subject out would
-contain no correct repetition to score against, and the pre-declared fallback of
-subject-wise five-fold stratified grouping was triggered by that condition rather than
-chosen. Every reported figure is out-of-fold: each repetition is predicted once, by a
-model that never saw its subject.
-
-**The result is negative, and it is unambiguous. The lunge classifier does not work.**
-Its out-of-fold area under the curve is **0.344**, against **0.832** for the squat model
-built by the same code.
-
-#### The below-chance figure does not mean the model predicts backwards
-
-A value below 0.5 invites the conclusion that the model has learned the relationship
-inverted. That reading was tested and rejected. Shuffling the labels 200 times and
-repeating the entire out-of-fold procedure produces a null distribution centred at
-**0.487** with a standard deviation of **0.085**, spanning 0.30 to 0.68. The observed
-result sits comfortably inside it (**p = 0.657**). The honest statement is therefore that
-the model has **no detectable cross-subject signal**, not that its signal is inverted —
-an absence of evidence rather than a claim, and the distinction is worth preserving
-because the more dramatic reading is the more tempting one.
-
-Nor is the pipeline broken. Fitted and evaluated on the same repetitions, the model
-reaches an in-sample area under the curve of **0.982**. It learns the training
-repetitions almost perfectly and transfers none of that to an unseen subject. That gap
-is the entire finding: what it learns is largely _who the subject is_.
-
-#### Two interventions recover real signal, and neither touches the model
-
-Four responses to the cohort confound established in Section 11.11 were measured under
-one identical procedure. Two of them work.
-
-| strategy                                 | n   | out-of-fold AUC | permutation p | signal? |
-| ---------------------------------------- | --- | --------------- | ------------- | ------- |
-| baseline — all features, raw             | 88  | 0.344           | 0.657         | no      |
-| subtract each subject's own median       | 88  | **0.670**       | **0.005**     | **yes** |
-| subtract the lead-cohort's mean          | 88  | 0.355           | 0.423         | no      |
-| restrict to the near-limb-leading cohort | 42  | **0.696**       | **0.005**     | **yes** |
-
-Both successful interventions attack the confound rather than the classifier. Neither
-changes the estimator, the grid, or the feature set. This establishes that **the features
-are not the problem**: information about lunge correctness is present in them, and
-between-subject variation buries it.
-
-The two failures are as informative as the successes. Subtracting the _cohort's_ mean —
-which removes precisely the 8.9° camera-induced offset of Section 11.11 — recovers
-**nothing**, while subtracting each _subject's own_ median recovers a great deal. The
-between-subject variation obscuring the signal is therefore mostly **not** the camera
-artefact; it is individual differences in build and movement, to which the artefact
-merely adds. Correcting the artefact alone is insufficient, which is why the capture
-protocol described below is a better instrument than any post-hoc correction.
-
-Neither successful strategy is a deployable answer as it stands. Subject-median centring
-redefines the question from _"is this repetition correct?"_ to _"is this repetition
-better than your others?"_; a set in which every repetition is poor would centre to
-appear average, and the system would reassure a user whose technique was uniformly bad.
-That is a safety-relevant failure rather than a modelling trade-off, and no metric in the
-table above reveals it. Restricting to the near-limb-leading cohort rests on four
-subjects and 42 repetitions.
-
-One obvious correction is deliberately absent: subtracting the measured 8.9° bias
-directly. The bias is an OptiTrack measurement, and marker-based capture may not become
-an input to a model that must run from a single camera. The cohort-centring strategy is
-the marker-free equivalent of the same idea, and it did not work.
-
-#### The capture protocol, and why it is the strongest of the four
-
-The near-limb-leading result is the most consequential, for reasons beyond its score. It
-is the only subset in which true leave-one-subject-out is possible — all four of its
-subjects performed both correct and incorrect repetitions, whereas the far-limb cohort
-contains the single-class subject that forced the fallback. Its per-subject folds score
-0.960, 1.000, 0.760 and 0.750.
-
-More importantly, it is a **train/serve match**. Section 11.11 established that the
-leading limb's measurement quality depends on which side faces the camera. A capture
-protocol that asks the user to turn around when switching legs, so that the working leg
-is always nearest the lens, removes that difference at source rather than modelling
-around it. Under such a protocol the system only ever sees near-limb-leading
-repetitions — exactly the distribution this strategy was measured on. The protocol was
-implemented for this reason, and the detection supporting it is itself measurable: the
-difference between the leading and trailing knee's reported visibility separates the two
-geometries with no overlap across all 88 repetitions (near-leading spans +0.129 to
-+0.319; far-leading spans −0.106 to −0.027).
-
-This does not resolve the confound. No strategy here can separate a camera artefact from
-a genuine between-subject difference, because in this cohort the two are perfectly
-aligned. Only new data can: either a cohort in which subjects perform both leading legs,
-or a capture protocol that eliminates the geometry difference. The second is now in
-place, and the near-limb result is the closest available estimate of what it buys.
-
-#### A latent defect in the calibration check, surfaced by this data
-
-The squat pipeline asserts that calibration preserves the area under the curve exactly,
-on the stated grounds that a sigmoid cannot reorder predictions. **That premise is
-false**, and the lunge data is what exposed it. Platt scaling fits
-`P = 1/(1 + exp(a·f + b))`, and nothing constrains the sign of `a`. Where the inner folds
-show the classifier's score anti-correlating with the label, the sigmoid correctly fits a
-positive `a`, becomes monotone _decreasing_, and exactly reverses the ranking — sending
-the area under the curve to its mirror about 0.5. This occurred in two of five folds; one
-fitted a slope of +2.70, moving that fold's score from 0.554 to 0.446, values that sum to
-exactly 1.000.
-
-The assertion was corrected to the true invariant — a monotone map either preserves the
-ranking or exactly reverses it — rather than removed. The flips are recorded rather than
-suppressed, because they are a symptom of the same instability: a sigmoid fitted on
-subject-disjoint inner folds learns whichever sign those subjects present, and on this
-cohort that sign is not stable. The squat pipeline never encountered the defect because
-its signal is consistent across subjects.
-
-The same instability motivates a check on the exported model itself. Were the shipped
-calibrator's slope positive, every live verdict would be inverted — the reported
-probability of correct technique would _rise_ as technique worsened — and nothing
-downstream would detect it, because the probabilities would remain perfectly well-formed.
-The exported model's slope was verified negative (−1.31).
-
-#### The hyperparameter search is a plateau
-
-Across all 180 combinations the mean inner-fold area under the curve spans only 0.077,
-while the median standard deviation across inner folds is 0.068: **the spread between
-combinations is smaller than the noise on any one of them**, and 95 of the 180 sit within
-one standard deviation of the best. The search's value is establishing that the result is
-insensitive to these parameters, not identifying an optimum. The negative result is not a
-tuning failure.
-
-_[Figure 21 removed — see the editorial note at the start of this section.]_
-_Figure 21. Out-of-fold ROC per strategy, subject-disjoint. The baseline and the cohort-centred variant fall on or below the diagonal; the two strategies that address the confound lift clearly above it._
-
-_[Figure 22 removed — see the editorial note at the start of this section.]_
-_Figure 22. Inner-fold ROC AUC per swept value, other parameters held at their chosen value; bars are the standard deviation across inner folds. The vertical scale shows the plateau._
-
-_[Figure 23 removed — see the editorial note at the start of this section.]_
-_Figure 23. Predicted against observed frequency, before and after sigmoid calibration, with 95% Wilson intervals per quantile bin. Wilson rather than Wald, because Wald collapses to zero width at 0 and 1 and would assert perfect certainty from a handful of repetitions._
-
-### 11.14 Further limitations established by lunge training
-
-26. **⚠⚠ The lunge classifier trained on this dataset has no detectable cross-subject
-    predictive signal.** Out-of-fold AUC 0.344, indistinguishable from chance under a
-    200-shuffle permutation test (p = 0.657), against 0.832 for the squat model produced
-    by identical code (Section 11.13). It is not inverted and it is not a tuning failure —
-    the grid is a plateau and the in-sample AUC is 0.982. The cause is the confound of
-    limitation 24: the model learns subject identity, which does not transfer. **Any
-    deployment of this model would emit well-formed Good/Fair/Poor verdicts with no
-    evidence behind them**, and no downstream component can detect a merely uninformative
-    model.
-
-27. **The two interventions that recover signal are each disqualified or severely
-    limited.** Subject-median centring reaches 0.670 (p = 0.005) but silently redefines
-    the question as "better than your other repetitions", so a uniformly poor set would be
-    reported as average. Restricting to the near-limb-leading cohort reaches 0.696
-    (p = 0.005) and matches the deployed capture geometry, but rests on four subjects and
-    42 repetitions (Section 11.13). Neither is a validated model; both are evidence about
-    where the signal went.
-
-28. **A latent defect in the shared calibration check was found only because lunge's
-    signal is unstable.** The assertion that calibration preserves AUC rests on the false
-    premise that a sigmoid cannot reorder predictions; Platt scaling with a positive slope
-    reverses the ranking exactly, which occurred in two of five folds (Section 11.13). The
-    squat results are unaffected — its slopes are all negative — but the check that was
-    protecting them was weaker than it appeared, and an inverted exported model would be
-    undetectable downstream. Verifying the exported calibrator's slope is now a
-    prerequisite for export.

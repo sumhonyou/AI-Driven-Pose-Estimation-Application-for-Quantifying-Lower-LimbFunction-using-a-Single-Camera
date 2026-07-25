@@ -1,5 +1,26 @@
 # Phase 7 — Dashboard & Progress Tracking: Implementation Plan
 
+---
+
+## Table of Contents
+
+- [Context](#context)
+  - [Decisions locked with HY (2026-07-19)](#decisions-locked-with-hy-2026-07-19)
+  - [Design constraints (from task.md + rules.md)](#design-constraints-from-taskmd-rulesmd)
+- [Stage 7.0 — Trend & error-tag APIs (START HERE)](#stage-70-trend-error-tag-apis-start-here)
+  - [New/changed schemas (schemas.py, replacing flat DashboardTrendPoint/DashboardErrorTag)](#newchanged-schemas-schemaspy-replacing-flat-dashboardtrendpointdashboarderrortag)
+  - [Endpoints](#endpoints)
+  - [Tests (test_dashboard.py, mirror tests/test_module_b_persistence.py style)](#tests-testdashboardpy-mirror-teststestmodulebpersistencepy-style)
+- [Stage 7.1 — Dashboard overview panels (Recharts)](#stage-71-dashboard-overview-panels-recharts)
+- [Stage 7.1b — Progress deep-dive page (new)](#stage-71b-progress-deep-dive-page-new)
+- [Stage 7.2 — STS & SLS "vs last session" rows](#stage-72-sts-sls-vs-last-session-rows)
+- [Stage 7.3 — Reminders — DEFERRED (not this pass)](#stage-73-reminders-deferred-not-this-pass)
+- [Stage 7.4 — Seed data + end-to-end verification](#stage-74-seed-data-end-to-end-verification)
+- [Open confirmations](#open-confirmations)
+- [Execution order](#execution-order)
+
+---
+
 ## Context
 
 Phase 7 is the home for cross-cutting dashboard/progress tech-debt deferred three

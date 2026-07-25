@@ -5,6 +5,23 @@
 The coding agent will turn your answers into code/config, so answers must be **specific,
 cited, and actionable** (numbers, joint names, thresholds, dataset URLs, licenses), not general.
 
+---
+
+## Table of Contents
+
+- [Fixed decisions (do NOT re-open these — build the research around them)](#fixed-decisions-do-not-re-open-these-build-the-research-around-them)
+- [Hard filters (a dataset that fails these is disqualified — state pass/fail for each)](#hard-filters-a-dataset-that-fails-these-is-disqualified-state-passfail-for-each)
+- [R1 — Rehab exercise clinical protocol (per chosen exercise, knee + ankle)](#r1-rehab-exercise-clinical-protocol-per-chosen-exercise-knee-ankle)
+- [R2 — Public dataset compatibility (screen against the hard filters)](#r2-public-dataset-compatibility-screen-against-the-hard-filters)
+- [R3 — Label harmonization](#r3-label-harmonization)
+- [R4 — Feature discriminativeness](#r4-feature-discriminativeness)
+- [R5 — ML methodology](#r5-ml-methodology)
+- [R6 — Rep segmentation](#r6-rep-segmentation)
+- [R7 — LLM provider for after-set feedback (Phase 6, lower urgency)](#r7-llm-provider-for-after-set-feedback-phase-6-lower-urgency)
+- [R8 — Error-tag taxonomy](#r8-error-tag-taxonomy)
+
+---
+
 ## Fixed decisions (do NOT re-open these — build the research around them)
 
 1. **Data source:** Public datasets ONLY. No self-collected data.

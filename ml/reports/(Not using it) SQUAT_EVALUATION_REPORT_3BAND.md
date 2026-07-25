@@ -26,6 +26,23 @@ in training.
 
 ---
 
+## Table of Contents
+
+- [1. Headline metrics (fused 3-band output)](#1-headline-metrics-fused-3-band-output)
+  - [Why two accuracies, and why neither is the headline](#why-two-accuracies-and-why-neither-is-the-headline)
+  - [Per-class](#per-class)
+- [2. Confusion matrix over the fused 3-band output](#2-confusion-matrix-over-the-fused-3-band-output)
+- [3. error_tags multi-label F1 — deliberately not computed](#3-error_tags-multi-label-f1-deliberately-not-computed)
+- [4. Robustness signals](#4-robustness-signals)
+  - [Low-confidence-frame frequency](#low-confidence-frame-frequency)
+  - [Safety-flag rate](#safety-flag-rate)
+- [5. Inference latency](#5-inference-latency)
+- [6. Baseline comparison](#6-baseline-comparison)
+  - [Interpreting 0.735 honestly — it equals the base rate exactly](#interpreting-0735-honestly-it-equals-the-base-rate-exactly)
+- [7. Limitations](#7-limitations)
+
+---
+
 ## 1. Headline metrics (fused 3-band output)
 
 | Metric               | Value     | What it means                                                         |

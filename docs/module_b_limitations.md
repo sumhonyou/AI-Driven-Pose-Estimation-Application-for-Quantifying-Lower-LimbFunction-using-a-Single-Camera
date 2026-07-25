@@ -10,6 +10,17 @@ was named. Each entry below is a fault the original Phase 6 tag table proposed, 
 **excluded** because a single monocular side-view camera cannot measure it reliably. This is
 the same principle that already dropped knee valgus (Module B Decision Record §3).
 
+---
+
+## Table of Contents
+
+- [1. Knee valgus / frontal-plane faults](#1-knee-valgus-frontal-plane-faults)
+- [2. asymmetry (left/right imbalance) — dropped from the tag taxonomy](#2-asymmetry-leftright-imbalance-dropped-from-the-tag-taxonomy)
+- [3. feet_too_wide (stance width) — dropped from the tag taxonomy](#3-feettoowide-stance-width-dropped-from-the-tag-taxonomy)
+- [Tags that ARE measured (for contrast)](#tags-that-are-measured-for-contrast)
+
+---
+
 ## 1. Knee valgus / frontal-plane faults
 
 - **Not measured.** Ill-posed from a single sagittal (side) view. Dropped from features,

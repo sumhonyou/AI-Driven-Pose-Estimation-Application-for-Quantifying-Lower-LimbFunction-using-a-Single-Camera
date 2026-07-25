@@ -6,17 +6,30 @@
 
 These decisions keep the placeholder vertical slice and the later trained-model work on one architecture. A decision is changed only when its reversal condition is met and the change is recorded here before code is changed.
 
+---
+
+## Table of Contents
+
+- [1. Label design: Option A](#1-label-design-option-a)
+- [2. Exercise order: squat first](#2-exercise-order-squat-first)
+- [3. Camera view: side only; valgus dropped](#3-camera-view-side-only-valgus-dropped)
+- [4. Extension shape: registry of exercise plugins](#4-extension-shape-registry-of-exercise-plugins)
+- [5. After-set LLM default: Groq / Llama 3.3 70B](#5-after-set-llm-default-groq-llama-33-70b)
+- [6. Model artifacts: committed for reproducibility](#6-model-artifacts-committed-for-reproducibility)
+
+---
+
 ## 1. Label design: Option A
 
 - **Decision:** Train an honest binary Good/Poor classifier from REHAB24-6 labels. Surface Fair only when the calibrated prediction is inside the low-confidence margin. Option B—a genuinely learned three-class model—is documented as the alternative and is not implemented.
 - **Rationale:** The selected dataset supports binary correctness labels but does not provide a defensible fault-severity target. Manufacturing a third training label would overstate what the data contains.
 - **What would reverse it:** A suitably licensed dataset with subject identifiers and independently validated ordinal or continuous movement-quality labels that can support three classes without synthetic relabelling.
 
-## 2. Exercise order: squat first
+## 2. Exercise scope: squat only
 
-- **Decision:** Complete and verify squat before starting lunge. Lunge remains committed Phase 5B scope.
-- **Rationale:** Squat has the larger usable REHAB24-6 cohort and lets the shared registry, feature contract, inference, and persistence path be proven once before adding another exercise.
-- **What would reverse it:** The Phase 5 data audit finds that the usable side-view squat cohort cannot support honest subject-wise training, while another in-scope exercise has a materially stronger compatible cohort.
+- **Decision:** Module B ships squat only. A second exercise was previously committed as Phase 5B scope; that work was removed from the product on 2026-07-19 (HY's call) and its backend/frontend/ML source deleted.
+- **Rationale:** Squat has the larger usable REHAB24-6 cohort and let the shared registry, feature contract, inference, and persistence path be proven once. The second exercise's own cohort carried structural confounds (see the removed exercise's data audit history) that made it a materially weaker candidate.
+- **What would reverse it:** A new candidate exercise with a compatible cohort and a fresh audit, not a resumption of the removed exercise's prior work.
 
 ## 3. Camera view: side only; valgus dropped
 
