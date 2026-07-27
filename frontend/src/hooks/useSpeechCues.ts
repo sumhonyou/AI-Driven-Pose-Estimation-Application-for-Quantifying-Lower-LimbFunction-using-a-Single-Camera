@@ -5,7 +5,7 @@
 // voice availability varies a lot by OS/browser; where it's missing the platform
 // falls back to whatever default voice it has, or silently no-ops -- documented as a
 // known limitation in task.md, same spirit as R3's English-only LLM deferral.
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { usePreferences } from "../preferences";
 import { SpeechCueQueue, type SpeechCueSpeaker } from "../utils/speechCueQueue";
@@ -16,7 +16,15 @@ import { pickVoice, toBcp47 } from "../utils/speech";
  * hundred ms, so this is generous. */
 const SPEAK_START_TIMEOUT_MS = 1500;
 
-function createSpeechSynthesisSpeaker(getLang: () => string): SpeechCueSpeaker {
+interface SpeechSynthesisSpeaker extends SpeechCueSpeaker {
+  /** Keep spoken language in sync with the UI without recreating the queue. */
+  setLang(lang: string): void;
+}
+
+function createSpeechSynthesisSpeaker(initialLang: string): SpeechSynthesisSpeaker {
+  // Plain closed-over variable (not a React ref) so speak() can read the latest
+  // language without triggering React Compiler's "no refs during render" rules.
+  let lang = initialLang;
   let active: SpeechSynthesisUtterance | null = null;
   let watchdogId: number | null = null;
 
@@ -28,12 +36,17 @@ function createSpeechSynthesisSpeaker(getLang: () => string): SpeechCueSpeaker {
   }
 
   return {
+    setLang(next) {
+      lang = next;
+    },
     speak(text, onDone) {
-      const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
-      if (!synth) {
+      if (typeof window === "undefined" || !window.speechSynthesis) {
         onDone();
         return;
       }
+      // Capture after the guard -- nested callbacks (watchdog) would otherwise see
+      // `synth` as possibly undefined under TypeScript's control-flow rules.
+      const synth: SpeechSynthesis = window.speechSynthesis;
 
       let settled = false;
       let started = false;
@@ -49,7 +62,7 @@ function createSpeechSynthesisSpeaker(getLang: () => string): SpeechCueSpeaker {
 
       const buildUtterance = () => {
         const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = getLang();
+        utter.lang = toBcp47(lang);
         // Set a CONCRETE voice, not just the lang tag -- lang-only silently produces
         // no sound on some setups (see utils/speech.ts). Falls back to lang-only if
         // no matching voice is installed (e.g. ms-MY on most machines).
@@ -139,15 +152,11 @@ export function useSpeechCues(): SpeechCues {
   const { audioCues } = usePreferences();
   const { i18n } = useTranslation();
 
-  // Always reflects the CURRENT language for the speaker's lazy `getLang()` call,
-  // without needing to recreate the queue (and lose its throttle state) on a
-  // mid-session language change.
-  const langRef = useRef(i18n.language);
-  langRef.current = i18n.language;
-
-  const queue = useMemo(() => {
-    const speaker = createSpeechSynthesisSpeaker(() => toBcp47(langRef.current));
-    return new SpeechCueQueue({
+  // Created once per mount via useState lazy init (React Compiler-safe). Language
+  // stays in sync through speaker.setLang -- no refs read/written during render.
+  const [bundle] = useState(() => {
+    const speaker = createSpeechSynthesisSpeaker(i18n.language);
+    const queue = new SpeechCueQueue({
       speaker,
       // Real-browser workaround for the speak()-right-after-cancel() Chrome bug
       // (see SpeechCueQueue's doc) -- only used when genuinely interrupting active
@@ -156,14 +165,16 @@ export function useSpeechCues(): SpeechCues {
         window.setTimeout(fn, 0);
       },
     });
-    // Deliberately created once per mount -- see the langRef above for how it stays
-    // in sync with language changes without a recreate.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return { speaker, queue };
+  });
 
   useEffect(() => {
-    queue.setEnabled(audioCues);
-  }, [queue, audioCues]);
+    bundle.speaker.setLang(i18n.language);
+  }, [bundle.speaker, i18n.language]);
+
+  useEffect(() => {
+    bundle.queue.setEnabled(audioCues);
+  }, [bundle.queue, audioCues]);
 
   // Deliberately NOT cancelled on unmount. Every page navigates away right after its
   // "session complete" cue fires (finish -> sessionService.end() -> nav to /report),
@@ -173,13 +184,11 @@ export function useSpeechCues(): SpeechCues {
   // effects already behave (nothing pauses them on unmount either). An ABANDONED
   // session (the Cancel button) must still stop speech immediately -- that's `stop()`
   // below, called explicitly from each page's handleCancel, not left to unmount.
-  return useMemo(
-    () => ({
-      speakSession: (key: string, text: string) =>
-        queue.enqueue({ key, text, category: "session" }),
-      speakFault: (key: string, text: string) => queue.enqueue({ key, text, category: "fault" }),
-      stop: () => queue.clear(),
-    }),
-    [queue],
-  );
+  return {
+    speakSession: (key: string, text: string) =>
+      bundle.queue.enqueue({ key, text, category: "session" }),
+    speakFault: (key: string, text: string) =>
+      bundle.queue.enqueue({ key, text, category: "fault" }),
+    stop: () => bundle.queue.clear(),
+  };
 }

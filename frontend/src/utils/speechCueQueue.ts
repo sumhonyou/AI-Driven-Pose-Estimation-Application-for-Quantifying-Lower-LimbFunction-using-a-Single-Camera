@@ -13,7 +13,9 @@
 //     after another -- never capped to just the first/primary. Throttled per-KEY only
 //     (e.g. the same standing fault tag) so a fault that keeps re-firing every frame
 //     isn't repeated faster than `faultThrottleMs`; a genuinely different key is never
-//     dropped by this throttle.
+//     dropped by this throttle. (throttle means don't repeat the same cue within a certain time period)
+
+// This define the queue logic
 export type SpeechCueCategory = "session" | "fault";
 
 export interface SpeechCue {
@@ -80,7 +82,7 @@ export class SpeechCueQueue {
     this.speaking = false;
     this.speaker.cancel();
   }
-
+ // Add a new spoken cue into the system
   enqueue(cue: SpeechCue): void {
     if (!this.enabled) return;
 
@@ -110,6 +112,8 @@ export class SpeechCueQueue {
     this.pump();
   }
 
+  // Start speaking the next cue in the queue, if nothing is currently speaking. 
+  // When one finishes, it calls itself again to play the next one.
   private pump(): void {
     if (this.speaking || this.queue.length === 0) return;
     const cue = this.queue.shift();
