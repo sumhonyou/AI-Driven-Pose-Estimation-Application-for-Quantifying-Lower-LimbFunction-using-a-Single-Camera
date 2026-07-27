@@ -49,7 +49,8 @@ const en = {
     audioCuesOff: "Voice cues off",
   },
   landing: {
-    title: "Quantify lower-limb function with",
+    titleLead: "Quantify",
+    titleRest: "lower-limb function with",
     titleHl: "just your webcam",
     lead: "PhysioFit turns your camera into a movement-quality coach. Run a guided check and get a clear Good / Fair / Poor score, plus progress you can track over time.",
     ctaPrimary: "Start a free check",

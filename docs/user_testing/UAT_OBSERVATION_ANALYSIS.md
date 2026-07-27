@@ -10,7 +10,7 @@ convention already used in `UAT_REMEDIATION_SUMMARY.md` (e.g. "12/18 sessions").
 standard approach for qualitative UAT free-text (see `TESTING_PROTOCOL.md` §5, "themes
 coded from free text"). A few raw notes were ambiguous or partially garbled in the
 original; where the intended meaning was not fully certain, the rephrased version is
-marked _(interpreted)_ rather than silently resolved.
+marked *(interpreted)* rather than silently resolved.
 
 **Sessions, numbered for cross-reference:**
 S1 Yuffy · S2 Joddy · S3 Natalie · S4 Zoe · S5 Chloe · S6 Sia Jia Le · S7 Cleve ·
@@ -18,6 +18,8 @@ S8 Jasmine · S9 Tony · S10 Dad · S11 Mom · S12 Tung · S13 Jiayi + 1 friend 
 S15 Daphne & Chow Ern · S16 Harry · S17 Angel · S18 Aniq & Jihan
 
 ---
+
+
 
 ## Part 1 — Rephrased Observation Notes
 
@@ -31,18 +33,21 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - The reminder feature should ask whether to add the reminder to a calendar right after it's created.
 - Suggested adding social/gamification features — adding friends and a leaderboard.
 
+
+
 ### S2 — Joddy
 
 - Instructions need to be clearer.
 - Instructions are too long.
 - Pictures used in the instructions could be nicer.
 - SLS: the threshold/lift-line indicator is not obvious.
-- _(interpreted)_ During the deliberate error tests, the below-threshold behaviour and the ball/circle error behaviour performed as expected.
+- *(interpreted)* During the deliberate error tests, the below-threshold behaviour and the ball/circle error behaviour performed as expected.
 - WBLT: instructions are not clear enough — the participant did not realise they needed to adjust the camera.
 - Prefers a video demonstration over the current instruction format.
 - Squat: the live feedback text is too small, and it's unclear what "side" (view) means.
-- When wearing shoes, the heel-lift error triggered incorrectly — the system could not capture the foot properly.
 - The error tags were confusing; the green colour looked like "no error" rather than a real issue.
+
+
 
 ### S3 — Natalie
 
@@ -56,10 +61,12 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - The post-session report should explain every metric.
 - SLS: the live feedback should show the threshold/bar level more clearly — the current feedback is not enough.
 - WBLT has too much text.
-- Squat: wants more explanation of _why_ an error occurred, shown live during the session, not just afterward.
+- Squat: wants more explanation of *why* an error occurred, shown live during the session, not just afterward.
 - Squat: noticed the ML prediction and the confidence score are effectively the same number shown twice.
 - On the Progress page, the different colours used for common error tags (squat) were confusing.
 - The "add to calendar" prompt should pop up automatically when a reminder is scheduled.
+
+
 
 ### S4 — Zoe
 
@@ -74,14 +81,15 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - SLS: did not realise the hold had started.
 - SLS: did not understand the purpose of the stability ball; suggested adding an instruction for it and positioning the ball centrally.
 - Was not aware that 45 seconds is the hold time limit.
-- Squat: the heel-rise error kept triggering.
 - Could not see the feedback text at all.
-- _(interpreted)_ Unclear what the different colours are meant to signify for the error tags.
-- Liked the error tags for being short and colour-coded. _(positive)_
+- *(interpreted)* Unclear what the different colours are meant to signify for the error tags.
+- Liked the error tags for being short and colour-coded. *(positive)*
 - Suggested an additional progress chart showing a more concrete per-session metric (e.g. seconds per rep) instead of just the score.
 - The sort order of the trend data was confusing.
 - Suggested adding a font-size increase/decrease control.
 - The logo is not visible in dark theme.
+
+
 
 ### S5 — Chloe
 
@@ -100,7 +108,6 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - Squat: camera setup should not auto-start, because the user then thinks the next stage is starting.
 - Suggested a video thumbnail instead of an autoplaying video.
 - In the post-session report, the "movement improvement" section should be more readable; the pass-mark detail is secondary and could be dropped.
-- Believes the AI-rewritten coaching feedback's safety filter needs adjusting, since it kept falling back to the template.
 - The Progress page also needs term explanations placed beside metrics.
 - Functional Checking mode provides too little information overall.
 - Reminders: the user thought opening/selecting a reminder marked it complete; no due-reminder notification banner was shown.
@@ -111,6 +118,8 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - The toggle/dropdown arrow should change direction so its open/closed state is understandable.
 - Spacing between a toggle control and the dashboard content is too tight.
 - The "New session" item shows no visible outline when clicked/focused.
+
+
 
 ### S6 — Sia Jia Le
 
@@ -130,54 +139,60 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - The "compare to last session" information is of secondary importance.
 - Suggested designing the progress chart like iPhone's screen-time usage graph — date only when zoomed out, date and time only when zoomed in.
 - Commented on the number shown in the capture-quality trend (implying it was unclear or unhelpful).
-- Overall the UI is clean. _(positive)_
+- Overall the UI is clean. *(positive)*
+
+
 
 ### S7 — Cleve
 
 - Did not realise the camera position needed to be adjusted to fit inside the frame.
 - Tends to watch the demo video only, so written instructions get ignored.
-- Sit-to-Stand and Single-Leg Stance were both fine overall. _(positive)_
+- Sit-to-Stand and Single-Leg Stance were both fine overall. *(positive)*
 - Suggested attaching a reference picture for camera placement.
-- Tested creating a reminder with an attached exercise and confirmed it correctly navigated to that exercise. _(positive/confirmation)_
-- Overall user experience is good. _(positive)_
-- WBLT: the heel-rise was detected correctly. _(positive/confirmation)_
+- Tested creating a reminder with an attached exercise and confirmed it correctly navigated to that exercise. *(positive/confirmation)*
+- Overall user experience is good. *(positive)*
+
+
 
 ### S8 — Jasmine
 
 - The "not clinical advice" disclaimer needs to be more obvious.
 - Wants metric explanations on the dashboard.
-- The recent-sessions table on the dashboard is good. _(positive)_
+- The recent-sessions table on the dashboard is good. *(positive)*
 - STS: feedback text too small; rep count not visible; unsure when the session started.
 - Prefers a longer countdown before the session starts.
-- Prefers video demonstrations. _(duplicate theme)_
-- WBLT results could be presented in a table; heel-rise detection worked correctly.
+- Prefers video demonstrations. *(duplicate theme)*
+- WBLT results could be presented in a table; 
 - Squat: the wording describing body position relative to the camera was confusing.
 - Squat needs a maximum time/rep limit — unclear what happens with a very high rep count.
-- Squat: the heel-rise error kept triggering even in good form; hypothesised it was because both legs were being detected/averaged.
 - Terms are not understood and need explanation.
-- _(interpreted)_ The displayed count (rep/attempt number) was not clearly well presented.
+- *(interpreted)* The displayed count (rep/attempt number) was not clearly well presented.
 - Wants more detail shown for rep volume.
-- The common error tags give a useful at-a-glance view. _(positive)_
+- The common error tags give a useful at-a-glance view. *(positive)*
 - Wants a custom date option when scheduling reminders.
-- Reminders are otherwise all good. _(positive)_
+- Reminders are otherwise all good. *(positive)*
+
+
 
 ### S9 — Tony
 
-- Understood the dashboard. _(positive)_
-- Noted the rep count and angle displayed for STS. _(observation)_
-- Feedback was easy to reference. _(positive)_
+- Understood the dashboard. *(positive)*
+- Noted the rep count and angle displayed for STS. *(observation)*
+- Feedback was easy to reference. *(positive)*
 - On camera setup, could not find/see the "Watch Demo" option.
 - Suggested offering either a manual button or auto-start as a choice.
 - SLS: unclear which leg ("right leg") should be lifted.
 - Suggested drawing a visible line in the camera view showing the required lift height.
-- WBLT camera placement and instructions were understood. _(positive)_
+- WBLT camera placement and instructions were understood. *(positive)*
 - Wants explanation before/while testing, in general.
-- Squat overall was okay. _(positive)_
+- Squat overall was okay. *(positive)*
 - The score-trend chart needs a Y-axis label.
 - Suggested placing the log-out button under Profile.
 - Suggested Functional Checking's progress trend should also show an error-tag-style chart, like Rehab Grading has.
 - The capture-quality trend chart is confusing, including its hover behaviour.
 - The "repeats: once" recurrence chip does not wrap properly; reminder times should be sorted.
+
+
 
 ### S10 — Dad
 
@@ -193,34 +208,40 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - Instinctively looked for a "Start Session" button.
 - Squat: unclear which way to face the camera (followed the video instead); the rep-target goal was not obviously displayed and was overlooked.
 - Feature request: Progressive Web App (installable app) support.
-- Considers the reminder feature valuable. _(positive)_
+- Considers the reminder feature valuable. *(positive)*
 - Did not understand the band-distribution chart.
 - Considers the capture-quality trend useless.
 - The reminder-scheduling form should clarify which fields are required.
 - A newly created reminder should be highlighted; wants a "created time" column, sortable by both created time and scheduled time.
 
+
+
 ### S11 — Mom
 
-- Dashboard overall is fine. _(positive)_
+- Dashboard overall is fine. *(positive)*
 - STS: did not know a chair was required; feedback text too small; suggested the fixed 5-rep count could be made longer/adjustable.
 - SLS: unclear which leg to start with.
-- WBLT camera placement was understood. _(positive)_
+- WBLT camera placement was understood. *(positive)*
 - No comment on Squat.
 - Generally unsure how to perform the exercises; suggested a tutorial session for the future.
 - The AI-generated coaching feedback is only in English, not the other supported languages.
-- Progress trend overall is fine. _(positive)_
+- Progress trend overall is fine. *(positive)*
+
+
 
 ### S12 — Tung
 
 - Dashboard needs some explanation.
 - Error-tag colours on the dashboard need a legend explaining what each colour means.
-- Was aware in advance that a chair was needed. _(positive/neutral — contrasts with S11)_
+- Was aware in advance that a chair was needed. *(positive/neutral — contrasts with S11)*
 - Suggested placing a small reference video alongside the live session view.
 - Needs explanation, in general.
 - Suggested an audio cue should play when an error/wrong rep occurs.
 - Error-tag colours are confusing and need explanation.
 - Wants a reference exercise video available during the live session.
 - Considers the capture-quality information unnecessary.
+
+
 
 ### S13 — Jiayi + 1 friend
 
@@ -241,6 +262,8 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - Reminder: the exercise name was missing from the exported Google Calendar event.
 - The home page feels generic/unpolished ("vibe coded").
 
+
+
 ### S14 — Wenchi
 
 - The home page has too much text.
@@ -253,10 +276,12 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - SLS: wants all instructions consolidated onto a single page, since they could not see them otherwise.
 - Suggested adding a picture showing which side to face the camera.
 - Suggested adding a reference view of the exercise during the live session, plus a tutorial.
-- WBLT overall is fine. _(positive)_
+- WBLT overall is fine. *(positive)*
 - Squat: did not notice the angle number — only noticed the feedback text and rep number.
 - Considers the ML prediction and confidence in the report unimportant/redundant.
 - Feature request: streak tracking.
+
+
 
 ### S15 — Daphne & Chow Ern
 
@@ -267,11 +292,11 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - Suggested adding tempo/pacing music to help follow the STS rhythm.
 - Suggested rewording "vs last session" to "compare to last session" for clarity.
 - Prefers video demonstrations.
-- Understood that the camera needed adjusting. _(positive — contrasts with several other sessions)_
+- Understood that the camera needed adjusting. *(positive — contrasts with several other sessions)*
 - SLS: wants a reference photo shown before the session starts, explaining the ball and the threshold.
 - Suggested being able to do a Functional Check after Rehab Grading, to see whether functional performance has improved.
 - WBLT: wants the demo video to match the exact required camera angle.
-- Squat: after a few attempts, learned how to adjust the camera correctly. _(observation — learning curve, not a persistent block)_
+- Squat: after a few attempts, learned how to adjust the camera correctly. *(observation — learning curve, not a persistent block)*
 - Suggested changing the 0.5-point scoring increments to a percentage format.
 - The error tags' green colour was confusing (looked like "no error").
 - Suggested colour-coding the coaching-feedback panel green and the error-tags panel red.
@@ -285,6 +310,8 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - The "mark complete" tick in reminders should be more flexible.
 - Reminders should automatically be marked complete once the associated exercise is finished.
 
+
+
 ### S16 — Harry
 
 - Was not aware of the non-medical-advice disclaimer.
@@ -293,10 +320,12 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - Wants explanations on metrics stating which direction is better (e.g. "a higher degree is better").
 - SLS: as soon as camera setup appeared satisfied, the session started immediately — felt too abrupt.
 - Wants a "why this exercise" explanation describing its purpose and benefit.
-- WBLT camera placement was understood. _(positive)_
+- WBLT camera placement was understood. *(positive)*
 - Squat: questioned whether both legs are properly detected, and whether a wider stance is required to register as a squat; also, report generation takes a long time.
 - Suggested an AI-generated summary of the progress trend, and that Functional Checking should show the same three graphs as Rehab Grading for every option.
 - Wants a calendar-add pop-up when creating a reminder.
+
+
 
 ### S17 — Angel
 
@@ -308,12 +337,14 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - Report metrics need descriptions.
 - SLS: assumed that lifting the leg would automatically start the hold/timer.
 - WBLT: the positioning guidance was confusing on the first attempt.
-- Deliberately tested leaning too far forward during squats (error-scenario test). _(observation/confirmation)_
+- Deliberately tested leaning too far forward during squats (error-scenario test). *(observation/confirmation)*
 - Could not read the feedback or the angle display — mainly relied on the rep count.
-- Progress page was informative and understandable. _(positive)_
+- Progress page was informative and understandable. *(positive)*
 - The error-tag colour coding is confusing.
-- Reminders are all good. _(positive)_
+- Reminders are all good. *(positive)*
 - Suggested rewording all status labels throughout the app.
+
+
 
 ### S18 — Aniq & Jihan
 
@@ -328,15 +359,18 @@ Meaning preserved from the original notes; wording cleaned up into complete sent
 - The live-feedback panel does not use the full available page space.
 - Suggested this flow: instructions first, then camera setup, then start the session.
 - Created a reminder but could not find it afterward in the list; assumed it would automatically sync to Google Calendar.
-- The current reminder button/action is fine, but in future wants the ability to add to an _existing_ calendar event by pressing on it too.
+- The current reminder button/action is fine, but in future wants the ability to add to an *existing* calendar event by pressing on it too.
 
 ---
+
+
 
 ## Part 2 — Categorized Issues and Frequency
 
 Grouped by area. **Count = number of sessions (out of 18) that raised the issue.**
 
 ### A. Home Page / Non-Diagnostic Disclaimer
+
 
 | Issue                                                 | Sessions         | Count    |
 | ----------------------------------------------------- | ---------------- | -------- |
@@ -345,7 +379,11 @@ Grouped by area. **Count = number of sessions (out of 18) that raised the issue.
 | Home page feels generic/unpolished                    | S13              | 1/18     |
 | Home page logo/branding not prominent enough          | S15              | 1/18     |
 
+
+
+
 ### B. Instructions and Camera Setup Flow
+
 
 | Issue                                                                         | Sessions             | Count    |
 | ----------------------------------------------------------------------------- | -------------------- | -------- |
@@ -359,7 +397,11 @@ Grouped by area. **Count = number of sessions (out of 18) that raised the issue.
 | Camera setup: unclear whether requirements are satisfied before auto-redirect | S10                  | 1/18     |
 | Demo video not discoverable ("Watch Demo")                                    | S9                   | 1/18     |
 
+
+
+
 ### C. Auto-Start / Session-Start Behaviour
+
 
 | Issue                                                   | Sessions        | Count    |
 | ------------------------------------------------------- | --------------- | -------- |
@@ -368,14 +410,22 @@ Grouped by area. **Count = number of sessions (out of 18) that raised the issue.
 | Auto-start confusing about what stage is beginning      | S5, S6, S17     | 3/18     |
 | Auto-start triggers too easily / feels too abrupt       | S3, S16         | 2/18     |
 
+
+
+
 ### D. Live Feedback Readability (cross-exercise)
+
 
 | Issue                                                    | Sessions                                    | Count     |
 | -------------------------------------------------------- | ------------------------------------------- | --------- |
 | **Live feedback text/font too small to read**            | S2, S3, S5, S6, S8, S10, S11, S14, S17, S18 | **10/18** |
 | Live feedback panel underutilises available screen space | S18                                         | 1/18      |
 
+
+
+
 ### E. Sit-to-Stand (STS)
+
 
 | Issue                                                             | Sessions | Count |
 | ----------------------------------------------------------------- | -------- | ----- |
@@ -385,7 +435,11 @@ Grouped by area. **Count = number of sessions (out of 18) that raised the issue.
 | No countdown before recording starts                              | S15      | 1/18  |
 | Wants a prominent visual confirmation when a valid rep is counted | S14      | 1/18  |
 
+
+
+
 ### F. Single-Leg Stance (SLS)
+
 
 | Issue                                                                        | Sessions                  | Count    |
 | ---------------------------------------------------------------------------- | ------------------------- | -------- |
@@ -397,16 +451,22 @@ Grouped by area. **Count = number of sessions (out of 18) that raised the issue.
 | Per-leg result presentation confusing (wants a summary)                      | S6                        | 1/18     |
 | Unclear that the timer starts on crossing the threshold, not on elapsed time | S18                       | 1/18     |
 
+
+
+
 ### G. Weight-Bearing Lunge Test (WBLT)
+
 
 | Issue                                                 | Sessions | Count |
 | ----------------------------------------------------- | -------- | ----- |
 | Positioning/view guidance confusing                   | S5, S17  | 2/18  |
 | Reference video should match the exact required angle | S15      | 1/18  |
 
-_(WBLT wording length and camera-adjustment confusion are counted under areas B/D above, since those sessions raised them as general points that happened to occur during WBLT.)_
+
+*(WBLT wording length and camera-adjustment confusion are counted under areas B/D above, since those sessions raised them as general points that happened to occur during WBLT.)*
 
 ### H. Squat
+
 
 | Issue                                                                              | Sessions        | Count    |
 | ---------------------------------------------------------------------------------- | --------------- | -------- |
@@ -416,10 +476,14 @@ _(WBLT wording length and camera-adjustment confusion are counted under areas B/
 | Live feedback too small / unclear what "side" view means                           | S2              | 1/18     |
 | Rep-target goal not obviously displayed                                            | S10             | 1/18     |
 | No maximum time/rep cap — unclear behaviour for long sets                          | S8              | 1/18     |
-| Wants explanation of _why_ an error occurred, live (not only after)                | S3              | 1/18     |
+| Wants explanation of *why* an error occurred, live (not only after)                | S3              | 1/18     |
 | Report generation takes a long time                                                | S16             | 1/18     |
 
+
+
+
 ### I. Report / Scoring
+
 
 | Issue                                                        | Sessions                                          | Count     |
 | ------------------------------------------------------------ | ------------------------------------------------- | --------- |
@@ -435,7 +499,11 @@ _(WBLT wording length and camera-adjustment confusion are counted under areas B/
 | Back button missing on report page                           | S6                                                | 1/18      |
 | "Valid reps" hard to see from typical exercising distance    | S5                                                | 1/18      |
 
+
+
+
 ### J. Error Tags / Colour Semantics
+
 
 | Issue                                                               | Sessions              | Count    |
 | ------------------------------------------------------------------- | --------------------- | -------- |
@@ -445,7 +513,11 @@ _(WBLT wording length and camera-adjustment confusion are counted under areas B/
 | Wants per-exercise filter on the dashboard error-tags panel         | S14                   | 1/18     |
 | Wants error tags sorted by severity                                 | S15                   | 1/18     |
 
+
+
+
 ### K. Dashboard / Progress
+
 
 | Issue                                                                         | Sessions              | Count    |
 | ----------------------------------------------------------------------------- | --------------------- | -------- |
@@ -463,7 +535,11 @@ _(WBLT wording length and camera-adjustment confusion are counted under areas B/
 | Dashboard heading line-spacing issue                                          | S5                    | 1/18     |
 | Dashboard exercise cards could include images                                 | S17                   | 1/18     |
 
+
+
+
 ### L. Navigation / General UI
+
 
 | Issue                                                                  | Sessions | Count |
 | ---------------------------------------------------------------------- | -------- | ----- |
@@ -481,7 +557,11 @@ _(WBLT wording length and camera-adjustment confusion are counted under areas B/
 | General request to reword status labels throughout the app             | S17      | 1/18  |
 | Log-out button requested under Profile                                 | S9       | 1/18  |
 
+
+
+
 ### M. Reminders
+
 
 | Issue                                                          | Sessions         | Count    |
 | -------------------------------------------------------------- | ---------------- | -------- |
@@ -499,7 +579,11 @@ _(WBLT wording length and camera-adjustment confusion are counted under areas B/
 | Wants custom/flexible reminder date options                    | S8               | 1/18     |
 | Wants the ability to add to an existing calendar event         | S18              | 1/18     |
 
+
+
+
 ### N. Feature Requests (forward-looking, not defects)
+
 
 | Issue                                                               | Sessions                | Count    |
 | ------------------------------------------------------------------- | ----------------------- | -------- |
@@ -517,24 +601,32 @@ _(WBLT wording length and camera-adjustment confusion are counted under areas B/
 | Cross-module comparison (test functional performance after rehab)   | S15                     | 1/18     |
 | AI-generated progress summary                                       | S16                     | 1/18     |
 
+
+
+
 ### Positive / confirmed-working observations (not issues)
 
 For completeness — these are not problems, but are part of the honest record:
 
 - STS and SLS "all good" (S7); WBLT camera placement understood (S9, S11, S16); Squat
-  "overall okay" (S9); overall UX/UI described as good or clean (S6, S7).
+"overall okay" (S9); overall UX/UI described as good or clean (S6, S7).
 - Reminder-to-exercise deep link tested and confirmed working (S7).
 - WBLT heel-lift detection confirmed firing correctly (S7, S8).
 - Error tags liked for being short and colour-coded (S4); common error tags liked as an
-  at-a-glance view (S8); Progress page called informative and understandable (S17);
-  recent-sessions table on dashboard liked (S8); dashboard understood without difficulty
-  (S9); reminders "all good" (S8, S17); progress trend "overall okay" (S11).
+at-a-glance view (S8); Progress page called informative and understandable (S17);
+recent-sessions table on dashboard liked (S8); dashboard understood without difficulty
+(S9); reminders "all good" (S8, S17); progress trend "overall okay" (S11).
 
 ---
 
+
+
 ## Part 3 — Development Status (cross-referenced against `UAT_REMEDIATION_SUMMARY.md`)
 
+
+
 ### 3a. Addressed
+
 
 | Issue (from Part 2)                                     | Count        | Fix stage              | Note                                                                                                                                                             |
 | ------------------------------------------------------- | ------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -575,7 +667,11 @@ For completeness — these are not problems, but are part of the honest record:
 | SLS per-leg result presentation confusing               | 1/18         | **R8**                 | Folded into the broader SLS overhaul                                                                                                                             |
 | Wants error tags sorted by severity                     | 1/18         | **already true — R11** | Tags are ranked by severity as part of R11's redesign                                                                                                            |
 
+
+
+
 ### 3b. Not addressed / future work
+
 
 | Issue (from Part 2)                                                   | Count | Status                                                                                                                                                                                      |
 | --------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -586,7 +682,7 @@ For completeness — these are not problems, but are part of the honest record:
 | Missing back button — Profile                                         | 1/18  | Not found addressed in R1–R14                                                                                                                                                               |
 | Missing back button — Reminders                                       | 1/18  | Not found addressed in R1–R14                                                                                                                                                               |
 | PWA (installable app) support                                         | 1/18  | Not addressed                                                                                                                                                                               |
-| Streak tracking                                                       | 1/18  | **Explicitly not built** — R14 in fact _removed_ a misleading UI element that implied a streak feature existed                                                                              |
+| Streak tracking                                                       | 1/18  | **Explicitly not built** — R14 in fact *removed* a misleading UI element that implied a streak feature existed                                                                              |
 | Gamification (friends / leaderboard)                                  | 1/18  | Not addressed                                                                                                                                                                               |
 | Tempo/pacing music                                                    | 1/18  | Not addressed                                                                                                                                                                               |
 | Gesture-based session start                                           | 1/18  | Not addressed                                                                                                                                                                               |
@@ -632,25 +728,31 @@ For completeness — these are not problems, but are part of the honest record:
 | Reword all status labels app-wide                                     | 1/18  | Not addressed                                                                                                                                                                               |
 | Home page too wordy / feels generic / logo not prominent              | 3/18  | Not addressed                                                                                                                                                                               |
 
+
+
+
 ---
+
+
 
 ## Summary for Chapter 4.7
 
 - **Highest-frequency issues** (candidates for the report's headline findings table):
-  live feedback text too small (10/18), metrics/terminology unexplained (11/18),
-  capture-quality trend confusing (5/18), error-tag colour semantics (5/18), audio
-  feedback requests (5/18), SLS lift-line not obvious (6/18), SLS stability-ball
-  confusion (5/18), squat heel-rise false positive (4/18).
+live feedback text too small (10/18), metrics/terminology unexplained (11/18),
+capture-quality trend confusing (5/18), error-tag colour semantics (5/18), audio
+feedback requests (5/18), SLS lift-line not obvious (6/18), SLS stability-ball
+confusion (5/18), squat heel-rise false positive (4/18).
 - Of these, **every single one above 4/18 was addressed** by a Phase 10 stage —
-  strong evidence for Project Goal 5 ("≥3 improvements based on findings"), several
-  times over.
+strong evidence for Project Goal 5 ("≥3 improvements based on findings"), several
+times over.
 - The **squat heel-rise false positive (R1)** is the standout finding: two independent
-  sessions (S8, S16) correctly guessed the technical root cause (bilateral leg
-  averaging) before the code was even inspected — worth quoting directly in the report
-  as evidence of a genuine, non-trivial defect only surfaced by real users.
+sessions (S8, S16) correctly guessed the technical root cause (bilateral leg
+averaging) before the code was even inspected — worth quoting directly in the report
+as evidence of a genuine, non-trivial defect only surfaced by real users.
 - The **"not addressed" list is long but mostly low-frequency (1/18) individual
-  feature requests** — appropriate material for Chapter 5's Future Work, not evidence
-  against the remediation effort. The exceptions worth naming explicitly as scope
-  decisions (not oversights) in Chapter 5: AI feedback being English-only, the fixed
-  STS rep count, and the deliberately-descoped items (log-out placement, dark-theme
-  logo, streak tracking, Session-History back button).
+feature requests** — appropriate material for Chapter 5's Future Work, not evidence
+against the remediation effort. The exceptions worth naming explicitly as scope
+decisions (not oversights) in Chapter 5: AI feedback being English-only, the fixed
+STS rep count, and the deliberately-descoped items (log-out placement, dark-theme
+logo, streak tracking, Session-History back button).
+
