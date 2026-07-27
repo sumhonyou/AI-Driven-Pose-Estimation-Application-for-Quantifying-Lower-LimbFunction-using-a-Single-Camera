@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { CSSProperties } from "react";
 import { Disclaimer } from "../components/Controls";
 import PoseFigure from "../components/PoseFigure";
 import {
@@ -18,50 +17,8 @@ import slsImage from "../assets/exercise type/Single Leg Stance pic.png";
 import wbltImage from "../assets/exercise type/WBLT.png";
 import squatImage from "../assets/exercise type/Squat.png";
 
-/** Word-safe char spans for hover wave (no mid-word line breaks) */
-function WaveChars({ text, offset = 0 }: { text: string; offset?: number }) {
-  let i = offset;
-  const parts = text.split(/(\s+)/);
-  return (
-    <>
-      {parts.map((part, pi) => {
-        if (/^\s+$/.test(part)) {
-          i += part.length;
-          return (
-            <span key={`sp-${pi}`} className="lp-title-space">
-              {"\u00A0".repeat(part.length)}
-            </span>
-          );
-        }
-        const start = i;
-        i += part.length;
-        return (
-          <span key={`w-${pi}`} className="lp-title-word">
-            {[...part].map((ch, ci) => (
-              <span
-                key={ci}
-                className="lp-title-char"
-                style={{ "--i": start + ci } as CSSProperties}
-              >
-                {ch}
-              </span>
-            ))}
-          </span>
-        );
-      })}
-    </>
-  );
-}
-
 export default function Landing() {
   const { t } = useTranslation();
-
-  const titleLead = t("landing.titleLead");
-  const titleRest = t("landing.titleRest");
-  const titleHl = t("landing.titleHl");
-  const titleFull = `${titleLead} ${titleRest} ${titleHl}`;
-  const restOffset = titleLead.length + 1;
-  const hlOffset = restOffset + titleRest.length + 1;
 
   const checksA = [
     { img: stsImage, b: t("landing.s2sName"), s: t("landing.s2sMeta") },
@@ -86,19 +43,10 @@ export default function Landing() {
       <header className="lp-hero">
         <div className="wrap lp-hero-grid">
           <div className="lp-hero-copy">
-            {/* Inter 700/500 contrast; emerald accent on key phrase; wave on hover */}
-            <h1 className="reveal lp-title" aria-label={titleFull}>
-              <span className="lp-title-visual" aria-hidden="true">
-                <span className="lp-title-heavy">
-                  <WaveChars text={titleLead} />
-                </span>{" "}
-                <span className="lp-title-light">
-                  <WaveChars text={titleRest} offset={restOffset} />
-                </span>{" "}
-                <span className="lp-title-heavy lp-title-hl">
-                  <WaveChars text={titleHl} offset={hlOffset} />
-                </span>
-              </span>
+            <h1 className="reveal lp-title">
+              <span className="lp-title-line">{t("landing.titleLine1")}</span>
+              <span className="lp-title-line">{t("landing.titleLine2")}</span>
+              <span className="lp-title-hl">{t("landing.titleHl")}</span>
             </h1>
             <p className="lp-lead reveal">{t("landing.lead")}</p>
             <div className="lp-cta-row reveal">

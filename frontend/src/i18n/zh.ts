@@ -46,9 +46,9 @@ const zh: Dict = {
     audioCuesOff: "语音提示已关闭",
   },
   landing: {
-    titleLead: "量化",
-    titleRest: "下肢功能",
-    titleHl: "用你的摄像头",
+    titleLine1: "用你的摄像头",
+    titleLine2: "量化",
+    titleHl: "下肢功能",
     lead: "PhysioFit 将摄像头变成动作质量教练。完成引导式检测，获得清晰的「良好 / 一般 / 欠佳」评分，并长期追踪进步。",
     ctaPrimary: "免费开始检测",
     ctaSecondary: "了解使用方法",

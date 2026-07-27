@@ -48,8 +48,8 @@ const ms: Dict = {
     audioCuesOff: "Isyarat suara dimatikan",
   },
   landing: {
-    titleLead: "Ukur",
-    titleRest: "fungsi anggota bawah dengan",
+    titleLine1: "Ukur fungsi anggota",
+    titleLine2: "bawah dengan",
     titleHl: "kamera web anda sahaja",
     lead: "PhysioFit menjadikan kamera anda sebagai jurulatih kualiti pergerakan. Jalankan semakan berpandu dan dapatkan skor Baik / Sederhana / Lemah yang jelas, serta kemajuan yang boleh dijejak.",
     ctaPrimary: "Mula semakan percuma",
