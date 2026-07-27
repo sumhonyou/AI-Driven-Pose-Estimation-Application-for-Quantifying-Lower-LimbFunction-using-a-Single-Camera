@@ -226,6 +226,13 @@ export const Trash = (p: P) => (
   </svg>
 );
 
+export const LogOut = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <path d="M16 17l5-5-5-5M21 12H9" />
+  </svg>
+);
+
 export const Volume2 = (p: P) => (
   <svg {...base(p)}>
     <path d="M4 9v6h4l5 5V4L8 9H4z" />

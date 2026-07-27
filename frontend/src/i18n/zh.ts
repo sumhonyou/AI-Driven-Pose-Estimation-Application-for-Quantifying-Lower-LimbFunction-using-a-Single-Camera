@@ -582,6 +582,8 @@ const zh: Dict = {
     freq_mwf: "周一 · 周三 · 周五",
     freq_weekly: "每周",
     save: "保存提醒",
+    titleRequired: "请输入提醒标题。",
+    whenRequired: "请选择日期和时间。",
     createError: "无法保存此提醒，请重试。",
     createdTitle: "提醒已保存",
     createdAddToCalendar: "想在 PhysioFit 之外也收到提示吗？把它加入你的日历。",

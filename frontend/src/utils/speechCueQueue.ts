@@ -87,11 +87,6 @@ export class SpeechCueQueue {
     if (!this.enabled) return;
 
     if (cue.category === "session") {
-      // Only cancel (and defer the follow-up speak) when there is actually
-      // something active to interrupt -- the common case is a FRESH queue with
-      // nothing speaking/queued (e.g. every session's very first "Starting" cue),
-      // and calling cancel() there is not just unnecessary but actively harmful:
-      // see scheduleAfterCancel's doc above.
       const wasActive = this.speaking || this.queue.length > 0;
       this.queue = [cue];
       this.speaking = false;

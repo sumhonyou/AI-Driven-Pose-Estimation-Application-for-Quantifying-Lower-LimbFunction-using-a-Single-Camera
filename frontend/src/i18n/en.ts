@@ -630,6 +630,8 @@ const en = {
     freq_mwf: "Mon · Wed · Fri",
     freq_weekly: "Weekly",
     save: "Save reminder",
+    titleRequired: "Please enter a reminder title.",
+    whenRequired: "Please choose a date and time.",
     createError: "Could not save this reminder. Please try again.",
     createdTitle: "Reminder saved",
     createdAddToCalendar: "Want a heads-up outside PhysioFit too? Add it to your calendar.",

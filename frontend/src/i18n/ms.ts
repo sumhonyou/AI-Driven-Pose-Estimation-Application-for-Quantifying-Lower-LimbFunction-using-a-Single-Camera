@@ -613,6 +613,8 @@ const ms: Dict = {
     freq_mwf: "Isn · Rab · Jum",
     freq_weekly: "Mingguan",
     save: "Simpan peringatan",
+    titleRequired: "Sila masukkan tajuk peringatan.",
+    whenRequired: "Sila pilih tarikh dan masa.",
     createError: "Tidak dapat menyimpan peringatan ini. Sila cuba lagi.",
     createdTitle: "Peringatan disimpan",
     createdAddToCalendar:

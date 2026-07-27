@@ -45,21 +45,11 @@ function isCompletedVisible(r: Reminder) {
   return done.toDateString() === now.toDateString();
 }
 
-/** Due first, then newest-created; completed items sink to the bottom.
- *
- * UAT remediation (Stage R13): the tiebreak used to be soonest-scheduled-time,
- * which buried a reminder just created for next week behind everything due
- * sooner (S15/S18: "just made this, can't find it"). Newest-created-first
- * puts a fresh reminder right after the due ones, every time.
- */
+/** Newest-created first so a just-added reminder always lands at the top. */
 function sortReminders(list: Reminder[]) {
-  return [...list].sort((a, b) => {
-    const aDone = isCompletedVisible(a) ? 1 : 0;
-    const bDone = isCompletedVisible(b) ? 1 : 0;
-    if (aDone !== bDone) return aDone - bDone;
-    if (a.is_due !== b.is_due) return a.is_due ? -1 : 1;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+  return [...list].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
 }
 
 // datetime-local inputs want "YYYY-MM-DDTHH:mm" in *local* time, with no
@@ -86,6 +76,10 @@ function ReminderFormModal({
   const [exerciseCode, setExerciseCode] = useState(NO_EXERCISE);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [titleError, setTitleError] = useState("");
+  const [whenError, setWhenError] = useState("");
+  const [invalid, setInvalid] = useState({ title: false, when: false });
+  const [shaking, setShaking] = useState(false);
   // UAT remediation (Stage R13): "auto-prompt add to calendar on creation" --
   // rather than closing immediately on save, the same modal switches to a
   // calendar-prompt view for the reminder that was just created. `onCreated()`
@@ -98,11 +92,31 @@ function ReminderFormModal({
     ...exercises.map((e) => ({ value: e.code, label: e.name })),
   ];
 
+  const triggerShake = () => {
+    setShaking(false);
+    requestAnimationFrame(() => {
+      setShaking(true);
+      window.setTimeout(() => setShaking(false), 450);
+    });
+  };
+
+  const inputClass = (field: "title" | "when") =>
+    "input" + (invalid[field] ? " input-error" : "") + (invalid[field] && shaking ? " shake" : "");
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!title.trim() || !when) return;
-    setSubmitting(true);
+    const titleOk = Boolean(title.trim());
+    const whenOk = Boolean(when);
+    setTitleError(titleOk ? "" : t("reminders.titleRequired"));
+    setWhenError(whenOk ? "" : t("reminders.whenRequired"));
+    setInvalid({ title: !titleOk, when: !whenOk });
     setError("");
+    if (!titleOk || !whenOk) {
+      triggerShake();
+      console.log("[reminders] create blocked: missing required fields");
+      return;
+    }
+    setSubmitting(true);
     try {
       const reminder = await reminderService.create({
         title: title.trim(),
@@ -110,6 +124,7 @@ function ReminderFormModal({
         frequency,
         exercise_code: exerciseCode || null,
       });
+      console.log("[reminders] created", reminder.id);
       onCreated();
       setCreated(reminder);
     } catch {
@@ -169,24 +184,50 @@ function ReminderFormModal({
             <label htmlFor="rem-title">{t("reminders.fieldTitle")}</label>
             <input
               id="rem-title"
-              className="input"
+              className={inputClass("title")}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (invalid.title) {
+                  setTitleError("");
+                  setInvalid((prev) => ({ ...prev, title: false }));
+                }
+              }}
               placeholder={t("reminders.fieldTitlePh")}
-              required
+              aria-invalid={invalid.title || undefined}
+              aria-describedby={titleError ? "rem-title-error" : undefined}
             />
+            {titleError && (
+              <p className="field-error" id="rem-title-error">
+                <Alert />
+                {titleError}
+              </p>
+            )}
           </div>
           <div className="field-row">
             <div className="field">
               <label htmlFor="rem-when">{t("reminders.fieldWhen")}</label>
               <input
                 id="rem-when"
-                className="input"
+                className={inputClass("when")}
                 type="datetime-local"
                 value={when}
-                onChange={(e) => setWhen(e.target.value)}
-                required
+                onChange={(e) => {
+                  setWhen(e.target.value);
+                  if (invalid.when) {
+                    setWhenError("");
+                    setInvalid((prev) => ({ ...prev, when: false }));
+                  }
+                }}
+                aria-invalid={invalid.when || undefined}
+                aria-describedby={whenError ? "rem-when-error" : undefined}
               />
+              {whenError && (
+                <p className="field-error" id="rem-when-error">
+                  <Alert />
+                  {whenError}
+                </p>
+              )}
             </div>
             <div className="field">
               <label htmlFor="rem-freq">{t("reminders.fieldFrequency")}</label>

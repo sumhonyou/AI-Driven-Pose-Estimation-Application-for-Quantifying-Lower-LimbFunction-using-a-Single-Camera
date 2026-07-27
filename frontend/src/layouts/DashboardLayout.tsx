@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { NavLink, Outlet, useLocation, Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Logo, ThemeToggle, FontSizeControl, LanguageSwitcher } from "../components/Controls";
@@ -14,6 +15,8 @@ import {
   Menu,
   Close,
   ArrowLeft,
+  ArrowRight,
+  LogOut,
 } from "../components/Icons";
 import { useReveal } from "../useReveal";
 import { useAuth } from "../auth";
@@ -120,6 +123,7 @@ function DashboardLayoutInner() {
   const nav = useNavigate();
   const { logout } = useAuth();
   const { dueCount } = useReminders();
+  const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   useReveal([pathname]);
@@ -136,6 +140,14 @@ function DashboardLayoutInner() {
     pathname.startsWith(path),
   );
 
+  const toggleIconMotion = reduceMotion
+    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } }
+    : {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+      };
+
   return (
     <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
       {open && <div className="scrim" onClick={close} />}
@@ -149,11 +161,17 @@ function DashboardLayoutInner() {
             aria-pressed={collapsed}
             title="Toggle sidebar"
           >
-            {/* UAT remediation (Stage R14): the collapse state used to show an
-                X (Close), which reads as "dismiss" rather than "shrink this
-                panel" -- a plain two-stroke left arrow is the conventional
-                sidebar-collapse glyph. */}
-            {collapsed ? <Menu /> : <ArrowLeft />}
+            {/* Expanded ← collapse; collapsed → expand. Crossfade keeps the swap smooth. */}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={collapsed ? "expand" : "collapse"}
+                className="sidebar-toggle-icon"
+                {...toggleIconMotion}
+                transition={{ duration: reduceMotion ? 0 : 0.18 }}
+              >
+                {collapsed ? <ArrowRight /> : <ArrowLeft />}
+              </motion.span>
+            </AnimatePresence>
           </button>
         </div>
         <div className="side-group">{t("dash.sideOverview")}</div>
@@ -206,14 +224,14 @@ function DashboardLayoutInner() {
           </NavLink>
         </nav>
         <div className="side-foot">
-          {/* UAT remediation: the "Daily check due" card was a hardcoded, always-
-              on prompt that named a fixed exercise (Sit-to-Stand) and implied a
-              streak feature that doesn't exist (see task.md's "Form streak --
-              documented, not built" future-work note) -- misleading regardless
-              of what's actually due. Removed per HY; the real due-reminder
-              banner (DueReminderBanner above) already covers this. */}
-          <button className="btn btn-ghost btn-block" onClick={handleLogout}>
-            {t("auth.logout")}
+          {/* Expanded: full text button. Collapsed: icon-only so logout stays reachable. */}
+          <button
+            className={"btn btn-ghost" + (collapsed ? " btn-icon side-logout-icon" : " btn-block")}
+            onClick={handleLogout}
+            aria-label={t("auth.logout")}
+            title={t("auth.logout")}
+          >
+            {collapsed ? <LogOut /> : t("auth.logout")}
           </button>
         </div>
       </aside>

@@ -2232,6 +2232,11 @@ html[data-theme="dark"] .disclaimer svg {
   color: var(--accent-text);
   transform: translateY(-1px);
 }
+.sidebar-toggle-icon {
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
 .sidebar-toggle svg {
   width: 18px;
   height: 18px;
@@ -2346,9 +2351,30 @@ html[data-theme="dark"] .disclaimer svg {
   display: none;
 }
 .app.sidebar-collapsed .side-group,
-.app.sidebar-collapsed .side-foot,
 .app.sidebar-collapsed .nav-label {
   display: none;
+}
+.app.sidebar-collapsed .side-foot {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding-top: 12px;
+}
+.app.sidebar-collapsed .side-logout-icon {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 14px;
+  border: 1.5px solid transparent;
+  color: var(--text-2);
+}
+.app.sidebar-collapsed .side-logout-icon:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.app.sidebar-collapsed .side-logout-icon svg {
+  width: 19px;
+  height: 19px;
 }
 .app.sidebar-collapsed .side-nav {
   display: flex;
