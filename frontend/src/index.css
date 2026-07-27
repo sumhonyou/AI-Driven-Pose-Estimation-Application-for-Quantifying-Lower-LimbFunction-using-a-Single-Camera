@@ -829,20 +829,23 @@ html[data-theme="dark"] .band.poor {
 .hero h1 .hl {
   color: var(--emerald);
   position: relative;
+  z-index: 0;
+  isolation: isolate;
   white-space: nowrap;
   display: inline-block;
-  padding-bottom: 0.08em;
+  padding-bottom: 0.02em;
 }
-/* Soft ink underline (draws in) instead of neon marker bar */
+/* Soft marker bar behind highlight text (draws in on reveal) */
 .hero h1 .hl::after {
   content: "";
   position: absolute;
-  left: 0;
-  bottom: 0.02em;
-  height: 0.12em;
-  width: 100%;
-  background: color-mix(in srgb, var(--emerald) 55%, transparent);
+  z-index: -1;
+  left: -0.06em;
+  bottom: 0.1em;
+  width: calc(100% + 0.12em);
+  height: 0.38em;
   border-radius: 999px;
+  background: color-mix(in srgb, var(--emerald) 22%, var(--lime) 10%);
   transform-origin: left center;
   transform: scaleX(0);
 }
@@ -861,7 +864,7 @@ html[data-theme="dark"] .hero h1 .hl {
   color: var(--lime);
 }
 html[data-theme="dark"] .hero h1 .hl::after {
-  background: color-mix(in srgb, var(--lime) 45%, transparent);
+  background: color-mix(in srgb, var(--lime) 26%, transparent);
 }
 .hero p.lead {
   font-size: clamp(1.03rem, 1.5vw, 1.19rem);
@@ -5715,17 +5718,20 @@ html[data-theme="dark"] .ex-card .ex-img {
   display: block;
   color: var(--emerald);
   position: relative;
-  padding-bottom: 0.06em;
+  z-index: 0;
+  isolation: isolate;
+  padding-bottom: 0.02em;
 }
 .lp-title-hl::after {
   content: "";
   position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 100%;
-  height: 0.11em;
+  z-index: -1;
+  left: -0.06em;
+  bottom: 0.1em;
+  width: calc(100% + 0.12em);
+  height: 0.2em;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--emerald) 50%, transparent);
+  background: color-mix(in srgb, var(--emerald) 22%, var(--lime) 10%);
   transform-origin: left center;
   transform: scaleX(0);
 }
@@ -5741,7 +5747,7 @@ html[data-theme="dark"] .lp-title-hl {
   color: var(--lime);
 }
 html[data-theme="dark"] .lp-title-hl::after {
-  background: color-mix(in srgb, var(--lime) 42%, transparent);
+  background: color-mix(in srgb, var(--lime) 26%, transparent);
 }
 
 .lp-lead {

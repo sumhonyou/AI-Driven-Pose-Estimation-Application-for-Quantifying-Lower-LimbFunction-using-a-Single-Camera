@@ -46,7 +46,7 @@ export default function Landing() {
             <h1 className="reveal lp-title">
               <span className="lp-title-line">{t("landing.titleLine1")}</span>
               <span className="lp-title-line">{t("landing.titleLine2")}</span>
-              <span className="lp-title-hl">{t("landing.titleHl")}</span>
+              <span className="lp-title-hl hl">{t("landing.titleHl")}</span>
             </h1>
             <p className="lp-lead reveal">{t("landing.lead")}</p>
             <div className="lp-cta-row reveal">
