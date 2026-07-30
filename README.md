@@ -278,6 +278,3 @@ This project's Module B (rehabilitation grading) is trained and evaluated on the
 
   Černek, A., Sedmidubsky, J., Budikova, P., Jánošová, M., Katzer, L., & Procházka, M. (2024). _REHAB24-6: A multi-modal dataset of physical rehabilitation exercises_ (Version 1) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.13305826
 
-- **EC3D** — <https://arxiv.org/abs/2208.03257>
-
-  Zhao, Z., Kiciroglu, S., Vinzant, H., Cheng, Y., Katircioglu, I., Salzmann, M., & Fua, P. (2022). 3D pose based feedback for physical exercises. In _Proceedings of the Asian Conference on Computer Vision_ (pp. 1316–1332). https://doi.org/10.48550/arXiv.2208.03257
