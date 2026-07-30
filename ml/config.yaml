@@ -10,7 +10,7 @@ dataset_paths:
     joints_names_txt: /Users/sumhonyou/fypDataset/joints_names.txt
     joints_3d_dir: /Users/sumhonyou/fypDataset/3d_joints
   ec3d:
-    pickle_path: /Users/sumhonyou/fypDataset/data_3D.pickle
+    pickle_path: /Users/sumhonyou/fypDataset/data_3D.pickle # not using anymore
 
 # Same pose model asset the frontend self-hosts (X3) — set in Stage 5.2, path recorded
 # here now so every downstream script reads it from one place.
