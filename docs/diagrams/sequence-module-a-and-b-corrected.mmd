@@ -1,0 +1,110 @@
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: "Arial, Helvetica, sans-serif"
+    fontSize: "14px"
+    primaryColor: "#ffffff"
+    primaryTextColor: "#111111"
+    primaryBorderColor: "#222222"
+    lineColor: "#222222"
+    actorBkg: "#ffffff"
+    actorBorder: "#222222"
+    signalColor: "#222222"
+    signalTextColor: "#111111"
+    labelBoxBkgColor: "#dceeff"
+    labelBoxBorderColor: "#222222"
+    noteBkgColor: "#fff1bd"
+    noteBorderColor: "#222222"
+    activationBkgColor: "#dceeff"
+    activationBorderColor: "#222222"
+---
+sequenceDiagram
+  accTitle: Corrected sequence diagram covering Module A and Module B
+  accDescr: Shows both exercise families with activation bars and lifeline termination marks. MediaPipe pose estimation runs entirely in the browser for both. Module A makes real backend calls during the session, once per rep boundary or per leg. Module B posts the whole buffered set once at the end.
+
+  actor User
+  participant FE as Frontend UI (React)
+  participant MP as MediaPipe Pose (in-browser)
+  participant BE as Backend API (FastAPI)
+  participant LLM as LLM API (Groq, Module B only)
+  participant DB as PostgreSQL
+
+  User->>+FE: Select mode + exercise type
+  FE->>+BE: POST /api/sessions/start
+  BE->>+DB: Insert sessions row (status=in_progress)
+  DB-->>-BE: OK
+  BE-->>-FE: session_id
+  FE-->>-User: Show instructions, then camera setup
+
+  User->>+FE: Grant camera access
+  FE->>+MP: Start webcam frames
+  loop Every animation frame
+    MP-->>FE: Pose landmarks + world landmarks
+    FE->>FE: Local capture-quality check, overlay render
+  end
+  Note over MP,FE: Raw video never leaves the browser.<br/>Only numeric landmarks are held in memory.
+  FE-->>-User: Live camera preview ready
+
+  rect rgb(243, 249, 239)
+  Note over FE,DB: MODULE A — Sit-to-Stand / SLS / WBLT (rule-based)
+  User->>FE: Perform rep / hold (STS, SLS, WBLT)
+  FE->>FE: Local rep/hold FSM (UX-only live estimate)
+  loop STS: once per detected rep boundary — SLS/WBLT: once per completed leg
+    FE->>BE: POST /api/module-a/analyze — or /sls/analyze or /wblt/analyze
+    activate BE
+    BE->>BE: Deterministic geometry/FSM engine
+    alt Set or leg not finished yet
+      BE->>FE: Live progress result — NOT persisted
+      FE->>User: Update on-screen progress/cue
+    else Target reached or last leg
+      BE->>+DB: Persist module_a_results — plus embedded warning tags
+      DB-->>-BE: OK
+      BE->>FE: Final result — persisted true
+    end
+    deactivate BE
+  end
+  FE->>+BE: POST /api/sessions/{id}/end
+  BE->>+DB: Update sessions row (status=completed)
+  DB-->>-BE: OK
+  BE-->>-FE: OK
+  end
+
+  rect rgb(255, 241, 228)
+  Note over FE,DB: MODULE B — Squat (hybrid rule + ML)
+  User->>FE: Perform squat reps
+  FE->>FE: Local rep FSM plus client-side fault-gate preview — cosmetic only, never sent to backend
+  User->>+FE: Tap Finish Set — or auto-finish at rep goal
+  FE->>+BE: POST /api/module-b/analyze — ONE call for the whole set
+  BE->>BE: Registry dispatch to squat plugin
+  BE->>BE: Rep segmentation FSM plus 13-feature extraction per rep
+  BE->>BE: Rule sub-scores — ROM / Tempo / Stability
+  BE->>BE: Extra Trees model scores every rep — P Good
+  BE->>BE: Fusion w_rule=0 w_ml=1 plus fault-gate override → per-rep verdict
+  BE->>BE: Majority vote → set band — binary Good / Needs Improvement
+  BE->>BE: Compose deterministic feedback template
+  opt LLM rewrite enabled
+    BE->>+LLM: Structured feedback — band score tags, no raw video or PII
+    destroy LLM
+    LLM-->>-BE: Rewritten coaching text
+    BE->>BE: Safety filter — reject if grade band score or tags changed
+  end
+  BE->>+DB: Persist module_b_results, module_b_error_tags, feedback_texts
+  DB-->>-BE: OK
+  BE-->>-FE: Full report response
+  FE->>+BE: POST /api/sessions/{id}/end
+  BE->>+DB: Update sessions row (status=completed)
+  DB-->>-BE: OK
+  BE-->>-FE: OK
+  FE-->>-User: Set complete, navigating to report
+  end
+
+  User->>+FE: Open report
+  FE->>+BE: GET /api/module-a/... or /api/module-b/results/{id}
+  BE->>+DB: Read stored snapshot (never recomputed)
+  destroy DB
+  DB-->>-BE: Report data
+  BE-->>-FE: Report data
+  destroy MP
+  MP-->>-FE: Camera stream stopped
+  FE-->>-User: Display report + update Dashboard/Progress

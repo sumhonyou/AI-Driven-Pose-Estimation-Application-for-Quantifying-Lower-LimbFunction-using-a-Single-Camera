@@ -1,0 +1,135 @@
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: "Arial, Helvetica, sans-serif"
+    fontSize: "14px"
+    primaryColor: "#ffffff"
+    primaryTextColor: "#111111"
+    primaryBorderColor: "#222222"
+    lineColor: "#222222"
+    attributeBackgroundColorOdd: "#ffffff"
+    attributeBackgroundColorEven: "#f7f7f7"
+---
+erDiagram
+  users {
+    uuid id PK
+    varchar email UK "unique, indexed"
+    text password_hash
+    varchar full_name "nullable"
+    text avatar_image "nullable, base64 URL"
+  }
+
+  user_profiles {
+    uuid id PK
+    uuid user_id FK "users.id, UNIQUE, cascade"
+    int exact_age "nullable, WBLT age bands"
+    varchar gender "nullable"
+    numeric height_cm "nullable"
+    numeric weight_kg "nullable"
+    varchar user_type "nullable"
+    varchar focus_area "nullable"
+    text self_reported_note "nullable"
+  }
+
+  exercise_catalog {
+    uuid id PK
+    varchar code UK "unique, indexed"
+    varchar name
+    varchar mode "functional_check / rehab"
+    text description "nullable"
+    varchar view_guidance "side or front view"
+    boolean is_active "false retires, never deletes"
+  }
+
+  sessions {
+    uuid id PK
+    uuid user_id FK "users.id, cascade"
+    uuid exercise_id FK "exercise_catalog.id"
+    varchar mode
+    varchar exercise_type
+    timestamptz started_at
+    timestamptz ended_at "NULL until session ends"
+    varchar status "in_progress/completed/cancelled"
+    numeric capture_quality "nullable"
+    numeric valid_frame_ratio "nullable"
+    numeric score "denormalised"
+    varchar band "denormalised"
+    int rep_count "unused by SLS and WBLT"
+    int target_rep_count "user rep goal"
+    text device_info "nullable"
+  }
+
+  reminders {
+    uuid id PK
+    uuid user_id FK "users.id, cascade"
+    varchar title
+    timestamptz reminder_time
+    varchar frequency "once, daily, mwf, weekly"
+    boolean is_active
+    varchar exercise_code "nullable, NOT a FK"
+    timestamptz last_completed_at "nullable"
+  }
+
+  module_a_results {
+    uuid id PK
+    uuid session_id FK "sessions.id, UNIQUE, cascade"
+    numeric completion_time_sec "nullable - STS"
+    numeric hold_duration_sec "nullable - SLS"
+    int rep_count "nullable"
+    numeric score "nullable"
+    varchar rom_band "nullable"
+    numeric stability_proxy "nullable"
+    numeric sway_proxy "nullable"
+    numeric symmetry_proxy "nullable"
+    numeric trunk_lean_proxy "nullable"
+    varchar final_band "required"
+    varchar confidence_level "nullable"
+    jsonb metrics_json "metrics plus warning_tags"
+    varchar session_status "nullable"
+    boolean is_partial_score
+  }
+
+  module_b_results {
+    uuid id PK
+    uuid session_id FK "sessions.id, UNIQUE, cascade"
+    varchar exercise_code "indexed"
+    numeric score "nullable"
+    varchar band "Good or Needs Improvement"
+    numeric confidence "nullable"
+    varchar model_version "nullable"
+    varchar feature_schema_version "nullable"
+    numeric q "capture quality at grading"
+    jsonb metrics_json "sub-scores, features, per-rep"
+  }
+
+  module_b_error_tags {
+    uuid id PK
+    uuid session_id FK "sessions.id, cascade, indexed"
+    varchar tag
+    varchar severity "nullable"
+    varchar source "rule, model or system"
+    text message "nullable"
+  }
+
+  feedback_texts {
+    uuid id PK
+    uuid session_id FK "sessions.id, UNIQUE, cascade"
+    text structured_feedback "nullable"
+    text rewritten_feedback "nullable"
+    varchar feedback_source "required: llm or template"
+    boolean llm_attempted "default false"
+    varchar provider "nullable"
+    varchar model_version "nullable"
+    varchar fallback_reason "diagnostic only"
+    varchar disclaimer_version "nullable"
+  }
+
+  users ||--|| user_profiles : "has"
+  users ||--o{ sessions : "performs"
+  users ||--o{ reminders : "sets"
+  exercise_catalog ||--o{ sessions : "categorises"
+  sessions ||--o| module_a_results : "produces Module A"
+  sessions ||--o| module_b_results : "produces Module B"
+  sessions ||--o{ module_b_error_tags : "flags"
+  sessions ||--o| feedback_texts : "has"

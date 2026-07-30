@@ -1,0 +1,89 @@
+---
+config:
+  theme: base
+  flowchart:
+    curve: stepAfter
+    htmlLabels: true
+    nodeSpacing: 28
+    rankSpacing: 50
+    padding: 14
+  themeVariables:
+    fontFamily: "Arial, Helvetica, sans-serif"
+    fontSize: "15px"
+    primaryColor: "#ffffff"
+    primaryTextColor: "#111111"
+    primaryBorderColor: "#222222"
+    lineColor: "#222222"
+    clusterBkg: "#ffffff"
+    clusterBorder: "#222222"
+    edgeLabelBackground: "#ffffff"
+---
+
+flowchart LR
+  accTitle: Current high-level system workflow
+  accDescr: The user selects Functional Checking or Rehab Grading. Both modes use browser webcam capture and MediaPipe world landmarks. Functional Checking uses rule-based metrics. Rehab Grading combines local live cues with after-set backend rules and machine learning. Both flows store session results and feed progress views.
+
+  MODE{"User selects<br/>mode"}
+
+  subgraph SHARED["Shared Browser Capture"]
+    direction LR
+    CAMERA["Webcam"]
+    MEDIAPIPE["MediaPipe Pose<br/>(world landmarks)"]
+    QUALITY["Capture-quality checks<br/>and local guidance"]
+    BUFFER["Numeric landmark buffer<br/>(raw video stays in browser)"]
+
+    CAMERA --> MEDIAPIPE --> QUALITY --> BUFFER
+  end
+
+  subgraph REHAB["Rehab Grading"]
+    direction LR
+    R_LIVE["Immediate live cues<br/>(local browser estimates)"]
+    R_PREP["After-set preprocessing<br/>(filter, gap fill, smoothing)"]
+    R_ANALYSIS["Repetition analysis<br/>(segmentation, features,<br/>rules and per-rep ML)"]
+    R_GRADE["Set grading<br/>(aggregation, score,<br/>band and error tags)"]
+    R_FEEDBACK["Feedback generation<br/>(safe template and optional<br/>LLM rewrite with fallback)"]
+    R_REPORT["Post-session report"]
+
+    R_LIVE --> R_PREP --> R_ANALYSIS --> R_GRADE --> R_FEEDBACK --> R_REPORT
+  end
+
+  subgraph FUNCTIONAL["Functional Checking"]
+    direction LR
+    F_EVENT["Exercise event detection<br/>(rep / hold / trial)"]
+    F_RULES["Exercise-specific<br/>rule-based quantification"]
+    F_METRICS["Metrics<br/><br/>Time / repetitions · Stability / sway<br/>ROM / distance · Symmetry"]
+    F_BAND["Score and banding"]
+    F_OUTPUT["Session and<br/>trend summaries"]
+
+    F_EVENT --> F_RULES --> F_METRICS --> F_BAND --> F_OUTPUT
+  end
+
+  API["FastAPI Backend API"]
+  subgraph RESULTS["Shared Results and Progress"]
+    direction TB
+    DATABASE[("PostgreSQL Database<br/>(session results and feedback)")]
+    DASHBOARD["Dashboard · Progress<br/>Session History"]
+  end
+
+  MODE --> CAMERA
+  BUFFER -->|"Functional Checking"| F_EVENT
+  BUFFER -->|"Rehab Grading"| R_LIVE
+  F_OUTPUT --> API
+  R_REPORT --> API
+  API --> DATABASE
+  API --> DASHBOARD
+
+  classDef process fill:#ffffff,stroke:#222222,stroke-width:1.2px,color:#111111;
+  classDef decision fill:#ffffff,stroke:#222222,stroke-width:1.4px,color:#111111;
+  classDef metric fill:#fff1bd,stroke:#222222,stroke-width:1.1px,color:#111111;
+  classDef data fill:#ffffff,stroke:#222222,stroke-width:1.2px,color:#111111;
+
+  class CAMERA,MEDIAPIPE,QUALITY,BUFFER,F_EVENT,F_RULES,F_BAND,F_OUTPUT,R_LIVE,R_PREP,R_ANALYSIS,R_GRADE,R_FEEDBACK,R_REPORT,API,DASHBOARD process;
+  class MODE decision;
+  class F_METRICS metric;
+  class DATABASE data;
+
+  style SHARED fill:#dceeff,stroke:#222222,stroke-width:1.2px,color:#111111
+  style FUNCTIONAL fill:#f3f9ef,stroke:#222222,stroke-width:1.2px,color:#111111
+  style REHAB fill:#fff1e4,stroke:#222222,stroke-width:1.2px,color:#111111
+  style RESULTS fill:#f7f7f7,stroke:#222222,stroke-width:1.2px,color:#111111

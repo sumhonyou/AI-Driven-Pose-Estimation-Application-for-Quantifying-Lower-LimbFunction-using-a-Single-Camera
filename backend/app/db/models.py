@@ -62,8 +62,14 @@ class UserProfile(Base):
     id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True), primary_key=True, default=uuid4
     )
+    # unique: one profile per user. The ORM relationship was always one-to-one and
+    # every write path guards on it, but until this constraint existed the invariant
+    # was enforced only in application code -- the DB would have accepted a 2nd row.
     user_id: Mapped[PyUUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        PgUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
     # Exact age (collected directly at signup, required alongside gender) --
     # the single source of truth wherever an age is needed, including WBLT's
@@ -201,10 +207,14 @@ class ModuleAResult(Base):
     id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True), primary_key=True, default=uuid4
     )
+    # unique: one Module A result per session, matching module_b_results. All three
+    # Module A write paths (core/STS, SLS, WBLT) already upsert via
+    # get_result_by_session, so this codifies an invariant they maintained by hand.
     session_id: Mapped[PyUUID] = mapped_column(
         PgUUID(as_uuid=True),
         ForeignKey("sessions.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
     completion_time_sec: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
     hold_duration_sec: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))

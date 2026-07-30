@@ -256,10 +256,6 @@ def _build_and_save_feedback(
                 rewritten_text = result.text
                 feedback_source = "llm"
                 fallback_reason = "llm_used"
-                # Stage 5.23: the failure/rejection paths above already logged
-                # themselves; without this, a successful rewrite was the one outcome
-                # that printed nothing at all, which read identically to "logging is
-                # broken" from the terminal. Every branch now logs exactly once.
                 logger.info(
                     "module-b feedback llm_used session=%s provider=%s model=%s",
                     session_id,

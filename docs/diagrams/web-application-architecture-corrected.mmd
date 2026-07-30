@@ -1,0 +1,95 @@
+---
+config:
+  theme: base
+  flowchart:
+    curve: stepAfter
+    htmlLabels: true
+    nodeSpacing: 24
+    rankSpacing: 55
+    padding: 14
+  themeVariables:
+    fontFamily: "Arial, Helvetica, sans-serif"
+    fontSize: "14px"
+    primaryColor: "#ffffff"
+    primaryTextColor: "#111111"
+    primaryBorderColor: "#222222"
+    lineColor: "#222222"
+    clusterBkg: "#ffffff"
+    clusterBorder: "#222222"
+    edgeLabelBackground: "#ffffff"
+---
+
+flowchart TB
+  accTitle: Corrected web application architecture
+  accDescr: Three-tier client-server architecture. MediaPipe Pose runs in the browser tier, not the backend. The browser sends only numeric landmarks and features to the backend, never raw video. The backend fuses rule-based and ML scoring and optionally calls a third-party LLM API after a set ends. PostgreSQL stores only derived results.
+
+  subgraph CLIENT["User Browser (Frontend UI) — React + TypeScript + Tailwind"]
+    direction TB
+    PAGES["Pages: Login/Register, Mode &amp; Exercise Selection,<br/>Instructions, Camera Setup, Live Session (STS/SLS/WBLT/Squat),<br/>Report, History, Progress, Dashboard, Reminders, Profile"]
+    CAM["Webcam capture<br/>(MediaDevices API)"]
+    MP["MediaPipe Pose<br/>(@mediapipe/tasks-vision, runs on-device)<br/>Raw video never leaves the browser"]
+    LOCALFSM["Local live estimators<br/>(rep/hold FSM, capture-quality check,<br/>UX-only preview — never persisted)"]
+    BUFFER["Landmark/feature buffer<br/>(world landmarks: x, y, z, visibility)"]
+
+    PAGES --> CAM --> MP --> LOCALFSM
+    MP --> BUFFER
+  end
+
+  subgraph BACKEND["FastAPI Backend API — REST, JWT auth"]
+    direction TB
+    AUTH["Auth module<br/>(JWT bearer, bcrypt)"]
+    SESS["Session manager<br/>(start / end / cancel)"]
+    ROUTE["Exercise router<br/>Module A: per-exercise routers<br/>Module B: plugin registry (exercise_code)"]
+    RULE["Rule-based scoring<br/>(Module A: full grading · Module B: sub-scores + fault gates)"]
+    ML["ML inference handler<br/>(Extra Trees classifier, Module B only)"]
+    FUSE["Fusion scoring<br/>(rule + ML → band, Module B only)"]
+    REPORT["Report generator"]
+    LLMCALL["LLM rewrite caller<br/>(after-set only, Module B only)"]
+    DAL["PostgreSQL data access layer"]
+
+    AUTH --- SESS --- ROUTE
+    ROUTE --> RULE --> FUSE
+    ROUTE -.->|"Module B only"| ML --> FUSE
+    FUSE --> REPORT --> LLMCALL
+    REPORT --> DAL
+  end
+
+  subgraph LLM["Third-Party LLM API (Groq, Llama 3.3 70B)"]
+    direction TB
+    LLMSVC["Rewrites structured feedback<br/>into coaching text.<br/>Off-the-shelf hosted inference —<br/>no transformer trained in this project.<br/>Safety filter: cannot change grade/band/score/tags.<br/>Disabled by default; Module B (squat) only."]
+  end
+
+  subgraph DB["PostgreSQL Database"]
+    direction TB
+    T1[("users / user_profiles")]
+    T2[("sessions")]
+    T3[("module_a_results<br/>(rule-based, incl. embedded warning tags)")]
+    T4[("module_b_results")]
+    T5[("module_b_error_tags<br/>(Module B only)")]
+    T6[("feedback_texts<br/>(Module B only)")]
+    T7[("reminders")]
+    T8[("exercise_catalog<br/>(is_active flag; retired exercises kept, not deleted)")]
+  end
+
+  subgraph DEPLOY["Deployment (student-scale, free-tier PaaS)"]
+    direction LR
+    DV["Vercel<br/>(frontend static hosting)"]
+    DR["Render<br/>(FastAPI backend)"]
+    DN["Neon<br/>(managed PostgreSQL)"]
+    DV -.-> DR -.-> DN
+  end
+
+  BUFFER == "POST landmarks + features only<br/>(never raw video)" ==> ROUTE
+  LLMCALL == "structured feedback (JSON)" ==> LLMSVC
+  LLMSVC == "rewritten coaching text" ==> LLMCALL
+  DAL == "store / retrieve" ==> DB
+  BACKEND -. "real-time band / cues<br/>(Module A: per-rep/per-leg; Module B: none — local only)" .-> CLIENT
+
+  classDef tier fill:#ffffff,stroke:#222222,stroke-width:1.2px,color:#111111;
+  class PAGES,CAM,MP,LOCALFSM,BUFFER,AUTH,SESS,ROUTE,RULE,ML,FUSE,REPORT,LLMCALL,DAL,LLMSVC,DV,DR,DN tier;
+
+  style CLIENT fill:#dceeff,stroke:#222222,stroke-width:1.2px,color:#111111
+  style BACKEND fill:#fff1e4,stroke:#222222,stroke-width:1.2px,color:#111111
+  style LLM fill:#ffe0e0,stroke:#222222,stroke-width:1.2px,color:#111111
+  style DB fill:#f0e6ff,stroke:#222222,stroke-width:1.2px,color:#111111
+  style DEPLOY fill:#f7f7f7,stroke:#222222,stroke-width:1.2px,color:#111111
