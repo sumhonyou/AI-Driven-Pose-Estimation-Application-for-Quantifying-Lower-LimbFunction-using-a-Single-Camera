@@ -278,3 +278,12 @@ This project's Module B (rehabilitation grading) is trained and evaluated on the
 
   Černek, A., Sedmidubsky, J., Budikova, P., Jánošová, M., Katzer, L., & Procházka, M. (2024). _REHAB24-6: A multi-modal dataset of physical rehabilitation exercises_ (Version 1) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.13305826
 
+**Running the web app does not require downloading REHAB24-6.** The trained squat model is already committed under `ml/artifacts/`. The derived training feature table used for that model is committed at `ml/data/squat_features.csv` (98 side-view squat repetitions from REHAB24-6, with pose features + Good/Poor labels).
+
+### Retraining Module B (optional)
+
+Only needed if you want to rebuild the squat model from the public dataset:
+
+1. Download **REHAB24-6** from the Zenodo link above and unpack it locally.
+2. Edit `ml/config.yaml` so `dataset_paths.rehab246` points at your local videos / segmentation / joints folders (replace the developer machine paths).
+3. Follow the setup and pipeline steps in [`ml/README.md`](./ml/README.md) (`extract_landmarks.py` → `build_features.py` → `train_squat.py` → `export_squat_model.py`).

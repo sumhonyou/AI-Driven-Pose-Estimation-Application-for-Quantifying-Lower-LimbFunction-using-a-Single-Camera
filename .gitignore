@@ -2,17 +2,21 @@
 .env
 .env.local
 
-# Logs
-development-log.md
-Session_Summary_Log.md
+# Markdown — ignore all .md everywhere; keep README.md only
+*.md
+!README.md
+!**/README.md
 
-# Local research / working docs (not for version control)
-# docs/*
-# !docs/module_b_decisions.md
-
-# Local agent instructions (not for version control)
+# Local agent instructions 
 /AGENTS.md
 /rules.md
+
+# Local AI / agent tooling 
+.agent/
+.claude/
+.codex/
+.cursor/
+.impeccable/
 
 # Python
 __pycache__/
@@ -22,10 +26,10 @@ venv/
 *.egg-info/
 .pytest_cache/
 
-# ml/ — landmarks cache + feature CSVs are regenerable from the dataset, not committed
-# (ml/artifacts/ and ml/reports/ ARE committed — see task.md Stage 5.1)
+# ml/ — regenerable landmarks cache ignored; squat feature table is committed
 ml/data/*
 !ml/data/.gitkeep
+!ml/data/squat_features.csv
 
 # Node
 node_modules/
@@ -36,3 +40,10 @@ dist/
 .idea/
 .vscode/
 .DS_Store
+
+# EC3D validation script — EC3D external check is not compatible with REHAB24-6 training claim
+ml/scripts/validate_ec3d.py
+
+# Local diagram sources / exports (not for version control)
+docs/diagrams/
+

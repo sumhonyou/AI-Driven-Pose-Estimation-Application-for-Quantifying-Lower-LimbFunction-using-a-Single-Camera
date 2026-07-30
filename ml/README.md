@@ -36,17 +36,9 @@ does not replace `backend/requirements.txt` as the FastAPI app's own dependency 
 
 ## macOS / Apple Silicon note (Stage 5.2)
 
-MediaPipe Python's GPU delegate is Ubuntu-only. On macOS it errors. `extract_landmarks.py`
-must use `delegate=CPU` (XNNPACK) — this is the correct and only path here, not a bug to
+MediaPipe Python's GPU delegate is Ubuntu-only. On macOS it errors. `extract_landmarks.py`  
+must use `delegate=CPU` (XNNPACK) — this is the correct and only path here, not a bug to  
 "fix" later.
-
-## Report convention
-
-Every `ml/reports/*.md` file embeds its figures inline
-(`![caption](figures/whatever.png)`), not just links to the folder, so a report reads
-correctly if copied straight into the FYP appendix. All figures go through
-`scripts/plotting.py`'s `save_fig()` — fixed DPI (150), one shared style — no script
-sets its own DPI/style ad hoc.
 
 ## Layout
 
@@ -54,11 +46,35 @@ sets its own DPI/style ad hoc.
 ml/
 ├── config.yaml       # dataset paths (committed), model asset path, seeds
 ├── requirements.txt
-├── docs/              # schema references
 ├── scripts/           # one script per pipeline stage
-├── data/              # gitignored — landmarks cache, feature CSVs (regenerable)
+├── data/
+│   ├── squat_features.csv   # committed — derived training table from REHAB24-6
+│   └── landmarks/           # gitignored — regenerable MediaPipe cache
 ├── artifacts/         # committed — *.joblib, feature_schema.json, label_map.json
 └── reports/
     ├── figures/        # committed — all .png outputs
-    └── *.md            # committed — DATA_AUDIT.md, SQUAT_*_REPORT.md, etc.
 ```
+
+
+
+## Dataset and retraining (optional)
+
+**To run the app you do not need REHAB24-6** — use the committed model in `artifacts/`.
+
+The public source dataset is **REHAB24-6** ([Zenodo](https://zenodo.org/records/13305826)).  
+`data/squat_features.csv` is **not** that raw dataset; it is the feature table this project extracted from REHAB24-6 side-view squat repetitions for training.
+
+To retrain from scratch:
+
+1. Download and unpack REHAB24-6.
+2. Update `config.yaml` → `dataset_paths.rehab246` to your local paths.
+3. From `ml/` (venv activated, backend editable install done — see Setup above), run in order:
+
+```bash
+python scripts/extract_landmarks.py
+python scripts/build_features.py
+python scripts/train_squat.py
+python scripts/export_squat_model.py
+```
+
+Evaluation / calibration scripts (`evaluate_squat.py`, `sweep_fusion_weights.py`, etc.) are optional follow-ups after training.

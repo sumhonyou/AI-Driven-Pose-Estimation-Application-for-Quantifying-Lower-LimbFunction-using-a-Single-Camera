@@ -1,1 +1,0 @@
-1. Can add the based on the age group increase the font size, or just based on user 
