@@ -12,6 +12,7 @@ import {
   Activity,
   ShieldCheck,
 } from "../components/Icons";
+import { FEEDBACK_FORM_URL } from "../config/projectContact";
 import stsImage from "../assets/exercise type/sit to stand.png";
 import slsImage from "../assets/exercise type/Single Leg Stance pic.png";
 import wbltImage from "../assets/exercise type/WBLT.png";
@@ -176,6 +177,24 @@ export default function Landing() {
               </li>
             ))}
           </ol>
+
+          {/* Feedback survey prompt — placed right after the walkthrough, where the
+              visitor now understands what the prototype does. */}
+          <aside className="lp-feedback reveal">
+            <div className="lp-feedback-copy">
+              <h3>{t("landing.feedbackTitle")}</h3>
+              <p>{t("landing.feedbackLead")}</p>
+            </div>
+            <a
+              className="btn btn-ghost lp-feedback-link"
+              href={FEEDBACK_FORM_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t("landing.feedbackCta")}
+              <ArrowRight />
+            </a>
+          </aside>
         </div>
       </section>
 

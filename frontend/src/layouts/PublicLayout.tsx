@@ -3,6 +3,8 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Logo, ThemeToggle, FontSizeControl, LanguageSwitcher } from "../components/Controls";
 import { Menu, Close, ArrowRight } from "../components/Icons";
+import ContactModal from "../components/ContactModal";
+import { FEEDBACK_FORM_URL } from "../config/projectContact";
 import { useReveal } from "../useReveal";
 
 type NavSection = "modules" | "how" | "about" | null;
@@ -151,6 +153,8 @@ export default function PublicLayout() {
 
 function Footer() {
   const { t } = useTranslation();
+  const [contactOpen, setContactOpen] = useState(false);
+
   return (
     <footer className="footer">
       <div className="wrap">
@@ -161,21 +165,22 @@ function Footer() {
           </div>
           <div className="foot-links">
             <div className="foot-col">
-              <b>{t("landing.footProduct")}</b>
+              <b>{t("landing.footExplore")}</b>
               <a href="/#modules">{t("landing.fLink1")}</a>
               <a href="/#modules">{t("landing.fLink2")}</a>
               <a href="/#how">{t("landing.fLink3")}</a>
               <Link to="/dashboard">{t("landing.fLink4")}</Link>
             </div>
             <div className="foot-col">
-              <b>{t("landing.footCompany")}</b>
+              <b>{t("landing.footProject")}</b>
               <Link to="/about">{t("landing.fLink5")}</Link>
-              <a href="/#" onClick={(e) => e.preventDefault()}>
-                {t("landing.fLink7")}
+              <a href={FEEDBACK_FORM_URL} target="_blank" rel="noreferrer">
+                {t("landing.fLink6")}
               </a>
-              <a href="/#" onClick={(e) => e.preventDefault()}>
+              {/* Opens the student + supervisor contact pop-out. */}
+              <button type="button" className="foot-link-btn" onClick={() => setContactOpen(true)}>
                 {t("landing.fLink8")}
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -184,6 +189,7 @@ function Footer() {
           <span>{t("landing.madeFor")}</span>
         </div>
       </div>
+      {contactOpen && <ContactModal onClose={() => setContactOpen(false)} />}
     </footer>
   );
 }

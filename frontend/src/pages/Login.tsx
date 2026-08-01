@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { Alert, Eye, EyeOff, Lock, Mail, User } from "../components/Icons";
 import { ApiError } from "../services/apiClient";
@@ -22,6 +22,8 @@ const MAX_AGE = 120;
 export default function Login() {
   const { t } = useTranslation();
   const nav = useNavigate();
+  const location = useLocation();
+  const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
   const { login, register } = useAuth();
   const reduceMotion = useReducedMotion();
   const emailRef = useRef<HTMLInputElement>(null);
@@ -107,7 +109,7 @@ export default function Login() {
         });
         console.info("Registration successful; navigating to dashboard.");
       }
-      nav("/dashboard");
+      nav(redirectTo || "/dashboard");
     } catch (err) {
       const isBadCredentials = err instanceof ApiError && err.status === 401;
       setFormAlert(

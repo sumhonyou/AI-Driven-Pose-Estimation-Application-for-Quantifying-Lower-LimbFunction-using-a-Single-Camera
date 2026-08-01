@@ -5,10 +5,13 @@ import { ArrowRight } from "../components/Icons";
 import { useReveal } from "../useReveal";
 
 function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false);
+  // Lazy initializer reads the real value on first render instead of defaulting
+  // to false and correcting it via setState in an effect.
+  const [reduced, setReduced] = useState(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
     const onChange = () => setReduced(mq.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
@@ -21,10 +24,7 @@ function useHeroPinProgress(stageRef: React.RefObject<HTMLElement | null>, enabl
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    if (!enabled) {
-      setProgress(0);
-      return;
-    }
+    if (!enabled) return;
     const stage = stageRef.current;
     if (!stage) return;
 
@@ -44,7 +44,10 @@ function useHeroPinProgress(stageRef: React.RefObject<HTMLElement | null>, enabl
     };
   }, [stageRef, enabled]);
 
-  return progress;
+  // Derive rather than setState-in-effect for the disabled case: avoids the
+  // cascading-render lint (react-hooks/no-set-state-in-effect) since the
+  // "reset to 0 when disabled" case doesn't need to touch state at all.
+  return enabled ? progress : 0;
 }
 
 export default function About() {

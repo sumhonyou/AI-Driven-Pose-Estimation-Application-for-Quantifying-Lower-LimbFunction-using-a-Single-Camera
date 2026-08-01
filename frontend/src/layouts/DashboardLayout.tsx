@@ -17,10 +17,12 @@ import {
   ArrowLeft,
   ArrowRight,
   LogOut,
+  MessageSquare,
 } from "../components/Icons";
 import { useReveal } from "../useReveal";
 import { useAuth } from "../auth";
 import { RemindersProvider, useReminders } from "../reminders";
+import { FEEDBACK_FORM_URL } from "../config/projectContact";
 
 const DISMISS_KEY = "physiofit-due-banner-dismissed";
 
@@ -224,6 +226,22 @@ function DashboardLayoutInner() {
           </NavLink>
         </nav>
         <div className="side-foot">
+          {/* Survey prompt, expanded sidebar only -- hidden via CSS when collapsed
+              since there's no room for the copy in icon-only mode. */}
+          <a
+            className="side-feedback-card"
+            href={FEEDBACK_FORM_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span className="side-feedback-icon">
+              <MessageSquare />
+            </span>
+            <span className="side-feedback-text">
+              <b>{t("dash.feedbackCardTitle")}</b>
+              <span>{t("dash.feedbackCardLead")}</span>
+            </span>
+          </a>
           {/* Expanded: full text button. Collapsed: icon-only so logout stays reachable. */}
           <button
             className={"btn btn-ghost" + (collapsed ? " btn-icon side-logout-icon" : " btn-block")}
