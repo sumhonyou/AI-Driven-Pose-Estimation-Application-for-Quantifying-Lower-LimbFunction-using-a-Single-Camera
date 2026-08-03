@@ -4,6 +4,7 @@
 
 # Markdown — ignore all .md everywhere; keep README.md only
 *.md
+*.docx
 !README.md
 !**/README.md
 
