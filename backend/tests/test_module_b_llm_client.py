@@ -1,5 +1,4 @@
-"""Stage 6.4: the Groq adapter -- provider-agnostic client, retry/timeout behaviour,
-and proof that the live/pre-analyze pipeline never reaches it (after-set only)."""
+"""Groq feedback rewrite adapter tests."""
 
 from __future__ import annotations
 

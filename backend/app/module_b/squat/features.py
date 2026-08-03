@@ -19,7 +19,7 @@ from app.module_b.squat.config import SQUAT_CONFIG
 
 
 class RepWithFrames(Protocol):
-    """Minimal Stage 4.2 view of a rep; Stage 4.3's Rep will satisfy this."""
+    """Minimal rep shape required by the squat feature extractor."""
 
     frames: Sequence[Any]
 

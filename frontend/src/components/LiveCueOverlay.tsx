@@ -1,15 +1,6 @@
-// UAT remediation (Stage R4): a full-viewport pop-out for an urgent, corrective live
-// cue (e.g. a rejected rep's reason). Unlike the OPAQUE start/countdown overlays
-// (StartHoldCountdown, StartSetCountdown -- background: var(--bg), fully hides the
-// page), this one reuses the SAME translucent state colours as the persistent
-// live-feedback panel (.live-feedback-panel's rejected/counted/idle backgrounds,
-// borders, and icon treatment -- see index.css), just applied full-page: the camera
-// feed and the HUD's rep counter stay visible underneath while the cue is up, per
-// HY's request. Auto-dismisses after `autoDismissMs` via a visible countdown ring
-// (also closable early). Rendered via a portal so it sits above the whole page,
-// matching the take-over pattern those overlays use -- just translucent instead of
-// opaque, and it never captures clicks outside its own dismiss button, so it can't
-// block anything underneath even while showing.
+// Full-viewport corrective cue that keeps the camera and HUD visible underneath.
+// Rendered in a portal, auto-dismisses with a countdown ring, and only captures its
+// own dismiss button.
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";

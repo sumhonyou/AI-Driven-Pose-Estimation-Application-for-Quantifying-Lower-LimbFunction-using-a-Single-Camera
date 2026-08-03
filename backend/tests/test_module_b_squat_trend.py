@@ -1,4 +1,4 @@
-"""Stage 7.4: squat "vs last session" trend -- no MDC, deltas reported plainly."""
+"""Squat previous-session trend tests."""
 
 import unittest
 
@@ -19,7 +19,7 @@ class SquatTrendTests(unittest.TestCase):
         self.assertEqual(result["previous_band"], "Poor")
 
     def test_no_meaningful_flag_is_ever_present(self):
-        # Explicit guard against inventing an MDC claim for squat (task.md Stage 7.2/7.4).
+        # Explicit guard against inventing an MDC claim for squat.
         current = {"score": 7.5, "band": "Good", "rep_count": 8}
         previous = {"score": 7.4, "band": "Good", "rep_count": 8}
         result = trend.compute_trend(current, previous)

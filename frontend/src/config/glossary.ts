@@ -1,8 +1,5 @@
-// UAT remediation (Stage R10): one shared glossary of app-wide terms, reused by
-// <GlossaryTerm> wherever a metric/label needs an inline definition -- instead of
-// each page inventing its own ad hoc explanation text (T4, the most-repeated
-// content request in UAT). Every definition includes a plain "which direction is
-// better" statement (S16), and stays non-diagnostic (functional language only).
+// Shared glossary for app-wide terms rendered through <GlossaryTerm>.
+// Definitions stay functional, non-diagnostic, and clear about which direction is better.
 export type GlossaryTermId =
   | "rom"
   | "dorsiflexion"

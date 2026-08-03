@@ -1,4 +1,4 @@
-"""Stage 5.4: the `norm_ref` bake-off (R5.3) — trunk_length vs thigh_length.
+"""Compare trunk_length vs thigh_length as the squat normalization reference.
 
 `norm_ref` is the body-size reference the two normalised features
 (`hip_mid_jitter_norm`, `stance_width_norm`) divide by. The better reference is the
@@ -27,11 +27,11 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from build_features import _load_config, _read_segmentation, build_feature_rows
+from plotting import save_fig
 
 # X1: the live config is the thing under test — read and toggled, never copied.
 from app.module_b.squat.config import SQUAT_CONFIG
-from build_features import _load_config, _read_segmentation, build_feature_rows
-from plotting import save_fig
 
 ML_ROOT = Path(__file__).resolve().parent.parent
 REPORT_MD = ML_ROOT / "reports" / "NORM_REF_BAKEOFF.md"

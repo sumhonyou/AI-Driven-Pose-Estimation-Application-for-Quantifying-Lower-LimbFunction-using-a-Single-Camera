@@ -1,4 +1,4 @@
-"""Pure helpers for Stage 7.3 reminders: due-ness, .ics export, Google Calendar link.
+"""Pure helpers for reminder due-ness, .ics export, and Google Calendar links.
 
 Kept separate from the router so the recurrence/date logic is unit-testable with
 plain objects (no DB), matching this project's existing test style (see
@@ -6,9 +6,8 @@ dashboard_service.py). Every function takes a Reminder-shaped object (duck-typed
 needs `.title`, `.reminder_time`, `.frequency`, `.is_active`, `.last_completed_at`,
 `.id`) so tests can pass a SimpleNamespace instead of a real ORM row.
 
-Deliberately no email, no OAuth, no scheduler here (task.md Stage 7.3: "keep it
-simple, do not build scheduling infrastructure") -- the .ics file and Google
-Calendar link hand the actual timed alert off to the user's own calendar app.
+Deliberately no email, OAuth, or scheduler here. The .ics file and Google Calendar link
+hand the actual timed alert off to the user's own calendar app.
 """
 
 from __future__ import annotations
@@ -100,12 +99,8 @@ def _fmt_ics_datetime(value: datetime) -> str:
 def _calendar_title(reminder: Any, exercise_name: str | None) -> str:
     """Event title for both the .ics and Google Calendar link.
 
-    Stage R13 (UAT): a reminder titled e.g. "Evening set" gave no hint which
-    exercise it was for once it landed in the user's own calendar app, away
-    from PhysioFit's own UI. `exercise_name` is resolved by the caller (the
-    router already looks it up for the API response) so this stays a pure
-    string helper -- None for a reminder with no linked exercise, or one whose
-    exercise has since been retired.
+    `exercise_name` is resolved by the caller so this stays a pure string helper. None
+    means a generic reminder or a retired linked exercise.
     """
     return f"{reminder.title} — {exercise_name}" if exercise_name else reminder.title
 

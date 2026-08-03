@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 class SquatExercise(ModuleBExercise):
-    """Squat plugin shell; analysis methods are filled by Stages 4.2-4.5."""
+    """Squat implementation of the generic Module B exercise interface."""
 
     @property
     def code(self) -> str:
@@ -44,16 +44,13 @@ class SquatExercise(ModuleBExercise):
 
     @property
     def band_policy(self) -> dict[str, Any] | None:
-        # Squat commits to a binary Good/Poor verdict (Stage 5.11); every other
-        # exercise leaves this None and keeps the 3-band abstention.
+        # Squat uses binary Good/Poor; exercises without a policy keep 3-band scoring.
         return SQUAT_CONFIG.get("band_policy")
 
     def evaluate_fault_gates(
         self, reps: list[Rep], feature_vectors: list[FeatureVector]
     ) -> FaultGateResult | None:
-        # Stage 5.12: run the depth/lean/heel-rise gates across every rep. Returns
-        # None when no gate block is configured, so the router treats squat exactly
-        # like a gate-less exercise if the config is ever removed.
+        # None means the router treats this like a gate-less exercise.
         gate_config = SQUAT_CONFIG.get("fault_gates")
         if not gate_config:
             return None
@@ -76,8 +73,7 @@ class SquatExercise(ModuleBExercise):
     def build_error_tags(
         self, *, fusion: Any, gate_result: Any, rule_scores: RuleScores
     ) -> list[Any]:
-        # Stage 6.1: one taxonomy owns every squat tag (system flags, fault gates, and
-        # the soft tempo tag). Replaces the old NotImplementedError error_tags() stub.
+        # One taxonomy owns squat system, fault-gate, and soft tempo tags.
         return build_squat_error_tags(
             fusion_flags=fusion.flags,
             gate_result=gate_result,

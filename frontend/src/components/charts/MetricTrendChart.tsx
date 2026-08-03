@@ -11,13 +11,7 @@ import { useTranslation } from "react-i18next";
 import type { TrendPoint } from "../../types/api";
 import { formatShortDate } from "./dashboardChartUtils";
 
-// Stage R12 (UAT): the per-exercise raw-metric trend that replaces the rejected
-// capture-quality trend on the Progress page. One generic line chart drives all
-// three time/distance series -- STS finish + avg-rep time, SLS best hold per leg,
-// WBLT best reach per leg -- since they differ only in which TrendPoint fields
-// they read, their unit, and their labels (rules.md #16: one component, not three
-// near-duplicates). Every series carries an explicit Y-axis unit label and a
-// "Date" X-axis label, and hovering a point reveals each series' exact value.
+// Generic raw-metric trend chart for Progress time and distance series.
 
 export type MetricSeries = {
   // Which TrendPoint field this line plots. Restricted to the numeric series

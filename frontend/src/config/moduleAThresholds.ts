@@ -29,11 +29,8 @@ export const SLS_MAX_HOLD_SEC = 45; // per-leg hold cap (seconds)
 export const SLS_CALIBRATION_SEC = 2.0; // both-feet-planted baseline window
 export const SLS_LIFT_LINE_NORM = 0.15; // lift-line height / stance-leg length
 export const SLS_LIFT_HYSTERESIS_NORM = 0.03; // drop margin below the line
-// UAT remediation (T1, S5 "the lifting too sensitive"): a frame-count dwell made the
-// debounce depend on the browser's actual frame rate (MediaPipe runs via
-// requestAnimationFrame, so real rates vary well past the ~30fps the old 3-frame
-// count assumed). A time-based minimum guarantees a genuine dwell regardless of
-// frame rate. Mirrors backend app/module_a/sls/config.py.
+// Time-based dwell keeps lift/drop debounce stable across different camera frame rates.
+// Mirrors backend app/module_a/sls/config.py.
 export const SLS_LIFT_MIN_DWELL_SEC = 0.15; // min time above line to confirm a lift
 export const SLS_DROP_MIN_DWELL_SEC = 0.1; // min time below hold-line to confirm a drop
 // Provisional: tightened from 0.55 (too generous -- visible wobble never left

@@ -1,4 +1,4 @@
-"""Stage 7.2: SLS per-leg "vs last session" trend -- no MDC, deltas reported plainly."""
+"""SLS per-leg previous-session trend tests."""
 
 import unittest
 

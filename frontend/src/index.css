@@ -48,10 +48,7 @@ html[data-theme="light"] {
   --on-accent: #04160a;
   --good: var(--emerald);
   --good-bg: rgba(0, 174, 84, 0.12);
-  /* Stage 5.21: was referenced by .squat-reject-note/.rep-breakdown with a hardcoded
-     fallback (rgba(245,158,11,.12), a DIFFERENT amber to --amber's #f5b731) and never
-     actually defined here, so the fallback always won and never adapted to dark mode.
-     Derived from --amber's own rgb (245, 183, 49), same alpha convention as --good-bg. */
+  /* Shared warning background derived from --amber for light/dark consistency. */
   --warn-bg: rgba(245, 183, 49, 0.14);
   --info-blue-bg: rgba(59, 130, 246, 0.14);
   color-scheme: light;
@@ -291,10 +288,7 @@ textarea {
   color: var(--accent-text);
   font-weight: 700;
 }
-/* UAT remediation (Stage R11): the report's "not a medical diagnosis" badge --
-   moved here, right beside the band, instead of a banner further down the page
-   that could be scrolled past. Info-blue rather than a neutral pill so it still
-   stands out among the other pills in the same row. */
+/* Prominent non-diagnostic badge beside the report band. */
 .non-diagnostic-badge {
   background: var(--info-blue-bg);
   border-color: color-mix(in srgb, var(--info-blue) 40%, var(--border));
@@ -1165,8 +1159,7 @@ html[data-theme="dark"] .disclaimer svg {
   color: var(--emerald);
   flex: none;
 }
-/* Stage 7.3: due-reminders login banner -- same shape as .dash-note, coral-toned
-   and clickable (it's a Link to /reminders, not just a static notice). */
+/* Clickable due-reminders banner on the dashboard. */
 .dash-note-alert {
   border: 1px solid color-mix(in srgb, var(--coral) 32%, var(--border));
   background: color-mix(in srgb, var(--coral) 8%, var(--surface));
@@ -2423,7 +2416,7 @@ html[data-theme="dark"] .disclaimer svg {
 .side-nav a.active svg {
   opacity: 1;
 }
-/* Stage 7.3: red-dot "something is due" badge on the Reminders nav icon. */
+/* Due-reminder badge on the Reminders nav icon. */
 .nav-icon-badge {
   position: relative;
   display: inline-flex;
@@ -2628,11 +2621,7 @@ html[data-theme="dark"] .disclaimer svg {
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--text);
-  /* UAT remediation (Stage R14 micro-fix): with no line-height of its own this
-     inherited the page's generic 1.55 body-copy value, which reads as loose
-     dead space under a single-line bold heading -- the subtitle right below
-     it only has a 2px margin, so the mismatch was most visible on the
-     dashboard greeting. */
+  /* Tighter line-height for single-line dashboard headings. */
   line-height: 1.2;
 }
 .topbar p {
@@ -2968,10 +2957,7 @@ html[data-theme="dark"] .disclaimer svg {
   background: var(--good-bg);
   border: 1px solid color-mix(in srgb, var(--good) 30%, var(--border));
 }
-/* UAT remediation: high-contrast instruction shown directly under the webcam frame
-   on Camera Setup -- deliberately not `.setup-guidance-note`'s muted surface/text-3
-   styling, which HY found easy to miss. Light-blue "info" treatment (heavy border +
-   a large icon sized to roughly match 2 lines of text) per HY's follow-up request. */
+/* High-contrast camera setup instruction directly under the webcam frame. */
 .cam-instruction-card {
   display: flex;
   align-items: center;
@@ -3111,9 +3097,7 @@ html[data-theme="dark"] .trend.down {
   background: var(--surface);
   border: 1px solid var(--border);
 }
-/* UAT remediation (Stage R11): "coaching card green, error-tag card red" -- a
-   subtle tint (border + faint background wash), not a full colour fill, so the
-   two cards read as positive/negative at a glance without shouting. */
+/* Subtle positive tint for the coaching card. */
 .panel--coaching {
   border-color: color-mix(in srgb, var(--good) 28%, var(--border));
   background: color-mix(in srgb, var(--good) 4%, var(--surface));
@@ -3336,14 +3320,7 @@ html[data-theme="dark"] .trend.down {
   font-weight: 800;
   color: var(--accent-text);
 }
-/* UAT remediation (Stage R11): `.sev` now wraps a small icon instead of being an
-   empty colour dot -- severity is never colour-only (colour-blind safety), each
-   level pairs a distinct icon shape with its colour. Also fixes a real bug: a
-   genuine low-severity ERROR TAG used to render with the exact same green as the
-   separate "no issues at all" placeholder, so a real (if minor) issue read as
-   "nothing to worry about." `.sev.low` is now a distinct blue, and the "no
-   issues" placeholder uses its own `.sev.ok` (still green -- that one really is
-   "all clear"). */
+/* Severity icon wrapper; severity is communicated by icon shape and colour. */
 .sev {
   width: 16px;
   height: 16px;
@@ -3385,7 +3362,7 @@ html[data-theme="dark"] .trend.down {
   height: 14px;
 }
 
-/* Phase 7 Stage 7.1: small-multiples score-trend grid (one card per exercise) */
+/* Small-multiples score-trend grid. */
 .mini-trend-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -3431,7 +3408,7 @@ html[data-theme="dark"] .trend.down {
   color: var(--text-3);
 }
 
-/* Phase 7 Stage 7.1: single-bar 100%-stacked band distribution */
+/* Single-bar stacked band distribution. */
 .band-dist-bar {
   display: flex;
   height: 14px;
@@ -3717,10 +3694,7 @@ html[data-theme="dark"] .trend.down {
   background: var(--surface-2);
   color: var(--text-2);
   border: 1px solid var(--border-soft);
-  /* UAT remediation (Stage R13): a multi-word chip ("Mon · Wed · Fri") could
-     wrap onto a second line inside the pill, breaking its rounded shape
-     (S4/S9) -- the pill itself wraps to a new row via its flex container's
-     own flex-wrap instead (see .rem-card). */
+  /* Keep multi-word chips intact; the container handles row wrapping. */
   white-space: nowrap;
 }
 
@@ -3813,9 +3787,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   display: grid;
   grid-template-columns: 1.8fr 1fr;
   gap: 22px;
-  /* UAT remediation: was `start` -- HY wants the right column's "Getting ready"
-     card to stretch down to match the left column's full height (video + the
-     blue instruction card), see `.cam-status-panel`. */
+  /* Stretch the status column to align with the video plus instruction card. */
   align-items: stretch;
 }
 /* Grows to fill whatever vertical space the left column's taller stack leaves
@@ -3888,8 +3860,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   color: var(--good);
 }
 
-/* UAT remediation (Stage R7): looping demo clip/photo, top-right corner of the live
-   camera stage, showing correct form as a live reference. */
+/* Looping demo clip/photo in the live camera stage. */
 .demo-overlay {
   position: absolute;
   top: 16px;
@@ -4129,8 +4100,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   font-weight: 600;
 }
 .hud-card .hv {
-  /* UAT remediation (Stage R4): the timer/rep counter are glanceable primitives --
-     enlarged further so they read at a 2-3m standing distance (Q9 = 3.38/5). */
+  /* Large HUD value for reading at exercise distance. */
   font-size: clamp(2.4rem, 3.6vw, 2.9rem);
   font-weight: 800;
   color: var(--text);
@@ -4138,21 +4108,14 @@ html[data-theme="dark"] .ex-card .ex-img {
   letter-spacing: -0.03em;
   margin-top: 4px;
 }
-/* HY's refinement: rep-target progress now lives inside the Reps HUD card itself
-   (the standalone "Live status" panel that used to hold it is gone once recording
-   starts) -- a slimmer bar than the default .track so it stays a secondary detail
-   under the big number, not a second focal point. */
+/* Slim target-progress bar inside the Reps HUD card. */
 .hud-progress {
   height: 6px;
   margin-top: 10px;
 }
 
-/* --- Single-Leg Stance live overlays ---
-   UAT remediation (Stage R8): both indicators used to be detached corner/side
-   widgets (T1: "spatially divorced from the person", "reads as an abstract bar").
-   Replaced with transparent overlays drawn directly over the video: the ball+ring
-   centred on the frame, the lift-line as a horizontal marker at the calibrated
-   height. Neither is a hip-pixel projection -- see the component files for why. */
+/* --- Single-Leg Stance Live Overlays ---
+   Transparent video overlays for the ball gauge and lift-line marker. */
 .sls-ball-overlay {
   position: absolute;
   top: 50%;
@@ -4217,9 +4180,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   border-color: var(--good);
 }
 
-/* UAT remediation (Stage R8): small secondary caption under the SLS Time HUD card,
-   surfacing the 45s cap as a visible countdown (T1: "the 45s cap is not
-   communicated"). */
+/* Secondary caption under the SLS Time HUD card. */
 .hud-sub {
   font-size: 0.72rem;
   color: var(--text-3);
@@ -4227,9 +4188,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   margin-top: 4px;
 }
 
-/* UAT remediation (Stage R8, S6 "summary first, per-leg detail second"): a plain
-   text-button toggle revealing the secondary/technical per-leg detail (stability
-   score, stop reason) -- collapsed by default so the headline result reads first. */
+/* Text-button toggle for secondary per-leg technical detail. */
 .btn-linklike {
   background: none;
   border: none;
@@ -4313,8 +4272,7 @@ html[data-theme="dark"] .ex-card .ex-img {
 .sls-modal-card h3 {
   margin-bottom: 8px;
 }
-/* UAT remediation (Stage R9): the big target-distance readout inside
-   WbltTargetPromptModal — was inline styles on the old sidebar panel. */
+/* Large target-distance readout inside WbltTargetPromptModal. */
 .wblt-target-distance {
   font-size: 3.5rem;
   font-weight: 800;
@@ -4340,7 +4298,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  /* UAT remediation (Stage R4): enlarged for distance readability (Q9 = 3.38/5). */
+  /* Enlarged for distance readability. */
   font-size: clamp(1.45rem, 2.6vw, 1.9rem);
   font-weight: 800;
 }
@@ -4358,35 +4316,25 @@ html[data-theme="dark"] .ex-card .ex-img {
     background-color 0.2s var(--ease),
     border-color 0.2s var(--ease);
 }
-/* UAT remediation (Stage R9): this box previously stayed green even while telling
-   the user their framing was wrong (WBLT positioning stage) -- a warning state now
-   reads amber, matching the app's other rejected/warning surfaces
-   (.live-feedback-panel.rejected). */
+/* Warning state for live status boxes such as WBLT positioning guidance. */
 .sls-live-status-box.warn {
   background: var(--warn-bg);
   border-color: var(--amber);
 }
-/* UAT remediation: WBLT's status text (positioning/calibrating/lunge feedback)
-   reads black -- HY's request, since the theme's accent-text green can be hard to
-   read on the amber warning background. Scoped to .wblt so SLS's reuse of this same
-   class is unaffected. */
+/* WBLT status text uses dark ink for contrast on amber warning backgrounds. */
 .sls-live-status-box.wblt .sls-live-status-text {
   color: var(--ink-dark);
 }
 .sls-live-status-text {
-  /* UAT remediation (Stage R4): enlarged for distance readability (Q9 = 3.38/5). */
+  /* Enlarged for distance readability. */
   font-size: clamp(1.55rem, 2.8vw, 2rem);
   font-weight: 800;
   color: var(--accent-text);
   text-align: center;
   line-height: 1.35;
 }
-/* Stage 5.21: the live-feedback panel, promoted directly under the Time/Reps HUD so
-   corrective feedback is the most prominent thing on screen while exercising at a
-   distance. Always shows the LAST rep's verdict (idle/counted/rejected) and never
-   auto-clears -- the state only changes on the next rep, giving both praise and
-   correction a constant, predictable location. Fixed min-height so switching between
-   the three states never shifts the layout underneath it. */
+/* Persistent live-feedback panel under the HUD.
+   Fixed min-height prevents layout shifts between states. */
 .live-feedback-panel {
   border-radius: var(--r-lg);
   border: 2px solid var(--border);
@@ -4437,12 +4385,9 @@ html[data-theme="dark"] .ex-card .ex-img {
   background: var(--amber);
   color: var(--on-accent);
 }
-/* Legible at a distance while exercising -- this is the largest text weight/size on
-   the page apart from the HUD numbers, deliberately: it is what the user most needs
-   to read without stepping toward the screen. UAT remediation (Stage R4): enlarged
-   further (Q9 = 3.38/5, "can't read the live feedback"). */
+/* Large live-feedback title for reading at exercise distance. */
 .live-feedback-title {
-  /* Slightly smaller than the Stage R4 enlargement — still readable at distance. */
+  /* Slightly smaller than the main HUD values while still readable. */
   font-size: clamp(1.2rem, 2.2vw, 1.55rem);
   font-weight: 800;
   line-height: 1.25;
@@ -4482,8 +4427,7 @@ html[data-theme="dark"] .ex-card .ex-img {
 }
 .rep-breakdown ul {
   margin: 8px 0 0;
-  /* Tailwind Preflight resets `list-style: none` globally -- restore the marker or
-     these read as unstructured run-on lines (the Stage 5.17 bullet defect). */
+  /* Restore list markers after Tailwind Preflight resets `list-style`. */
   list-style: disc;
   padding-left: 22px;
 }
@@ -4551,9 +4495,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   place-items: center;
 }
 
-/* Squat live session — HY's refinement: one compact row of minimalist numbers
-   (replacing a gauge bar + ticks + two separate cards) so the whole live page fits
-   on screen without scrolling. */
+/* Compact squat live-angle stats. */
 .live-angle-row {
   display: flex;
   flex-wrap: wrap;
@@ -4693,10 +4635,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   color: var(--accent-text);
   font-variant-numeric: tabular-nums;
 }
-/* UAT remediation (Stage R11): collapsed "Technical details" -- the full
-   prediction/probability figures (ML prediction, rule score, fusion weights,
-   model version), tucked below a toggle rather than sitting in the main
-   sub-scores view now that Confidence alone covers "how sure was the model". */
+/* Collapsed technical prediction details below the main sub-score view. */
 .tech-details-toggle {
   display: inline-flex;
   align-items: center;
@@ -4726,8 +4665,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   color: var(--accent-text);
   margin-bottom: 10px;
 }
-/* Stage 5.17: native <p> summary + <ul> tips, replacing a raw string that could carry
-   literal "* " markdown. The site-wide `* { margin: 0 }` reset zeroes both by default. */
+/* Feedback prose/list spacing after the site-wide margin reset. */
 .feedback-box p + ul {
   margin-top: 10px;
 }
@@ -4831,9 +4769,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   background: var(--surface);
   border: 1px solid var(--border);
   transition: border-color 0.25s;
-  /* UAT remediation (Stage R13): on a narrower viewport the chips/time/actions
-     used to get squeezed into one unbreakable row instead of wrapping as
-     whole units, which is what forced text to wrap mid-pill (see .chip). */
+  /* Let reminder chips and actions wrap as whole units on narrow viewports. */
   flex-wrap: wrap;
 }
 .rem-card:hover {
@@ -4897,8 +4833,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   border-color: color-mix(in srgb, var(--emerald) 30%, var(--border-soft));
 }
 
-/* Stage 7.3: reminder create/edit form, mirroring the SLS self-report modal
-   shell (.sls-modal-*) but generic to this feature. */
+/* Reminder create/edit modal shell. */
 .reminder-modal-overlay {
   position: fixed;
   inset: 0;
@@ -5260,19 +5195,11 @@ html[data-theme="dark"] .ex-card .ex-img {
   padding: 14px 28px;
 }
 
-/* UAT remediation (Stage R4): a full-viewport corrective-cue pop-out. Unlike
-   .countdown-overlay (background: var(--bg), fully opaque -- the camera isn't even
-   running yet during a countdown), this one is a SEE-THROUGH colour wash: it stays
-   over the live camera feed and the HUD's rep counter, so both remain visible
-   through it (HY's request) instead of being hidden. pointer-events is none on the
-   backdrop itself -- only the dismiss button is clickable -- so it never blocks
-   interaction with anything underneath even while showing. */
+/* Full-viewport corrective cue overlay that keeps the camera and HUD visible. */
 .live-cue-overlay {
   position: fixed;
   inset: 0;
-  /* Matches .countdown-overlay/.wblt-result-overlay's takeover tier so this also
-     covers the sidebar/topbar chrome, not just the page body -- a genuine "whole
-     page" overlay per HY's request, just translucent instead of opaque. */
+  /* Matches the takeover tier used by countdown and result overlays. */
   z-index: 500;
   display: flex;
   flex-direction: column;
@@ -5306,9 +5233,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   border: 2px solid var(--border);
 }
 .live-cue-icon {
-  /* HY's refinement: the 40px circle was too tight for a 40px icon glyph -- sized up
-     with room to spare; the glyph itself is now rendered smaller (see
-     LiveCueOverlay.tsx's Icon size) so it sits comfortably inside with padding. */
+  /* Icon circle sized with padding around the glyph. */
   display: grid;
   place-items: center;
   width: 68px;
@@ -5608,11 +5533,7 @@ html[data-theme="dark"] .ex-card .ex-img {
 }
 
 /* ============================================================
-   UAT remediation (Stage R9): shared, reusable Exercise Instructions template.
-   Reference: Figma "Exercise Instruction / Template" (node 12:37) -- structure and
-   copy follow that design; colours/typography/buttons use this app's own tokens and
-   `.btn`/`.panel` classes rather than the Figma file's raw values, per HY's call to
-   keep it standard with the rest of the site.
+   Shared Exercise Instructions template.
    ============================================================ */
 .topbar-eyebrow {
   font-size: 0.72rem;
@@ -5797,8 +5718,7 @@ html[data-theme="dark"] .ex-card .ex-img {
   font-size: 0.72rem;
   font-weight: 700;
 }
-/* UAT remediation (Stage R10): "why this exercise" blurb, same shape as
-   `.instr-equipment` below (icon + text card) for visual consistency. */
+/* Purpose/benefit blurb matching the equipment note shape. */
 .instr-why {
   display: flex;
   align-items: flex-start;

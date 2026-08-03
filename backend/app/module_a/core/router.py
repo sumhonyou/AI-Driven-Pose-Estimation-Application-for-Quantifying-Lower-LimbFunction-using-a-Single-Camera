@@ -155,9 +155,7 @@ def _legacy_session_status(result) -> str:
 def _compute_trend(
     db: DbSession, session: SessionModel, result, metrics: dict
 ) -> dict | None:
-    """Stage 7.2: "vs last session" trend, populated only for STS/SLS -- WBLT
-    already has its own dedicated trend via /api/wblt/session/{id}.
-    """
+    """Compute "vs last session" trend for STS/SLS reports."""
     if session.exercise_type == "sit_to_stand":
         previous = crud.get_previous_completed_result(
             db, session.user_id, "sit_to_stand", session.id, before=result.created_at

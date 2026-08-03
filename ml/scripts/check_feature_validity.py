@@ -1,4 +1,4 @@
-"""Stage 5.4: per-feature class-separation sanity + the R5.5 gate.
+"""Check squat feature validity and class separation.
 
 Reads `ml/data/squat_features.csv` and, for every feature, reports how well it
 separates Good from Poor — then writes an explicit keep/drop verdict per feature to
@@ -32,11 +32,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from plotting import save_fig
+from scipy.stats import mannwhitneyu
 
 # X1: the feature order is the backend's frozen contract, not a local list.
 from app.module_b.squat.features import SQUAT_FEATURE_NAMES
-from plotting import save_fig
-from scipy.stats import mannwhitneyu
 
 ML_ROOT = Path(__file__).resolve().parent.parent
 FEATURES_CSV = ML_ROOT / "data" / "squat_features.csv"

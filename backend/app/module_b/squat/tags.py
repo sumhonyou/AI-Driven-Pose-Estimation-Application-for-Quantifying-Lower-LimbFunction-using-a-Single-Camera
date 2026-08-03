@@ -1,26 +1,12 @@
-"""Stage 6.1: the squat error-tag taxonomy — one source of truth for every tag.
+"""Squat error-tag taxonomy.
 
-This reconciles Phase 6's original 7-row tag table with what Stages 5.11/5.12 actually
-shipped. The taxonomy is deliberately trimmed to **five tags**, each observable from a
-single monocular side view:
+Only tags observable from a single side-view camera are included:
 
-- Three interpretable fault gates already live since Stage 5.12 (`insufficient_depth`,
-  `excessive_forward_lean`, `heel_lift`) — high severity, rule-derived, band-overriding.
-- One soft consistency tag added here (`inconsistent_tempo`) — low severity, rule-derived,
-  never changes the band or score (only the 3 fault gates can, Stage 5.12).
-- The system capture/confidence tags carried by fusion (`low_confidence`,
-  `low_capture_quality`, `retry_camera_placement`).
+- fault-gate tags: `insufficient_depth`, `excessive_forward_lean`, `heel_lift`
+- soft coaching tag: `inconsistent_tempo`
+- system tags: `low_confidence`, `low_capture_quality`, `retry_camera_placement`
 
-Two tags from the original table are **deliberately dropped** and recorded in
-`docs/module_b_limitations.md` alongside knee valgus: `asymmetry` (left/right legs are
-indistinguishable from one side view — Phase 5 finding 4, leg-diff vs mocap r≈−0.05) and
-`feet_too_wide` (stance width is ill-posed in profile — in-sample AUC 0.37, inverts on
-EC3D). Measuring either would fabricate a fault the camera cannot see.
-
-`w_rule=0` for squat (Stage 5.11), so tags never feed the score — the ML sets the band, the
-gates can only override it downward, and soft tags are explanation-only. This module is the
-single place that knows each tag's severity/source/kind so the feedback and template layers
-(Stages 6.2+) rank and render them consistently.
+Tags explain the result; they do not feed the squat score directly.
 """
 
 from __future__ import annotations
@@ -95,10 +81,7 @@ SQUAT_TAG_TAXONOMY: dict[str, TagSpec] = {
         source="system",
         kind="system",
         i18n_key="tag_low_confidence",
-        # English fallback matches frontend/src/i18n/en.ts's moduleB.tag_low_confidence —
-        # the two are deliberately duplicated (same precedent as the fault-gate messages
-        # above), since the backend template composer (Stage 6.2) has no access to the
-        # frontend's i18n bundle.
+        # Backend fallback; frontend i18n owns the displayed copy when available.
         message="Model confidence was low for this set.",
     ),
     "low_capture_quality": TagSpec(
@@ -128,9 +111,7 @@ def build_squat_error_tags(
 ) -> list[ErrorTagWrite]:
     """Assemble every squat tag for one analyzed set, using the taxonomy for metadata.
 
-    System capture/confidence flags, the Stage 5.12 fault-gate failures, and the new soft
-    tempo-consistency tag, in that fixed order (persistence re-sorts by tag, so order here
-    only needs to be deterministic — X8).
+    System flags, fault-gate failures, and the soft tempo tag are added in a stable order.
     """
     tags: list[ErrorTagWrite] = []
     tags.extend(_system_tags(fusion_flags))

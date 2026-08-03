@@ -6,7 +6,7 @@
 //
 // Thresholds are fetched once from GET /api/module-b/squat/config so this stays
 // in sync with the backend; the constants below are only the pre-fetch fallback
-// (X7 — do not hand-sync these long-term, per Phase 3E Stage 5's lesson).
+// and should not be hand-synced long term.
 import { LM, type WorldLandmark } from "../../types/pose";
 import { createOcclusionReleaser, LandmarkSmoother } from "../oneEuroFilter";
 import { moduleBService } from "../../services/moduleBService";
@@ -50,17 +50,12 @@ export const FALLBACK_SQUAT_LIVE_CONFIG: SquatLiveConfig = {
     leanEnabled: true,
     faultTrunkLeanPeakDeg: 41.42411876009375,
     heelRiseEnabled: true,
-    // UAT remediation (Stage R1): re-derived under the corrected near-leg/settle-
-    // window/debounce construction (was 0.08399336939375095) -- see squat/config.py.
+    // Pre-fetch fallback for the backend's near-leg/settle-window/debounce gate.
     faultHeelRisePeakNorm: 0.07098522548163665,
   },
 };
 
-/** Binary band cut for the live ROM estimate (Stage 5.11). The authoritative
- * Good/Needs-Improvement verdict comes from the backend's committed binary ML decision
- * after the set; this rough client-side hint only reflects whether the rep reached the
- * "Good" depth-completion boundary (the old Fair/Good cut on the 0-10 ROM score), and
- * never runs the ML model. "Poor" is displayed as "Needs Improvement" via i18n. */
+/** Binary cut for the live ROM estimate. Backend ML remains authoritative. */
 const BAND_GOOD_MIN_SCORE = 7.0;
 
 export type SquatPhase = "standing" | "descending" | "ascending";
@@ -106,8 +101,7 @@ export function depthGaugePct(flexionDeg: number, config: SquatLiveConfig): numb
   return Math.max(0, Math.min(100, (flexionDeg / config.romDeepFullScoreDeg) * 100));
 }
 
-/** Fetches live thresholds from the backend; falls back to the frozen local
- * defaults (kept identical to squat/config.py's Stage 4.0 values) on failure. */
+/** Fetch live thresholds from the backend; use local defaults on failure. */
 export async function fetchSquatLiveConfig(): Promise<SquatLiveConfig> {
   try {
     const config = await moduleBService.config("squat");

@@ -15,12 +15,10 @@ Beyond that window, hold-last is deliberately *released* (see
 `_release_persistent_occlusions`) rather than left to freeze a landmark for
 the rest of the capture. LandmarkSmoother's hold-last is documented for a
 "brief occlusion"; a single side-view camera violates that assumption
-structurally — the far leg sits below MIN_VISIBILITY for most of a squat
-(Stage 5.3 measured mean right-knee visibility 0.59-0.78 vs 0.95-0.99 left,
-across all 9 REHAB24-6 subjects), so hold-last would pin the far knee at its
-standing angle for entire reps. That is worse than the raw estimate, which
-still tracks a plausible trajectory (measured peak 99.9 deg on a rep where
-the near knee read 77.9 deg) — it is low-*confidence*, not wrong. Freezing it
+structurally — the far leg often sits below MIN_VISIBILITY for most of a squat,
+so hold-last would pin the far knee at its standing angle for entire reps. That
+is worse than the raw estimate, which can still track a plausible trajectory.
+It is low-confidence, not automatically wrong. Freezing it
 turns "uncertain but usable" into "confidently stale", halving the bilateral
 mean knee flexion that segmentation and features both depend on.
 

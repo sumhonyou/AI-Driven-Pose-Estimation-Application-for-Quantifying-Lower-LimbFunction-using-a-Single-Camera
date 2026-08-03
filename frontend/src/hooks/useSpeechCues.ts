@@ -1,10 +1,5 @@
-// UAT remediation (Stage R6): the real speechSynthesis-backed speaker for
-// SpeechCueQueue, plus the React glue -- mute toggle from preferences, spoken
-// language matched to the current UI language (HY's call: best-effort, no locale
-// routing/validation beyond what the OS voice table already provides). Malay (ms-MY)
-// voice availability varies a lot by OS/browser; where it's missing the platform
-// falls back to whatever default voice it has, or silently no-ops -- documented as a
-// known limitation in task.md, same spirit as R3's English-only LLM deferral.
+// React glue for SpeechCueQueue and the speechSynthesis-backed speaker.
+// Voice selection follows the UI language when the browser exposes a matching voice.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { usePreferences } from "../preferences";

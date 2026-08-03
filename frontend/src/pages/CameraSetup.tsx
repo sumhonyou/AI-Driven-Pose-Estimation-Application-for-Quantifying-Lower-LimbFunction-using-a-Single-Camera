@@ -20,9 +20,7 @@ import {
 import cameraReadySound from "../assets/sound effect/Camera all good effect.mp3";
 
 /** How long the full body must be detected continuously before the session
- * auto-starts. UAT remediation (Stage R5): raised from 1.8s to a standard 5s across
- * every start protocol in the app — 1.8s didn't give users enough time to read the
- * checklist/guidance before the session took over. */
+ * auto-starts, giving users time to read the checklist before capture begins. */
 const AUTO_START_STABLE_MS = 5000;
 
 type ChecklistStatus = "done" | "pending" | "info";
@@ -82,12 +80,9 @@ export default function CameraSetup() {
       enqueueCancel(sessionId);
       setSessionId(null);
     }
-    // Stage R13 (UAT): abandoning here (before the live page even mounts)
-    // must not let a leftover reminderId auto-tick that reminder on some
-    // later, unrelated session -- see session.tsx's doc comment.
+    // Clear any reminder launch context before leaving the setup flow.
     setReminderId(null);
-    // UAT remediation (Stage R9): Instructions now sits between Exercise Selection
-    // and Camera Setup in the flow, so Back returns one step, not two.
+    // Back returns to the instruction step in the current session flow.
     console.log("[CameraSetup] Back navigating");
     nav("/instructions");
   };
@@ -248,23 +243,13 @@ export default function CameraSetup() {
             </div>
           </div>
 
-          {/* UAT remediation: HY's ask (2026-07-24) -- the instruction was easy to
-              miss buried in the muted "Getting ready" panel on the right; moved
-              directly under the webcam frame with a high-contrast light-blue "info"
-              card (icon sized to roughly match 2 lines of text) so it's impossible
-              to miss while adjusting position. */}
+          {/* High-contrast auto-start instruction placed directly under the webcam. */}
           <div className="cam-instruction-card">
             <Info />
             <span>{t("camera.autoStartWaiting")}</span>
           </div>
 
-          {/* TEMP DEV BUTTON — added 2026-07-24 at HY's request purely to speed up
-              manual QA while developing (skip waiting for the 5s auto-start gate).
-              Kept in the left column, below the instruction card, so a screenshot of
-              the right column ("Before you start" / "Getting ready") never includes
-              it. The real flow never needs a manual button, since beginSession()
-              already fires from useAutoStartGate above. REMOVE THIS BUTTON before
-              final submission/handoff. */}
+          {/* Temporary QA shortcut for bypassing the auto-start wait. Remove before handoff. */}
           <button
             type="button"
             className="btn btn-primary btn-lg btn-block"
@@ -297,11 +282,7 @@ export default function CameraSetup() {
             </div>
           </div>
 
-          {/* UAT remediation: replaces the removed view-guidance/demo panels and
-              manual Start button — the moved framing banner and the auto-start
-              countdown now live here, in the same slot. `cam-status-panel` grows to
-              fill the column so its bottom edge lines up with the instruction card
-              under the video (HY's request). */}
+          {/* Status panel holds the framing banner and auto-start countdown. */}
           <div className="panel cam-status-panel">
             <div className="panel-head" style={{ marginBottom: 14 }}>
               <div>

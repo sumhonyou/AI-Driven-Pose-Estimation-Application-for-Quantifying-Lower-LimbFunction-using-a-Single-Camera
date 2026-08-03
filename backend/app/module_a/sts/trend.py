@@ -1,9 +1,8 @@
-"""Stage 7.2: STS per-session trend vs the account's previous completed STS session.
+"""STS trend against the user's previous completed STS session.
 
 No MDC (minimal detectable change) threshold exists for STS -- unlike WBLT, there
 is no published measurement-error study behind a score/completion-time delta here.
-Deltas are reported plainly with no "meaningful change" claim (task.md Stage 7.0/7.2:
-never invent a clinical threshold that doesn't exist).
+Deltas are reported plainly with no "meaningful change" claim.
 """
 
 

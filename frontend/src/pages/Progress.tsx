@@ -37,9 +37,7 @@ export default function Progress() {
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  // Stage R12 follow-up (HY): the SLS best-hold-per-leg chart defaults to both
-  // legs combined, but two overlapping lines read as cluttered -- this lets the
-  // user isolate one leg on that card specifically.
+  // SLS hold chart can isolate one leg to avoid overlapping-line clutter.
   const [legFilter, setLegFilter] = useState<"both" | "left" | "right">("both");
 
   // Active exercise catalog once -- /api/exercises already server-filters to
@@ -98,17 +96,10 @@ export default function Progress() {
 
   const points = selected ? (trends[selected]?.points ?? []) : [];
   const tags = selected ? (errorTags[selected] ?? null) : null;
-  // Presence in errorTags (even an empty list) is the Stage 7.0 signal for
-  // "this exercise type has a Module B result" -- Module A types never get a key.
+  // Only Module B exercise types appear in errorTags.
   const isModuleB = selected != null && errorTags[selected] !== undefined;
 
-  // Stage R12 (UAT): the second progress chart per exercise, replacing the
-  // unanimously-rejected capture-quality trend. Each exercise plots the raw
-  // metric that actually means something to that movement -- STS finish/avg-rep
-  // time, SLS best hold per leg, WBLT best reach per leg, squat valid reps --
-  // with axis labels ("Date" on X, the unit on Y) and hover detail. `selected`
-  // is the exercise code, which equals its exercise_type here (same key used for
-  // `trends[selected]`), so it's safe to match against the known type strings.
+  // Second chart uses the movement-specific raw metric for the selected exercise.
   const secondChart = ((): {
     titleKey: string;
     subKey: string;
@@ -310,11 +301,7 @@ export default function Progress() {
                 </div>
                 <BandDistributionBar points={points} />
               </div>
-              {/* Stage R12 (UAT): the capture-quality trend that used to sit here was
-                  the one unanimously-rejected chart (6/18). It's replaced by the
-                  raw metric each exercise's users actually track -- squat valid
-                  reps, STS finish/avg-rep time, SLS best hold per leg, WBLT best
-                  reach per leg. */}
+              {/* Movement-specific raw metric chart. */}
               {secondChart && (
                 <div className="panel" style={{ background: "var(--surface-2)" }}>
                   <div className="panel-head" style={{ flexWrap: "wrap", gap: 8 }}>

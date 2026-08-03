@@ -1,19 +1,12 @@
-// UAT remediation (Stage R6): a framework-free, fully-testable priority queue for
-// spoken live cues. Deliberately has no dependency on `speechSynthesis` -- that lets
-// the queue/priority/throttle logic run under vitest (no real speech engine in that
-// environment), with the actual Web Speech API wired in separately by an injected
-// `SpeechCueSpeaker` (see hooks/useSpeechCues.ts for the real one).
+// Framework-free priority queue for spoken live cues.
+// The Web Speech API is injected so queue, priority, and throttle logic can be tested.
 //
 // Two categories, two policies:
-//   - "session": urgent, never throttled. Interrupts (cancels) whatever is currently
-//     speaking or queued, so "Starting"/"Set complete" is never delayed or dropped.
+//   - "session": urgent, never throttled, interrupts anything already speaking.
 //   - "fault": queued and spoken sequentially (via onDone chaining), so if several
 //     distinct faults fire together (e.g. squat's depth + lean gates on the same rep,
 //     or SLS's wrong-leg signal alongside another cue), EVERY one is read aloud, one
-//     after another -- never capped to just the first/primary. Throttled per-KEY only
-//     (e.g. the same standing fault tag) so a fault that keeps re-firing every frame
-//     isn't repeated faster than `faultThrottleMs`; a genuinely different key is never
-//     dropped by this throttle. (throttle means don't repeat the same cue within a certain time period)
+//     after another. Repeated keys are throttled; different keys are never dropped.
 
 // This define the queue logic
 export type SpeechCueCategory = "session" | "fault";
@@ -82,7 +75,7 @@ export class SpeechCueQueue {
     this.speaking = false;
     this.speaker.cancel();
   }
- // Add a new spoken cue into the system
+  // Add a new spoken cue into the system
   enqueue(cue: SpeechCue): void {
     if (!this.enabled) return;
 
@@ -107,7 +100,7 @@ export class SpeechCueQueue {
     this.pump();
   }
 
-  // Start speaking the next cue in the queue, if nothing is currently speaking. 
+  // Start speaking the next cue in the queue, if nothing is currently speaking.
   // When one finishes, it calls itself again to play the next one.
   private pump(): void {
     if (this.speaking || this.queue.length === 0) return;

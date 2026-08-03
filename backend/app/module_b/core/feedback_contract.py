@@ -1,13 +1,8 @@
-"""Stage 5.17 (Phase 6 continuation): the JSON shape every composed or rewritten
-Module B coaching text must satisfy -- `{"summary": "...", "tips": ["...", ...]}`.
+"""JSON contract for Module B coaching text.
 
-Used on both sides of the LLM boundary: `feedback_templates.compose_template` produces
-it deterministically, `llm_client.GroqClient.rewrite_feedback` parses a model's raw reply
-against it, and `crud.feedback_summary` parses a stored row back into it for the frontend
-to render as a real list. This module only validates SHAPE (is it a JSON object with the
-right keys and types) -- it deliberately knows nothing about markdown characters, grade
-integrity, or forbidden phrases; those are content-policy concerns and stay owned by
-`feedback_safety.py`, the one existing gate for LLM output policy.
+Both template and LLM feedback use `{"summary": "...", "tips": ["...", ...]}`. This
+module validates shape only. Content policy checks, such as forbidden wording or grade
+integrity, belong in `feedback_safety.py`.
 """
 
 from __future__ import annotations
@@ -22,14 +17,14 @@ _CODE_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n?|\n?```$")
 
 @dataclass(frozen=True)
 class RewrittenFeedback:
-    """A validated `{summary, tips}` pair -- never constructed with empty/blank strings."""
+    """A validated `{summary, tips}` pair with no blank strings."""
 
     summary: str
     tips: tuple[str, ...]
 
 
 def serialize(feedback: RewrittenFeedback) -> str:
-    """Canonical JSON encoding -- the one shape ever written to a DB row."""
+    """Canonical JSON encoding written to feedback DB rows."""
     return json.dumps(
         {"summary": feedback.summary, "tips": list(feedback.tips)}, ensure_ascii=False
     )
@@ -44,8 +39,7 @@ def parse(candidate: str) -> RewrittenFeedback | None:
     """Parse and shape-validate; `None` on any violation (never raises).
 
     Strips a wrapping ```-fence first, since LLMs routinely add one despite being told
-    not to -- accepting it costs nothing here and only genuine markdown CONTENT is
-    still `feedback_safety`'s job to reject, not this function's.
+        not to. Markdown inside the actual text is checked by `feedback_safety`.
     """
     try:
         data = json.loads(_CODE_FENCE_RE.sub("", candidate.strip()).strip())

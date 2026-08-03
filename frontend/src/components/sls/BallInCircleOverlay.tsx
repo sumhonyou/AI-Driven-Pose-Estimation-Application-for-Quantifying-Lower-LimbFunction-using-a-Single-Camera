@@ -6,13 +6,8 @@
 // video-pixel projection (which would misrepresent the geometry), this renders an
 // honest self-contained gauge widget.
 //
-// UAT remediation (Stage R8, T1 "the ball metaphor is opaque" / "the ball is
-// spatially divorced from the person"): this used to sit in a bordered card in the
-// bottom-left corner, fully detached from the user's body in frame. HY's call: keep
-// it a self-contained (not hip-pixel-projected) widget, but drop the corner box
-// entirely and float it, transparent, dead-centre over the video -- so the ball
-// visually reads as "on me" even though its offset is still a ratio, not a real hip
-// pixel position.
+// Float the gauge over the video so it reads as body-related without pretending the
+// ratio is an exact hip-pixel projection.
 import { useTranslation } from "react-i18next";
 import { BALL_COLOR_INSIDE, BALL_COLOR_OUTSIDE, CIRCLE_COLOR } from "../../config/slsUi";
 import { SLS_CIRCLE_RADIUS_NORM } from "../../config/moduleAThresholds";

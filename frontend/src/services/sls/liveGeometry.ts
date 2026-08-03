@@ -74,21 +74,13 @@ export interface SlsLiveUpdate {
   multiplier: number; // current combo multiplier
   cappedAtMax: boolean;
   /**
-   * UAT remediation (Stage R4): true when the STANCE leg (not the one the user was
-   * prompted to lift) has risen off the ground by roughly the same lift-line margin
-   * used for the target leg. Debounced with the same dwell constants as the real
-   * lift/drop detection so a single noisy frame can't flip it. Display-only — never
-   * sent to the backend, never affects the hold timer or the official result.
+   * True when the stance leg appears lifted by the same margin used for the target leg.
+   * Display-only; never sent to the backend or used for the official hold result.
    */
   wrongLegLifted: boolean;
   /**
-   * UAT remediation (Stage R8): normalised IMAGE-space (0=top, 1=bottom of the video
-   * frame) height for the on-video lift-line marker, or null until calibration has
-   * captured at least one usable frame of 2D landmarks. Computed the same way as the
-   * metric `lineY` (baseline ankle height minus SLS_LIFT_LINE_NORM * stance-leg
-   * length) but entirely in image-space, so it renders in the exact coordinate system
-   * PoseCanvas already uses for the skeleton overlay -- not a new world->pixel
-   * projection. Display-only: never affects the hold timer or the official result.
+   * Normalised image-space lift-line height, or null until calibration has 2D landmarks.
+   * Uses PoseCanvas coordinates directly rather than a world-to-pixel projection.
    */
   lineYImgNorm: number | null;
 }
@@ -132,12 +124,8 @@ export function createSlsLiveTracker(leg: SlsLeg) {
   let wrongLegBelowSinceSec: number | null = null;
   let wrongLegLifted = false;
 
-  // UAT remediation (Stage R8): image-space counterpart of baselineAnkleYSum/lineY,
-  // built from 2D landmarks so the lift-line can be drawn directly over the video
-  // (see SlsLiveUpdate.lineYImgNorm above). Tracked with its own counter since image
-  // landmarks are an optional third argument to update() -- a caller that never
-  // passes them (e.g. existing unit tests) simply never populates this, and
-  // lineYImgNorm stays null.
+  // Image-space counterpart of baselineAnkleYSum/lineY, used for the video lift-line.
+  // Tracked separately because image landmarks are optional in update().
   let baselineAnkleImgYSum = 0;
   let baselineImgLegLenSum = 0;
   let imgBaselineCount = 0;

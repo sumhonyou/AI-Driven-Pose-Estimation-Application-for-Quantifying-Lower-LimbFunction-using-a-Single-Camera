@@ -1,4 +1,4 @@
-"""Stage 5.11: choose the committed binary Good/Poor operating point for squat.
+"""Choose the binary Good/Poor operating point for squat.
 
 Phase 4/5 shipped squat as a 3-band Good/Fair/Poor output, where **Fair is an
 abstention** the fusion layer forces whenever calibrated confidence is below 0.85.
@@ -70,13 +70,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from app.module_b.core.fusion import fuse_scores
 from evaluate_squat import plot_confusion_matrix_3band
-# X1: the per-rep rule score comes from the same live helper Stage 5.6/5.7 use, not a
-# re-derivation.
+
+# Per-rep rule scores come from the live helper, not a re-derived copy.
 from sweep_fusion_weights import _rule_score
-from train_squat import (_build_xy, _choose_cv, _load_config, _read_rows,
-                         nested_cv)
+from train_squat import _build_xy, _choose_cv, _load_config, _read_rows, nested_cv
+
+from app.module_b.core.fusion import fuse_scores
 
 ML_ROOT = Path(__file__).resolve().parent.parent
 REPORT_MD = ML_ROOT / "reports" / "SQUAT_EVALUATION_REPORT_2BAND.md"

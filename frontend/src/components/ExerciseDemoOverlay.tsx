@@ -1,6 +1,4 @@
-// UAT remediation (Stage R7): small looping demo clip/photo pinned to the top-right
-// corner of the live camera stage, so the user has a reference of correct form while
-// exercising -- without leaving the live page or covering the pose skeleton underneath.
+// Small demo clip/photo pinned over the camera stage as a form reference.
 import squatLoopSrc from "../assets/videos/Squat Loop.gif";
 import stsLoopSrc from "../assets/videos/Sts loop.gif";
 import wbltLoopSrc from "../assets/videos/WBLT loop.mp4";

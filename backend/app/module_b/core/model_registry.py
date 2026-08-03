@@ -1,22 +1,8 @@
-"""Versioned Module B model bundles: the trained-artifact loader and its adapter.
+"""Versioned Module B model bundles and artifact loading.
 
-The Phase 4 `StubModel` placeholder was deleted in Stage 5.8 (rules.md #20 — no
-unnecessary code once its replacement exists) once `get_model_bundle()` below could
-load the real trained artifact for every exercise that has one exported.
-
-Phase 5B (Stage 4.5) reintroduced a placeholder path -- `PlaceholderModelBundle`
-below -- because `get_model_bundle()` is now the ONLY place `router.py` resolves a
-model (no per-exercise branching is allowed there, per Stage 4.1's registry
-invariant), so an exercise without an exported artifact needs a graceful fallback
-here rather than a crash. It is deliberately NOT the old `StubModel`: that one took
-`rule_score` as a constructor argument, baked in per-request by the pre-Stage-5.8
-router calling it directly -- incompatible with today's cached, `model_key`-only
-`get_model_bundle()` accessor, which has no access to any request's `RuleScores`.
-`PlaceholderModelBundle` instead returns a constant, feature-independent 50/50 --
-honest given it has no real signal. Any future exercise added to the registry
-without an exported artifact yet falls back to it automatically; the path stops
-being reached for that exercise's `model_key` the moment its artifact is exported,
-the same way it already stopped being reached for squat.
+`get_model_bundle()` is the single model lookup point for Module B exercises. Exercises
+with exported artifacts load their trained model; exercises without one get a neutral
+placeholder bundle that returns 50/50 probabilities without pretending to have signal.
 """
 
 from __future__ import annotations
@@ -32,10 +18,7 @@ import numpy as np
 from app.module_b.core.config import MODULE_B_CORE_CONFIG
 from app.module_b.core.features import FeatureVector
 
-# ml/artifacts/{model_key}/ — the one committed location Stage 5.8's export script
-# writes to; not duplicated into backend/ (single source, X1). Mirrors the existing
-# frontend/pose-model-asset cross-directory reference convention (ml/config.yaml's
-# `pose_model_asset: ../frontend/public/models/...`).
+# Trained model artifacts live outside backend/ to keep one source of truth.
 _ARTIFACTS_ROOT = Path(__file__).resolve().parents[4] / "ml" / "artifacts"
 
 
@@ -82,17 +65,10 @@ class PlaceholderModelBundle:
 class _CalibratedForestClassifier:
     """Recomposes calibrated Good/Poor probabilities from the two exported files.
 
-    Stage 5.8 exports the fitted Extra Trees forest (`model.joblib`) and its sigmoid
-    calibration parameters (`calibrator.joblib`, a plain `{"a":..., "b":...}` dict, not
-    sklearn's private `_SigmoidCalibration` object) separately rather than the whole
-    `CalibratedClassifierCV` as one file — see `export_squat_model.py`'s docstring for
-    why. This class is the other half of that split: it reproduces exactly what
-    `CalibratedClassifierCV(ensemble=False).predict_proba()` computes for a binary
-    sigmoid calibration (verified bit-for-bit identical against the real pipeline at
-    export time, not assumed from reading sklearn's source):
+    Exported artifacts split the fitted forest (`model.joblib`) from sigmoid calibration
+    parameters (`calibrator.joblib`). This class recomposes calibrated probabilities:
     `P(Good) = 1 / (1 + exp(a * raw_p_good + b))`, where `raw_p_good` is the
-    uncalibrated forest's probability for its class `1` (Good, since the training
-    label encoding is `0=Poor, 1=Good` — enforced below rather than assumed).
+    uncalibrated forest's probability for class `1` (Good).
     """
 
     forest: Any
@@ -177,13 +153,7 @@ def load_joblib_model_bundle(
     feature_schema_path: Path,
     label_map_path: Path,
 ) -> JoblibModelBundle:
-    """Load Stage 5.8's exported artifact and reject stale feature metadata immediately.
-
-    `model_version` is read from `feature_schema.json`, not passed by the caller: it is
-    a property of the exported artifact itself, and having every caller separately
-    supply a matching string would risk one of them quoting a stale or wrong version
-    for a real model (unlike `StubModel`'s `"stub-0"`, which never needed to be right).
-    """
+    """Load an exported model artifact and reject stale feature metadata immediately."""
     try:
         import joblib
     except ImportError as error:  # pragma: no cover - exercised in deployment setup.
@@ -219,12 +189,12 @@ def get_model_bundle(model_key: str) -> ModelBundle:
     `lru_cache` rather than an app-startup hook: this is a small, pure, deterministic
     load keyed only by `model_key`, and every request needs the same cached object — the
     standard FastAPI idiom for a stateless model artifact, not a new abstraction for its
-    own sake. Reloading `model.joblib` (a ~1 MB forest) per request would also add real,
-    measurable latency on top of Stage 5.7's ~8 ms feature+predict budget.
+    own sake. Reloading `model.joblib` (a ~1 MB forest) per request would add avoidable
+    latency.
 
     Falls back to `PlaceholderModelBundle` when `model_key` has no exported artifact
-    yet (Stage 4.5) -- caching that constant, feature-independent bundle is safe (no
-    per-request state to go stale), unlike the old per-request `StubModel`.
+    yet. Caching that constant, feature-independent bundle is safe because it has no
+    per-request state.
     """
     artifacts_dir = _ARTIFACTS_ROOT / model_key
     if not (artifacts_dir / "model.joblib").exists():

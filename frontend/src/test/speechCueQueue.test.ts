@@ -1,5 +1,4 @@
-// UAT remediation (Stage R6): coverage for SpeechCueQueue's priority/throttle/
-// interrupt logic, using a mock speaker so no real speechSynthesis is needed.
+// Coverage for SpeechCueQueue priority, throttle, and interrupt behavior.
 import { describe, expect, it } from "vitest";
 import { SpeechCueQueue, type SpeechCueSpeaker } from "../utils/speechCueQueue";
 

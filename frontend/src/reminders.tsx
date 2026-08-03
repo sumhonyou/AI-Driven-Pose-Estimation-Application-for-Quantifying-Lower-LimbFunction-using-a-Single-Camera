@@ -1,7 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-// Stage 7.3: shared reminders state so the nav red-dot badge, the due-banner,
-// and the Reminders page itself never disagree about what's due.
-// Mounted inside DashboardLayout (the authed tree), mirroring session.tsx.
+// Shared reminder state for nav badge, due banner, dashboard, and Reminders page.
 import {
   createContext,
   useCallback,

@@ -1,9 +1,8 @@
-"""Stage 7.4: squat per-session trend vs the account's previous squat session.
+"""Squat trend against the user's previous squat session.
 
 No MDC (minimal detectable change) threshold exists for squat's fused score or rep
 count -- mirrors app/module_a/sts/trend.py's rule: deltas are reported plainly with
-no "meaningful change" claim (task.md Stage 7.0/7.2: never invent a clinical
-threshold that doesn't exist).
+no "meaningful change" claim.
 """
 
 

@@ -1,4 +1,4 @@
-"""Stage 4.6 persistence-shape and deterministic read-back tests."""
+"""Module B persistence shape and deterministic read-back tests."""
 
 from __future__ import annotations
 

@@ -69,10 +69,8 @@ export type ModuleAMetrics = {
 
 export type SessionStatus = "complete" | "incomplete" | "low_confidence";
 
-// Stage 7.2: vs the account's previous completed session of the same exercise.
-// No MDC (minimal detectable change) study exists for STS/SLS the way it does
-// for WBLT, so deltas are plain numbers with no "meaningful change" claim --
-// there is deliberately no `*_meaningful` flag here (contrast WbltLegTrend).
+// Previous completed session trend. STS/SLS deltas are plain numbers with no
+// meaningful-change flag because no MDC threshold exists for these measures.
 export type StsTrend = {
   score_delta: number | null;
   completion_time_delta_sec: number | null;

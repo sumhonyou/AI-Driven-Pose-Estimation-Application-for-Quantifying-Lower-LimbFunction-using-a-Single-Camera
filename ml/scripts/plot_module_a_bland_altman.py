@@ -52,8 +52,8 @@ def _bland_altman_plot(
 
 
 def plot_sls() -> Path:
-    from app.module_a.sls import analysis
     from app.module_a.core.evaluation.agreement import bland_altman
+    from app.module_a.sls import analysis
 
     manifest = json.loads((SLS_CORPUS / "labels.json").read_text())
     system_holds, manual_holds = [], []
@@ -84,9 +84,9 @@ def plot_sls() -> Path:
 
 
 def plot_wblt() -> Path:
+    from app.module_a.core.evaluation.agreement import bland_altman
     from app.module_a.wblt import analysis
     from app.module_a.wblt.age_band import resolve_ageband_sex
-    from app.module_a.core.evaluation.agreement import bland_altman
 
     manifest = json.loads((WBLT_CORPUS / "labels.json").read_text())
     system_distances, manual_distances = [], []

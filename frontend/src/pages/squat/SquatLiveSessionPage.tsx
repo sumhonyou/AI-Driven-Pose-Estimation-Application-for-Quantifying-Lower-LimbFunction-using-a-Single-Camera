@@ -46,10 +46,7 @@ type Stage = "setup" | "countdown" | "recording" | "posting";
 
 const COUNTDOWN_START_SEC = 5;
 
-// UAT remediation (Stage R4): the big pop-out cue shows only the PRIMARY reason (one
-// cue at a time, per the plan) — this is the fixed priority order when a rep trips
-// more than one gate, matching the order the sidebar's fuller list is already built
-// in (squat/fault_gates.py evaluates depth -> lean -> heel_rise per rep).
+// Primary live cue priority when a rep trips more than one gate.
 const CUE_TITLE_KEY: Record<SquatFaultTag, string> = {
   insufficient_depth: "squat.cueInsufficientDepth",
   excessive_forward_lean: "squat.cueExcessiveForwardLean",
@@ -72,9 +69,7 @@ interface LiveCue {
 }
 
 /** Rep-target choices. The target drives the session: reaching it auto-finishes the set.
- * Stage 5.20 also sends it with the analyze call so the report can show what was aimed
- * for; it is stored on the session row but still never influences segmentation or
- * grading — the backend derives those from the frames alone. */
+ * The target is stored for reporting only; backend grading still derives from frames. */
 const TARGET_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80];
 
 /** Hard ceiling on total attempts, as a multiple of the target.
@@ -100,16 +95,9 @@ export default function SquatLiveSessionPage() {
   const [targetReps, setTargetReps] = useState<number | null>(null);
   const [repCount, setRepCount] = useState(0);
   const [attemptCount, setAttemptCount] = useState(0);
-  // Stage 5.21: why the MOST RECENT rep didn't count, or [] if the most recent event
-  // was a counted rep (or none has happened yet). Deliberately persistent -- this is
-  // what the live-feedback panel reads to decide idle/counted/rejected, and it changes
-  // only on the next rep, never on a timer (HY's call: never blank, always show the
-  // last verdict).
+  // Why the most recent rep did not count; empty after a counted rep.
   const [rejectedGates, setRejectedGates] = useState<SquatFaultTag[]>([]);
-  // UAT remediation (Stage R4): the transient full-viewport corrective-cue pop-out,
-  // shown on top of (not instead of) the persistent sidebar panel below. null hides
-  // it. Replacing it (rather than queueing) is the throttle — at most one cue shows
-  // at a time, and a new one simply restarts LiveCueOverlay's own countdown.
+  // Transient full-viewport corrective cue; replacing it is the throttle.
   const [liveCue, setLiveCue] = useState<LiveCue | null>(null);
   const [sec, setSec] = useState(0);
   const [error, setError] = useState("");
@@ -272,9 +260,7 @@ export default function SquatLiveSessionPage() {
       }
       if (update.repJustCompleted) {
         setRejectedGates([]);
-        // HY's refinement: a good rep immediately closes any corrective cue still on
-        // screen from an earlier rejected rep, rather than leaving a stale "Go deeper"
-        // up after the user has already corrected and completed a valid rep.
+        // A completed good rep clears any stale corrective cue from earlier attempts.
         setLiveCue(null);
         goodRepAudio.current.currentTime = 0;
         goodRepAudio.current.play().catch(() => {});
@@ -283,10 +269,7 @@ export default function SquatLiveSessionPage() {
         setRejectedGates(update.lastRepFailedGates);
         wrongRepAudio.current.currentTime = 0;
         wrongRepAudio.current.play().catch(() => {});
-        // UAT remediation (Stage R4): the big corrective pop-out shows only the
-        // PRIMARY reason, title + a specific subheading (e.g. "Go deeper" / "Aim for
-        // at least 78° knee bend") — the full list of every failed gate stays in the
-        // persistent sidebar panel below, so it isn't repeated here.
+        // The pop-out shows only the primary reason; the panel keeps the full list.
         const primaryTag = update.lastRepFailedGates[0];
         if (primaryTag) {
           setLiveCue({
@@ -300,10 +283,7 @@ export default function SquatLiveSessionPage() {
             tone: "warn",
           });
         }
-        // UAT remediation (Stage R6, HY's call): unlike the VISUAL pop-out above
-        // (primary reason only), the SPOKEN cue reads out EVERY failed gate for this
-        // rep, in the same fixed priority order -- a rep that trips two gates at once
-        // gets both said aloud, one after another (SpeechCueQueue sequences them).
+        // Spoken cue reads every failed gate in priority order.
         for (const tag of update.lastRepFailedGates) {
           speech.speakFault(tag, t(CUE_TITLE_KEY[tag] as never));
         }
@@ -366,7 +346,7 @@ export default function SquatLiveSessionPage() {
         capture_quality: score,
         valid_frame_ratio: validFrameRatio,
       });
-      // Stage R13 (UAT): scoped to the reminder that launched THIS session.
+      // Complete only the reminder that launched this session.
       reminderService.completeIfLaunched(reminderId);
       setReminderId(null);
       speech.speakSession("squat_end", t("live.speakSessionComplete"));
@@ -403,19 +383,14 @@ export default function SquatLiveSessionPage() {
 
   const currentZone = depthZoneFor(kneeFlexionDeg, liveConfig);
 
-  // Stage 5.21: the promoted live-feedback panel's state, derived rather than tracked
-  // separately -- `rejectedGates` already holds exactly "the reasons for the most
-  // recent rejection, or none" (see its declaration above), so no new state needed.
+  // Live-feedback panel state derived from attempts and the latest rejection.
   const feedbackKind: "idle" | "counted" | "rejected" =
     attemptCount === 0 ? "idle" : rejectedGates.length > 0 ? "rejected" : "counted";
 
   return (
     <>
       {stage === "posting" && <GeneratingReportOverlay />}
-      {/* UAT remediation (Stage R9): popup overlay instead of a sidebar panel --
-          the webcam feed and HUD underneath keep their exact layout whether this is
-          open or closed. Clicking Start Set in the modal goes straight into the
-          countdown, same as WBLT's Start Attempt. */}
+      {/* Rep-target modal overlays the live layout without shifting the HUD. */}
       {stage === "setup" && (
         <SquatTargetPromptModal
           targetReps={targetReps}
@@ -460,8 +435,7 @@ export default function SquatLiveSessionPage() {
         </div>
         <div className="topbar-actions">
           <AudioCueToggle />
-          {/* HY's refinement: Finish Set moved up here, beside Cancel, now that the
-              "Live status" panel that used to hold it is gone during recording. */}
+          {/* Finish action stays beside Cancel while recording. */}
           {stage === "recording" && (
             <button className="btn btn-primary" onClick={() => void finishSet()}>
               {t("squat.finishSet")}
@@ -514,18 +488,14 @@ export default function SquatLiveSessionPage() {
               </div>
             </div>
             <div className="hud-card reveal">
-              {/* Stage 5.21: the shared `live.reps` LABEL is untouched (used by
-                  STS/SLS/WBLT too) -- only this page's rendered VALUE changes, via a
-                  squat-scoped key, to show progress toward a target when one is set. */}
+              {/* Shared Reps label with squat-specific target progress in the value. */}
               <div className="hl2">{t("live.reps")}</div>
               <div className="hv">
                 {targetReps
                   ? t("squat.repsOfTargetValue", { rep: repCount, target: targetReps })
                   : repCount}
               </div>
-              {/* HY's refinement: progress now lives inside the Reps card itself
-                  (dropped the separate "Live status" panel below) -- only meaningful
-                  with a target set, so it stays hidden without one. */}
+              {/* Target progress lives inside the Reps card and stays hidden without a target. */}
               {stage === "recording" && targetReps && (
                 <div className="track hud-progress">
                   <div
@@ -537,11 +507,7 @@ export default function SquatLiveSessionPage() {
             </div>
           </div>
 
-          {/* Stage 5.21: promoted directly under the HUD, replacing the deleted
-              "Rep 5 of 10" status box -- corrective/positive feedback is the single
-              most important thing to read while exercising at a distance from the
-              screen. Persistent (see `feedbackKind`'s derivation above): it shows the
-              LAST rep's verdict until the next one, never blanking on a timer. */}
+          {/* Persistent live feedback sits directly under the HUD for distance readability. */}
           {stage === "recording" && (
             <div className={"live-feedback-panel " + feedbackKind} role="status" aria-live="polite">
               {feedbackKind === "idle" && (
@@ -591,9 +557,7 @@ export default function SquatLiveSessionPage() {
                 <h3>{t("squat.liveAnglesTitle")}</h3>
               </div>
 
-              {/* HY's refinement: one compact row of minimalist numbers instead of the
-                  gauge bar + ticks + two separate cards, so the whole live page (camera
-                  + HUD + feedback + angles) fits on screen without scrolling. */}
+              {/* Compact angle stats keep the live page visible without scrolling. */}
               <div className="live-angle-row">
                 <div className="live-angle-stat">
                   <span className="live-angle-label">{t("squat.kneeDepthLabel")}</span>

@@ -1,4 +1,4 @@
-"""Stage 5.17: the {summary, tips} JSON shape shared by the template and LLM paths."""
+"""Shared `{summary, tips}` feedback JSON contract tests."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Stage 5.12 Phase A: measurement for squat fault gates (depth / lean / heel-rise).
+"""Measure candidate squat fault-gate thresholds for depth, lean, and heel rise.
 
 Context (see the approved plan, `agile-roaming-kurzweil.md`, for the full argument):
 Stage 5.11 made squat commit to a binary Good/Poor verdict, but the ML's verdict is a
@@ -49,16 +49,25 @@ from pathlib import Path
 
 import check_feature_validity as cfv
 import numpy as np
-from build_features import (LABEL_MAP, SIDE_VIEW_ORIENTATION,
-                            TARGET_EXERCISE_ID, _load_config,
-                            _preprocessed_stream, _raw_full_stream,
-                            _read_segmentation)
+from build_features import (
+    LABEL_MAP,
+    SIDE_VIEW_ORIENTATION,
+    TARGET_EXERCISE_ID,
+    _load_config,
+    _preprocessed_stream,
+    _raw_full_stream,
+    _read_segmentation,
+)
 from sklearn.metrics import roc_curve
 from train_squat import _choose_cv
 
 from app.module_a.core.config import MIN_VISIBILITY
-from app.module_b.core.geometry import (distance, knee_flexion_deg,
-                                        landmark_value, midpoint)
+from app.module_b.core.geometry import (
+    distance,
+    knee_flexion_deg,
+    landmark_value,
+    midpoint,
+)
 from app.module_b.squat.config import SQUAT_CONFIG
 
 ML_ROOT = Path(__file__).resolve().parent.parent
@@ -68,8 +77,7 @@ REPORT_MD = ML_ROOT / "reports" / "SQUAT_FAULT_GATE_ANALYSIS.md"
 
 HEEL = {"left": 29, "right": 30}
 TOE = {"left": 31, "right": 32}
-# Stage 5.3 (build_features.py): subjects face the camera the same way in every
-# REHAB24-6 squat video, so the right leg is the far (occluded) one throughout.
+# REHAB24-6 squat videos use the same camera orientation, so right is the far leg.
 NEAR_LEG = "left"
 FAR_LEG = "right"
 # Same convention as the lunge far-limb occlusion check (fixed in advance, not tuned
@@ -89,8 +97,7 @@ PEAK_FLEXION_BIAS_DEG = -11.96
 AUC_KEEP_MARGIN = cfv.AUC_KEEP_MARGIN
 DIRECTION_CONSISTENCY_MIN = cfv.DIRECTION_CONSISTENCY_MIN
 
-# Stage R1: kept identical to `module_b/squat/fault_gates.py`'s constants of the same
-# name so the threshold derived here matches what production computes.
+# Keep identical to `module_b/squat/fault_gates.py` so derived thresholds match runtime.
 _SETTLE_WINDOW_FRAMES = 3
 _DEBOUNCE_FRAMES = 3
 
@@ -237,13 +244,12 @@ def _select_near_leg(frames: list[dict]) -> str:
 
 
 def _heel_rise_peak_norm(frames: list[dict]) -> float:
-    """Stage R1 construction (mirrors `module_b/squat/fault_gates.py`, kept in
-    lockstep so the threshold derived here matches what production computes):
-    camera-side leg picked by visibility (not bilateral average), baseline is the
-    median of a short settle window (not frame 0), and the reported peak must be
-    sustained across a debounce window (not a single-frame spike). Callers of this
-    script (`build_heel_rise_rows`) already filter to visibility-census-passing reps,
-    so the occlusion guard here is a no-op in practice, not silently masking anything.
+    """Measure sustained heel rise using the same construction as production.
+
+    The camera-side leg is selected by visibility, the baseline comes from a short
+    settle window, and the peak must survive debounce rather than a single-frame spike.
+    `build_heel_rise_rows` already filters to visibility-passing reps, so the occlusion
+    guard here is present for parity, not routine masking.
     """
     near_leg = _select_near_leg(frames)
     if _leg_visibility(frames, near_leg) < MIN_VISIBILITY:

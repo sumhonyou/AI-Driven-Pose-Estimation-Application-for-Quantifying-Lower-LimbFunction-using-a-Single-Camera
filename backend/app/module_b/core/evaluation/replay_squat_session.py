@@ -1,17 +1,14 @@
-"""Replay harness: re-runs a squat set through a fresh analysis and proves determinism.
+"""Replay harness for squat analysis determinism.
 
-Mirrors Module A's Stage 7 precedent (`replay_sls_session.py` / `replay_wblt_session.py`):
-same two input modes, same in-script determinism check rather than "trust the DB". What
-it can prove differs between the two modes, and the difference is structural, not an
-oversight:
+Two input modes are supported:
 
-**`--json-file` — full replay.** Runs the entire pipeline the live endpoint runs
+**`--json-file` - full replay.** Runs the entire pipeline the live endpoint runs
 (quality on the raw buffer -> preprocess -> segment -> features -> rules -> fuse) twice
 over the same frames and asserts the two results are identical. This is the real
 determinism proof, and it is what the committed replay corpus
 (`app/module_b/replay_corpus/squat/`) is for.
 
-**`--session-id` — partial replay, because Module B does not store frames.** Module A
+**`--session-id` - partial replay, because Module B does not store frames.** Module A
 persists raw landmarks to `module_a_landmark_log`; **Module B has no equivalent table by
 design** — `crud.save_result()` stores "the exact analyzed snapshot without persisting
 browser frames/video", and `assess_capture_quality()` computes Q "without retaining
@@ -29,11 +26,9 @@ strictly stronger: WBLT loses *which* attempt, Module B has no frames at all.
 
 **`--session-id` compares against the stored snapshot but does not assert equality.**
 A mismatch is reported, not raised. `router.py`'s GET handler is explicit that a stored
-result is a historical snapshot and is never recomputed; Stage 5.6 changed
-`w_rule_default`/`w_ml_default`/`confidence_low_threshold`, so any session graded before
-that change *legitimately* re-derives to a different score today. Asserting equality
-would turn a correct config change into a crash. The comparison is still worth printing:
-it is how you see config drift against real stored data.
+result is a historical snapshot and is never recomputed. A config change can therefore
+make an old stored result re-derive differently today. The comparison is still useful
+because it exposes config drift against real stored data.
 
 Usage:
     python -m app.module_b.core.evaluation.replay_squat_session \\
@@ -86,10 +81,7 @@ def analyse_frames(frames: list[dict[str, Any]]) -> dict[str, Any]:
     if rule_scores.score is None:
         raise ValueError("No rule score is available for this set")
 
-    # Faithful to the endpoint (Stage 5.13): gates are evaluated first and folded into
-    # each rep's own verdict, then the set's band is a strict majority of those verdicts.
-    # Keeping this in step with router.py matters — the pre-5.11 harness diverged on
-    # band_policy exactly this way, and the corpus silently encoded the wrong band.
+    # Keep gate handling in the same order as the live endpoint.
     gate_result = exercise.evaluate_fault_gates(reps, feature_vectors)
     fusion = score_set(
         rule_scores=rule_scores,
@@ -129,11 +121,9 @@ def replay_rules_and_fusion(
     implementation ignores its `reps` argument today — depending on that would be
     depending on an implementation detail that is free to change.
 
-    ⚠ **Fault gates cannot run here** (heel-rise reads raw frames, which were never
-    stored), so a set whose stored band was decided by a gate failure will replay with
-    the model-only band. That gap predates Stage 5.13 — this path never ran gates — but
-    per-rep voting makes it visible more often, since gates now decide single reps rather
-    than the whole set. Compare bands from this path with that caveat in mind.
+    Fault gates cannot run here because heel-rise reads raw frames, which were never
+    stored. A set whose stored band was decided by a gate failure may therefore replay
+    with the model-only band. Compare bands from this path with that caveat in mind.
     """
     rule_scores = score_squat_set(feature_vectors)
     if rule_scores.score is None:

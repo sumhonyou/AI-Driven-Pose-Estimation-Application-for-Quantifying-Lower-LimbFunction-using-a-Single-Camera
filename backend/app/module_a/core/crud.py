@@ -106,9 +106,7 @@ def get_previous_completed_result(
     before: datetime,
     limit: int = 10,
 ) -> ModuleAResult | None:
-    """Stage 7.2: the account's most recent *completed* result for this
-    exercise that is chronologically BEFORE `before` (pass the current
-    session's `created_at`) -- the trend comparison target for STS/SLS.
+    """Return the user's previous completed result for this exercise before `before`.
 
     The `before` bound matters: without it, viewing an *old* session's report
     (e.g. via Session History) could pick a *later* session as the "previous"

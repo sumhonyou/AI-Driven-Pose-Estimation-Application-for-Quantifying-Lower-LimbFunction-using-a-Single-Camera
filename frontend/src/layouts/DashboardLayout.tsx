@@ -110,8 +110,7 @@ function TopbarAvatar() {
 }
 
 export default function DashboardLayout() {
-  // Stage 7.3: RemindersProvider wraps the whole authed shell so both the nav
-  // badge here and the Reminders/Dashboard pages (via Outlet) share one fetch.
+  // One reminder state source for nav badges, banners, and reminder pages.
   return (
     <RemindersProvider>
       <DashboardLayoutInner />
@@ -182,13 +181,7 @@ function DashboardLayoutInner() {
             <Grid />
             <span className="nav-label">{t("dash.navDashboard")}</span>
           </NavLink>
-          {/* UAT remediation (Stage R14 micro-fix): this was a plain <div
-              onClick>, not a real link -- unreachable by Tab and with no
-              focus-visible outline, unlike every other sidebar item. A real
-              <Link> keeps the multi-route "active" logic (isSessionFlow spans
-              /mode, /exercise, /camera, /live-session, /report, which
-              NavLink's own isActive can't express) while restoring normal
-              keyboard focusability. */}
+          {/* Real link keeps keyboard focus while preserving multi-route active state. */}
           <Link to="/mode" className={`nav-link ${isSessionFlow ? "active" : ""}`}>
             <CirclePlus />
             <span className="nav-label">{t("dash.navNew")}</span>
@@ -201,10 +194,7 @@ function DashboardLayoutInner() {
             <Chart />
             <span className="nav-label">{t("dash.navProgress")}</span>
           </NavLink>
-          {/* UAT remediation (Stage R13): reminders used to live under "Account"
-              alongside Profile, which testers didn't associate with a core,
-              frequently-used feature (concept scored 4.71/5 & 67% "strongest" --
-              S5/R19). Relocated under "Overview" with the rest of the main flow. */}
+          {/* Reminders live with the main overview flow. */}
           <NavLink to="/reminders" className={({ isActive }) => (isActive ? "active" : "")}>
             <span className="nav-icon-badge">
               <Bell />
@@ -283,8 +273,7 @@ export function DashTopbar({
 }: {
   title: string;
   subtitle?: string;
-  /** UAT remediation (Stage R9): small uppercase label above the title (e.g.
-   * "BEFORE YOU BEGIN" on the instruction page) -- optional, most pages omit it. */
+  /** Optional small uppercase label above the title. */
   eyebrow?: string;
   actions?: ReactNode;
 }) {

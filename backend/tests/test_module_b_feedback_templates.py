@@ -1,8 +1,4 @@
-"""Stage 6.2: the deterministic template fallback, built and proven before any LLM code.
-
-Stage 5.17: `compose_template` returns a `feedback_contract.RewrittenFeedback`
-(summary + tips), not a single string -- assertions read `.summary`/`.tips` directly.
-"""
+"""Deterministic feedback-template fallback tests."""
 
 from __future__ import annotations
 

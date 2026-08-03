@@ -1,8 +1,4 @@
-"""Stage 6.3: the safety filter — grade integrity, tag integrity, forbidden phrases, length.
-
-Stage 5.17: candidates are now `feedback_contract` JSON (`{"summary": ..., "tips": [...]}`)
-instead of a plain sentence, and a new markdown-formatting check was added.
-"""
+"""LLM feedback safety-filter tests."""
 
 from __future__ import annotations
 

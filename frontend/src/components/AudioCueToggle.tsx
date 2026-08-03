@@ -1,8 +1,4 @@
-// UAT remediation (Stage R6): mute/unmute control for spoken live cues. Dropped into
-// every live session page's topbar (where the cues actually play) AND the shared
-// DashTopbar (layouts/DashboardLayout.tsx) for out-of-session discoverability --
-// testers never found the existing font-size control when it was topbar-only either
-// (R14's finding), so this is deliberately visible outside the live pages too.
+// Mute/unmute control for spoken live cues, shown in live pages and the dashboard topbar.
 import { useTranslation } from "react-i18next";
 import { usePreferences } from "../preferences";
 import { primeSpeechSynthesis, speakOnce, toBcp47 } from "../utils/speech";

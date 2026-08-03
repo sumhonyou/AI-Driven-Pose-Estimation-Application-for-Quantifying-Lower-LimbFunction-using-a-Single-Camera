@@ -1,4 +1,4 @@
-// Weight-Bearing Lunge Test live session — Stage 2 (guided bracket, both legs, symmetry).
+// Weight-Bearing Lunge Test live session: guided bracket, both legs, symmetry.
 // Per leg: LOADING (fetch bracket target) -> SETUP -> POSITIONING (quality-gated hold,
 // waits until the tested leg + hips are stably visible) -> GET_READY (fixed 5s countdown
 // to get into the lunge stance) -> CALIBRATING (fixed 2s "stand still, foot flat" — the
@@ -70,10 +70,7 @@ type Stage =
 // the backend's own per-frame validity gate instead of a blind fixed timer, so an
 // attempt can never start on a frame the backend would have rejected anyway.
 const WBLT_POSITION_STABLE_MS = 1500;
-// Fixed countdown once framing is confirmed stable, giving the user a predictable
-// moment to settle into the lunge stance before recording actually starts. UAT
-// remediation (Stage R5): standardised to the same 5s every other exercise's
-// get-ready countdown uses (was 10s).
+// Fixed countdown once framing is stable, matching the other exercise start flows.
 const WBLT_GET_READY_DURATION_SEC = 5;
 // "Stand still, foot flat" window at the very start of recording. The heel-lift
 // baseline is captured here, so it MUST match backend CALIBRATION_SECONDS — a
@@ -200,9 +197,7 @@ export default function WbltLiveSessionPage() {
   function startHold() {
     trackerRef.current.finalizeCalibration();
     setRecordingSecondsLeft(WBLT_RECORDING_DURATION_SEC);
-    // UAT remediation (Stage R6): announces the exact instruction the user needs at
-    // this instant -- reuses the same "lunge now" text already shown on screen
-    // (wblt.lungeNow) so the spoken and visual cues can never drift apart.
+    // Speak the same "lunge now" instruction shown on screen.
     speech.speakSession("wblt_lunge_start", t("wblt.lungeNow"));
     setStage("recording");
   }
@@ -270,10 +265,7 @@ export default function WbltLiveSessionPage() {
   }, [stage]);
   const legVisible = isWbltLegVisible(landmarks ?? [], leg);
   const hipsVisible = areWbltHipsVisible(landmarks ?? []);
-  // UAT remediation (Stage R9): the old fallback reused the long setupGuidanceSide
-  // sentence here; replaced with a short, uniform framing instruction (HY's wording)
-  // now that reading distance matters again on the live positioning box. The two
-  // "retry_*" messages stay as-is -- already short and specific to their failure.
+  // Keep positioning guidance short enough to read from exercise distance.
   const positionGuidance = !landmarks?.length
     ? t("wblt.positionGuidanceShort")
     : !legVisible
@@ -281,19 +273,11 @@ export default function WbltLiveSessionPage() {
       : !hipsVisible
         ? t("wblt.warn_retry_lateral_alignment")
         : t("wblt.positioningHold");
-  // UAT remediation (Stage R9): this box previously stayed green through every one
-  // of the warning states above -- now only the genuine "you're framed, hold still"
-  // message is green; everything else (including the real backend `retry_*` fault
-  // tags this mirrors) reads amber.
+  // Only the genuine "framed, hold still" state reads green; warnings read amber.
   const positionWarning =
     stage === "positioning" && (!landmarks?.length || !legVisible || !hipsVisible);
 
-  // UAT remediation (Stage R9, HY's question -- "did you include this into audio
-  // feedback? I think this is also one of the error tags"): confirmed yes, the
-  // backend's warning_tags really does include a `retry_{limiting_factor}` entry
-  // for exactly this (analysis.py) -- but nothing spoke it. Edge-detected so it
-  // fires once per bad-framing episode, not every frame; SpeechCueQueue's own
-  // per-key throttle covers the rest.
+  // Speak framing warnings once per bad-framing episode; the queue handles repeats.
   const wasPositionWarningRef = useRef(false);
   useEffect(() => {
     if (stage !== "positioning") {
@@ -409,9 +393,7 @@ export default function WbltLiveSessionPage() {
       window.clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
-    // UAT remediation (Stage R6, HY's note): every fault tag gets spoken, including
-    // this one -- fires once since the attempt ends immediately after (no need for
-    // edge-detection/throttling like the other pages' sustained faults).
+    // Speak heel-lift once; the attempt ends immediately after this fault.
     speech.speakFault("heel_lift", t("wblt.heelLifted"));
     queueMicrotask(() => void submitTouch(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -435,7 +417,7 @@ export default function WbltLiveSessionPage() {
       capture_quality: avg(samples.map((s) => s.score)),
       valid_frame_ratio: avg(samples.map((s) => s.validFrameRatio)),
     });
-    // Stage R13 (UAT): scoped to the reminder that launched THIS session.
+    // Complete only the reminder that launched this session.
     reminderService.completeIfLaunched(reminderId);
     setReminderId(null);
     speech.speakSession("wblt_end", t("live.speakSessionComplete"));
@@ -528,9 +510,7 @@ export default function WbltLiveSessionPage() {
       {stage === "attempt_result" && lastResult && (
         <WbltAttemptResultOverlay result={lastResult} onNext={nextAttempt} />
       )}
-      {/* UAT remediation (Stage R9): popup overlay instead of a sidebar panel --
-          the webcam feed and HUD underneath keep their exact layout whether this is
-          open or closed. */}
+      {/* Target prompt overlay keeps the camera and HUD layout stable. */}
       {stage === "setup" && targetDistanceCm != null && (
         <WbltTargetPromptModal targetDistanceCm={targetDistanceCm} onStart={beginPositioning} />
       )}
@@ -599,8 +579,7 @@ export default function WbltLiveSessionPage() {
               <div className="hv">{legLabel}</div>
             </div>
             {stage !== "leg_result" && stage !== "session_result" && (
-              // UAT remediation (Stage R9): redesigned like Squat's Reps HUD card --
-              // big value + a progress bar toward attemptsPerLeg, instead of plain text.
+              // Attempt HUD with a large value and progress bar.
               <div className="hud-card reveal">
                 <div className="hl2">{t("wblt.attemptLabel")}</div>
                 <div className="hv">

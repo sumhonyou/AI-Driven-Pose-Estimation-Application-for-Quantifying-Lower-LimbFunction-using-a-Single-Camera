@@ -26,7 +26,7 @@ export type WbltAttemptResult = {
   session_status: "complete" | "incomplete" | "low_confidence";
   warning_tags: string[];
   persisted: boolean;
-  // Bracket state after this attempt (§4.2).
+  // Bracket state after this attempt.
   attempt_number: number;
   next_target_distance_cm: number | null;
   leg_complete: boolean;
@@ -63,8 +63,8 @@ export type WbltProfileSnapshot = {
 
 export type WbltAgreementPair = { leg: WbltLeg; distance_cm: number; angle_deg: number };
 
-// §11 Stage 6: vs the account's previous completed WBLT session, per leg.
-// `_meaningful` flags are already MDC-suppressed server-side.
+// Trend against the previous completed WBLT session, per leg.
+// `_meaningful` flags are already MDC-suppressed by the backend.
 export type WbltLegTrend = {
   distance_delta_cm: number | null;
   distance_meaningful: boolean;
@@ -80,7 +80,7 @@ export type WbltSessionSummary = {
   both_legs_done: boolean;
   session_status: "complete" | "incomplete" | "low_confidence";
   warning_tags: string[];
-  // §9: the audit-trail snapshot -- what the band was actually computed from.
+  // Audit snapshot of the profile values used for banding.
   profile: WbltProfileSnapshot | null;
   agreement_pairs: WbltAgreementPair[];
   captured_at: string | null;

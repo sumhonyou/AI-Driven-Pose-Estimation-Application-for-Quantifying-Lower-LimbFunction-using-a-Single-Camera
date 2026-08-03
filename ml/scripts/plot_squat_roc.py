@@ -11,8 +11,7 @@ re-run that could drift from the quoted number.
 import matplotlib.pyplot as plt
 from plotting import save_fig
 from sklearn.metrics import roc_auc_score, roc_curve
-from train_squat import (_build_xy, _choose_cv, _load_config, _read_rows,
-                         nested_cv)
+from train_squat import _build_xy, _choose_cv, _load_config, _read_rows, nested_cv
 
 
 def main() -> None:

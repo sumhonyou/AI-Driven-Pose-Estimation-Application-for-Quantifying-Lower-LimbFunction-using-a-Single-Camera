@@ -7,13 +7,8 @@ export type ScoreBandThresholds = { poorMax: number; fairMax: number };
 // (app/module_a/core/config.py, app/module_b/core/config.py).
 export const SCORE_BAND_THRESHOLDS: ScoreBandThresholds = { poorMax: 4, fairMax: 7 };
 
-// Squat is the one exception, and always has been (this was a real mismatch before
-// Stage 5.22, not a new one -- a squat point could already sit in the green 7-10 zone
-// while its own badge said "Poor", since squat committed to a binary Good/Poor vote at
-// Stage 5.11). Stage 5.18 made the score `10 * counted/attempts` with a strict-majority
-// band vote, so the cut is a clean 5.0 with no Fair band at all. `poorMax === fairMax`
-// collapses the middle ReferenceArea to zero height rather than needing a second chart
-// variant -- it renders nothing, leaving exactly two zones.
+// Squat is binary: score > 5.0 is Good, otherwise Poor. Equal poor/fair cutoffs
+// collapse the Fair zone without needing a separate chart variant.
 const EXERCISE_SCORE_BAND_THRESHOLDS: Record<string, ScoreBandThresholds> = {
   squat: { poorMax: 5, fairMax: 5 },
 };

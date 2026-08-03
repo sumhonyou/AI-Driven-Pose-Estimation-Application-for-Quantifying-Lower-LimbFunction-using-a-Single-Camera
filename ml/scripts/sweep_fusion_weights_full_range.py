@@ -30,12 +30,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 from plotting import save_fig
 from sweep_fusion_weights import _rule_score
-from train_squat import (_build_xy, _choose_cv, _load_config, _read_rows,
-                         nested_cv)
+from train_squat import _build_xy, _choose_cv, _load_config, _read_rows, nested_cv
+
 # Reuse the deployed tuner's exact, verified helpers — no re-derivation of fusion,
 # confusion, or metric logic (X1 parity by construction).
-from tune_squat_binary_band import (_bands_at, _candidate_thresholds,
-                                    _confusion, _fused_scores, _metrics)
+from tune_squat_binary_band import (
+    _bands_at,
+    _candidate_thresholds,
+    _confusion,
+    _fused_scores,
+    _metrics,
+)
 
 ML_ROOT = Path(__file__).resolve().parent.parent
 REPORT_MD = ML_ROOT / "reports" / "SQUAT_FUSION_SWEEP_FULL_RANGE.md"

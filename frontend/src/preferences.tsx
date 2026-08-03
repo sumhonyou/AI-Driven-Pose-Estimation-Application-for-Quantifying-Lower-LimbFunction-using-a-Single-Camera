@@ -9,9 +9,7 @@ interface Prefs {
   toggleTheme: () => void;
   fontScale: FontScale;
   setFontScale: (s: FontScale) => void;
-  /** UAT remediation (Stage R6): spoken live cues during a session. Defaults to ON
-   * (HY's call) -- it's the reading-distance fix the feature exists for, so it
-   * should be heard immediately rather than requiring discovery of a toggle. */
+  /** Spoken live cues during a session; defaults on for reading-distance feedback. */
   audioCues: boolean;
   toggleAudioCues: () => void;
 }

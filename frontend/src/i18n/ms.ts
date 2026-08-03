@@ -249,7 +249,7 @@ const ms: Dict = {
     repVolumeTrendSub: "Ulangan yang dikira berbanding tidak, setiap sesi",
     repsCounted: "Dikira",
     repsRejected: "Tidak dikira",
-    // Stage R12: carta aliran kedua bagi setiap senaman (ganti aliran kualiti tangkapan).
+    // Carta aliran kedua bagi setiap senaman.
     stsTimeTrend: "Masa selesai & ulangan",
     stsTimeTrendSub: "Berapa lama ujian dan setiap ulangan, setiap sesi",
     slsHoldTrend: "Tahanan terbaik setiap kaki",

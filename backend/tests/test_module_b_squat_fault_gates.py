@@ -1,9 +1,6 @@
-"""Stage 5.12 — interpretable squat fault gates (depth / lean / heel-rise).
+"""Interpretable squat fault-gate tests.
 
-Covers each gate individually against the Phase A thresholds
-(ml/reports/SQUAT_FAULT_GATE_ANALYSIS.md), the multi-rep aggregator (the direct
-regression proof that a bad rep anywhere in the set is caught even when rep 0 is
-clean — the ML only scores rep 0), and the router's band-override + tag composition.
+Covers individual gates, multi-rep aggregation, and router tag composition.
 """
 
 from __future__ import annotations

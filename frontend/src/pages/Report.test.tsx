@@ -1,9 +1,4 @@
-// Regression test for the Phase 3E Stage 2 lesson referenced in task.md Stage
-// 4.7: Report.tsx picks its Module A vs Module B render branch off
-// `session.exercise_type`, and that choice has silently rendered the wrong
-// panel before. This locks in that a "squat" session renders the Module B
-// panel (sub-scores + error tags) and never the Module A one, and vice versa
-// for a Module A exercise type.
+// Regression coverage for Report.tsx selecting Module A vs Module B by exercise_type.
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -145,17 +140,14 @@ describe("Report", () => {
     // Module A's merged coaching panel (labelled "General tip" when no flags fired)
     // must not render on the Module B branch.
     expect(screen.queryByText(/general tip/i)).not.toBeInTheDocument();
-    // Stage 5.17: the coaching card renders the structured summary as its own text
-    // node and each tip as a real <li>, not a raw JSON/markdown string.
+    // Structured coaching renders as normal text and list items, not raw JSON/markdown.
     expect(screen.getByText("Grade: Good.")).toBeInTheDocument();
     const tip = screen.getByText("Nice steady pace.");
     expect(tip.tagName).toBe("LI");
     expect(screen.queryByText(/"summary"/)).not.toBeInTheDocument();
   });
 
-  // Stage 5.20: the breakdown used to list only gate failures, so a set with reps the
-  // model rejected on its own showed "8 didn't count" above just 6 reasons. The counts
-  // must reconcile: named faults + model-only rejections == total rejected.
+  // Rejected counts must reconcile named faults plus model-only rejections.
   it("accounts for reps the model rejected with no named fault", async () => {
     vi.mocked(sessionService.get).mockResolvedValue(baseSession);
     vi.mocked(moduleBService.get).mockResolvedValue({
@@ -176,7 +168,7 @@ describe("Report", () => {
     renderReport("s1");
 
     expect(await screen.findByText(/2 reps counted · 3 didn't count/i)).toBeInTheDocument();
-    // Stage R12: the "Valid reps" metric row shows the counted-rep total (2 here).
+    // The "Valid reps" metric row shows the counted-rep total.
     expect(screen.getByText("Valid reps")).toBeInTheDocument();
     expect(screen.getByText(/no specific fault identified/i)).toBeInTheDocument();
     expect(screen.getByText(/no specific fault identified/i).textContent).toContain("×2");

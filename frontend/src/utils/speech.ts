@@ -1,13 +1,7 @@
-// UAT remediation (Stage R6 follow-up): shared Web Speech helpers.
+// Shared Web Speech helpers.
 //
-// THE REAL "no audio at all" CAUSE (found after the cancel/speak fix didn't help):
-// every spoken cue in the app fires from a TIMER or an async/MediaPipe callback --
-// the session-start cue from a countdown interval, faults from the per-frame pose
-// callback, the end cue from an async finish handler. NOT ONE is ever spoken from
-// inside a user gesture. Chrome gates `speechSynthesis.speak()` on user activation:
-// if the page never calls speak() during/just after a real click, it can silently
-// refuse to produce ANY audio. (STS is the worst case -- it auto-counts-down on
-// mount, so there's never even a click on the page before its first cue.)
+// Chrome can block speech started only from timers or async callbacks. Prime speech
+// during a user gesture, then reuse the same queue for countdown and pose callbacks.
 //
 // Fix, layered:
 //   1. `primeSpeechSynthesis()` on the FIRST user interaction anywhere in the app

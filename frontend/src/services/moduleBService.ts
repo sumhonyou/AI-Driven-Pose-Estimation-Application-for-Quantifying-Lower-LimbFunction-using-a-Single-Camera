@@ -27,8 +27,7 @@ export type ModuleBRepSummary = {
   duration_s: number;
   bottom_frame_index: number;
   bottom_knee_flexion_deg: number;
-  // Stage 5.14 per-rep verdict fields. Optional because they are absent both on rows
-  // stored before that stage and for exercises that do not vote (Module A).
+  // Optional per-rep verdict fields for exercises that use voting.
   ml_score?: number;
   confidence?: number;
   failed_gates?: string[];
@@ -50,12 +49,7 @@ export type ModuleBMetrics = {
   per_rep_summaries: ModuleBRepSummary[];
 };
 
-// Stage 6.5: the after-set coaching text. `feedback_source` is surfaced honestly in the
-// UI rather than hidden -- an examiner will ask which layer actually produced the text.
-// Stage 5.17: the shape the report actually renders -- a summary sentence plus a real
-// list of tips. Present for every row (including legacy pre-Stage-5.17 rows, which the
-// backend wraps as `{summary: <the old plain sentence>, tips: []}`), so the frontend
-// never needs to parse `rewritten_feedback` itself.
+// Structured after-set coaching text rendered by the report.
 export type ModuleBFeedbackStructured = {
   summary: string;
   tips: string[];
@@ -72,8 +66,7 @@ export type ModuleBFeedback = {
   disclaimer_version: string | null;
 };
 
-// Stage 7.4: "vs last session" trend, mirroring Module A's StsTrend/SlsLegTrend shape.
-// No MDC-style "meaningful" flag -- see backend app/module_b/squat/trend.py.
+// Previous completed squat session trend. No meaningful-change flag is exposed.
 export type SquatTrend = {
   score_delta: number | null;
   rep_count_delta: number | null;

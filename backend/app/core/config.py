@@ -18,11 +18,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
     cors_origins: str = "http://localhost:5173,http://localhost:5180"
-    # Stage 6.4: after-set coaching-text rewrite, optional polish, off by default
-    # (rules.md #12/#13) -- the report works fully with this False. Current provider:
-    # Groq (llm_client.py's GroqClient). `llm_model` defaults to the model verified in
-    # docs/groq_model_verification.md, but is env-configurable -- change LLM_MODEL in
-    # .env to point at a different Groq-hosted model without touching code.
+    # Optional after-set feedback rewrite. Reports work fully with this disabled.
     llm_api_key: str | None = None
     llm_model: str = "llama-3.3-70b-versatile"
     feedback_llm_enabled: bool = False

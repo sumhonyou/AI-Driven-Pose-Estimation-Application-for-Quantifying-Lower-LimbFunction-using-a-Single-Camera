@@ -1,4 +1,4 @@
-"""Stage 5.13: per-rep verdicts aggregated by strict majority vote.
+"""Per-rep verdict aggregation tests.
 
 The replay corpus cannot cover this. Its samples are synthetic and every rep inside one
 sample is near-identical, so each set is unanimous — exactly the case where per-rep voting

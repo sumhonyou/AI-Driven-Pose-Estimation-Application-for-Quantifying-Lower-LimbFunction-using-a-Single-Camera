@@ -110,11 +110,7 @@ export default function Profile() {
   // Re-run reveal after async profile load — panels don't exist on initial nav.
   useReveal([profile]);
 
-  // UAT remediation (Stage R14 micro-fix): clicking "Edit profile" swapped the
-  // panel to the form, but nothing was ever focused -- the user had to click
-  // into the name field themselves before typing. Focuses it and places the
-  // caret at the end of the existing name (not the start, which would make
-  // typing insert before it) once the edit panel's fields exist in the DOM.
+  // Focus the name field when entering edit mode, with the caret at the end.
   useEffect(() => {
     if (!isEditing) return;
     const input = nameInputRef.current;

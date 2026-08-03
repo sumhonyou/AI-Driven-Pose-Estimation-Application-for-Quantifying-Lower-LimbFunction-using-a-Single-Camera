@@ -1,10 +1,8 @@
-"""Stage 6.1: build the structured after-set feedback object for a Module B result.
+"""Build deterministic after-set feedback data for Module B.
 
-This is the trusted, deterministic layer the report and the (optional) LLM rewrite both
-sit on top of. It only reads the already-persisted result snapshot — band, score, rule
-sub-scores, confidence and the stored tags — and never re-derives a grade (X8). The band
-and score it reports are byte-for-byte the ones the analyze step stored, so no downstream
-layer can change the grade.
+This layer reads the persisted result snapshot only: band, score, rule sub-scores,
+confidence, and stored tags. It never re-derives a grade, so downstream text layers
+cannot change the result.
 
 Tags are ranked severity-first (high → medium → low). "Magnitude" ordering within a
 severity, which the plan mentions, is not available here because the per-tag metric value
@@ -53,11 +51,7 @@ class StructuredFeedback:
 
 
 def build_structured_feedback(summary: Mapping[str, Any]) -> StructuredFeedback:
-    """Build ranked, deterministic structured feedback from a `crud.result_summary` dict.
-
-    Taking the plain summary dict (the exact shape the API returns and the report reads)
-    keeps this pure and trivially testable — no DB objects, no recomputation.
-    """
+    """Build ranked feedback from the same summary shape returned by the API."""
     metrics = summary.get("metrics") or {}
     sub_scores = tuple(
         FeedbackSubScore(code=item.get("code"), score=item.get("score"))

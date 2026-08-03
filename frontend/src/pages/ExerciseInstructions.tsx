@@ -1,11 +1,4 @@
-// UAT remediation (Stage R9): shared, reusable "before you begin" instruction page,
-// inserted into the flow as instructions -> camera setup -> countdown -> live. One
-// template, driven entirely by config/exerciseInstructions.ts -- adding a future
-// exercise only means adding a config entry, never touching this file.
-//
-// Reference design: Figma "Exercise Instruction / Template" (node 12:37). The Figma
-// frame's own "Reusable for all 4 exercises" badge is a note to the designer/dev
-// about the frame itself, not user-facing copy -- deliberately not shipped here.
+// Shared "before you begin" page driven by config/exerciseInstructions.ts.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -15,9 +8,7 @@ import { ArrowLeft, Play, Lightbulb, Info } from "../components/Icons";
 import { useSessionFlow } from "../session";
 import { instructionConfigForExerciseCode } from "../config/exerciseInstructions";
 
-// "Pop out" entrance: a touch bouncier than the site's standard subtle `.reveal`
-// fade-up, per HY's request for a more noticeable first appearance. The doc panel
-// pops in slightly after the demo panel for a light staggered feel.
+// Slightly bouncy entrance with a stagger between the demo and instruction panels.
 const POP_TRANSITION = { type: "spring" as const, stiffness: 300, damping: 26 };
 
 export default function ExerciseInstructions() {
@@ -104,9 +95,7 @@ export default function ExerciseInstructions() {
             <p className="instr-doc-subtitle">{t("instr.docSubtitle")}</p>
           </div>
 
-          {/* UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb
-              (T4 -- the most-repeated content request), one shared source per
-              exercise (config/exerciseInstructions.ts::whyKey). */}
+          {/* Non-diagnostic purpose and benefit blurb for the selected exercise. */}
           <div className="instr-why">
             <span className="instr-why-icon">
               <Info width={16} height={16} />

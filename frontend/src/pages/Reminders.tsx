@@ -1,4 +1,4 @@
-// Stage 7.3: real reminders, backed by GET/POST/PATCH/DELETE /api/reminders.
+// Reminders backed by GET/POST/PATCH/DELETE /api/reminders.
 // Delivery is calendar-link based (Google Calendar URL + downloadable .ics,
 // both computed server-side) -- no email, no push, no scheduler (task.md's
 // "keep it simple" note for this stage). Clicking a reminder tied to an
@@ -80,10 +80,8 @@ function ReminderFormModal({
   const [whenError, setWhenError] = useState("");
   const [invalid, setInvalid] = useState({ title: false, when: false });
   const [shaking, setShaking] = useState(false);
-  // UAT remediation (Stage R13): "auto-prompt add to calendar on creation" --
-  // rather than closing immediately on save, the same modal switches to a
-  // calendar-prompt view for the reminder that was just created. `onCreated()`
-  // (the list refresh) still fires right away; only the modal's own close is
+  // After save, keep the modal open long enough to show calendar actions.
+  // `onCreated()` refreshes the list immediately; only the modal close is
   // deferred until the user dismisses the prompt.
   const [created, setCreated] = useState<Reminder | null>(null);
 
@@ -345,8 +343,7 @@ export default function Reminders() {
     resetSession();
     setMode(r.exercise_mode === "rehab" ? "rehab" : "functional");
     setExerciseCode(r.exercise_code);
-    // Stage R13 (UAT): scopes the auto-complete-on-finish to THIS reminder --
-    // resetSession() above already clears any stale id from an earlier flow.
+    // Scope auto-complete-on-finish to this reminder.
     setReminderId(r.id);
     nav("/camera");
   };
@@ -415,13 +412,7 @@ export default function Reminders() {
             >
               <Check />
             </button>
-            {/* UAT remediation (Stage R13): the whole card used to be silently
-                clickable-to-open, with only a `title` tooltip hinting at it --
-                testers conflated that with the check button's "mark complete"
-                action (S5/S17). Opening the linked exercise is now its own
-                explicit button in .rem-actions (the Play icon below), so
-                "completed" and "open this exercise" are two distinct,
-                separately-labelled affordances. */}
+            {/* Opening the linked exercise is an explicit action, separate from completion. */}
             <div className="rem-body" style={{ flex: 1 }}>
               <b>{r.title}</b>
               <span>{r.exercise_name ?? t("reminders.noExercise")}</span>

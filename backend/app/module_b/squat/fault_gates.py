@@ -1,47 +1,17 @@
-"""Stage 5.12: interpretable fault gates for squat (depth / lean / heel-rise).
+"""Interpretable squat fault gates: depth, trunk lean, and heel rise.
 
-These gates are a **separate override layer**, deliberately NOT part of fusion or of
-`RuleScores.score`. `RuleScores.score` is an equal-weight mean, which would let one
-hard fault be diluted by good sub-scores — the wrong mechanism for "any single named
-fault should force Needs Improvement". A gate instead makes a binary pass/fail
-decision per rep; if any enabled gate fails on any rep, `router.py` overrides the
-fused band to Poor and attaches a specific, human-readable reason.
+Fault gates are separate from ML fusion. They make named pass/fail decisions per rep so
+the report can explain why a rep needs improvement.
 
-Why gates at all, when Stage 5.11 already ships a committed Good/Poor ML verdict: the
-ML's verdict is a single opaque number that cannot say *why* a rep was bad, and it
-only ever scores the first detected rep of a set (a separate, deferred finding). These
-gates run across **every** rep and name the fault. Each gate's threshold is justified
-differently, and that difference is intentional (see ml/reports/
-SQUAT_FAULT_GATE_ANALYSIS.md, Stage 5.12 Phase A):
+Gate inputs:
 
-- **lean** — data-driven. `trunk_lean_peak_deg` has a real KEEP verdict on REHAB24-6
-  (AUC 0.762, Poor leans more); the threshold is that dataset's own Youden-J cut.
-- **depth** — a fixed CLINICAL floor, NOT data-driven. This dataset's own labels run
-  the opposite way (Poor reps are measurably *deeper*), so "too shallow" cannot be
-  learned here; the threshold is the clinical parallel-squat norm adjusted for this
-  pipeline's measured -12° under-read.
-- **heel_rise** — data-driven, from a new measurement that passed a heel-visibility
-  go/no-go census and the standard KEEP/DROP validity check (AUC 0.728, Poor higher).
-  `heel_rise_peak_norm` is a rule-only signal — it is NOT in the frozen ML feature
-  vector, so this gate needs no `feature_schema_version` bump and no retrain.
+- Depth and trunk lean use the extracted `FeatureVector`.
+- Heel rise reads raw heel/toe landmarks because it is outside the frozen ML feature
+  schema.
 
-Depth and lean read the already-extracted `FeatureVector` (no schema change). Heel-rise
-reads the rep's raw frames directly (landmarks 29–32), since heel/ankle position is not
-part of the squat feature vector. Gates are computed on the same per-rep windows the
-features use, so a gate's scale matches the thresholds derived in Phase A.
-
-UAT remediation (Stage R1, 2026-07-24): the original heel-rise construction produced
-false positives on good-form squats (3/18 UAT sessions). Root cause was twofold: the
-baseline was a single first frame (noisy), and the bilateral (left+right) average
-weighted in the occluded far leg — Stage 5.3 measured the far knee at 0.59-0.78
-visibility vs 0.95-0.99 near, and the far heel is no better placed. `_heel_rise_peak_norm`
-now (a) selects the camera-side (near) leg by mean landmark visibility instead of
-averaging both, (b) baselines against the median of a short settle window instead of
-frame 0, (c) requires the rise to be sustained across a debounce window rather than
-firing on a single noisy frame, and (d) refuses to fire at all if even the chosen near
-leg is not reliably visible for the rep (fail safe: no verdict from a foot we can't see).
-This mirrors the pattern WBLT's `HeelLiftDetector` (`module_a/wblt/geometry.py`) already
-uses. See `ml/reports/SQUAT_FAULT_GATE_ANALYSIS.md` for the re-derived threshold.
+Heel-rise measurement uses the better-tracked camera-side leg, a short median baseline,
+and a debounce window. If the chosen foot is not visible enough, the gate refuses to fire
+instead of guessing.
 """
 
 from __future__ import annotations
@@ -60,8 +30,7 @@ _HEEL = {"left": 29, "right": 30}
 _TOE = {"left": 31, "right": 32}
 _MAX_HEEL_LANDMARK_INDEX = 32
 
-# Stage R1: short window at the start of the rep (still near-standing) used to median
-# the baseline instead of trusting a single, possibly noisy, first frame.
+# Short start-of-rep window used for the heel baseline.
 _SETTLE_WINDOW_FRAMES = 3
 # A rise only counts once it holds for this many consecutive frames -- a single spiky
 # frame (a landmark glitch) can no longer set the whole rep's peak. Same idiom as
@@ -160,13 +129,7 @@ def evaluate_fault_gates(
     feature_vectors: Sequence[FeatureVector],
     config: dict[str, Any],
 ) -> FaultGateResult:
-    """Run every enabled gate against EVERY rep; collect all failures.
-
-    Running across every rep (not just the first) is the concrete fix for the
-    fault-detection blind spot: the ML only scores rep 0, but a set is "Needs
-    Improvement" if *any* rep trips a gate. Iterated rep-then-gate in a fixed order so
-    the resulting tag list is deterministic (X8).
-    """
+    """Run every enabled gate against every rep and collect all failures."""
     if len(reps) != len(feature_vectors):
         raise ValueError("reps and feature_vectors must align one-to-one")
 
@@ -196,16 +159,7 @@ def evaluate_fault_gates(
 
 
 def _heel_rise_peak_norm(frames: list[Any]) -> float:
-    """Peak near-leg heel lift, debounced, normalized by trunk length.
-
-    Stage R1 construction: the camera-side (near) leg is chosen per rep by mean
-    landmark visibility rather than averaging both legs -- in a side view the far
-    foot is frequently occluded and a bilateral mean lets its noise manufacture a
-    phantom rise. The baseline is the median of a short settle window (not just
-    frame 0), and the reported peak must be sustained across a debounce window (not
-    a single-frame spike). If even the near leg isn't reliably visible for this rep,
-    the gate is refused entirely (fail safe) rather than guessed at.
-    """
+    """Peak near-leg heel lift, debounced, normalized by trunk length."""
     if not frames:
         raise ValueError("Cannot evaluate heel rise on an empty rep")
 

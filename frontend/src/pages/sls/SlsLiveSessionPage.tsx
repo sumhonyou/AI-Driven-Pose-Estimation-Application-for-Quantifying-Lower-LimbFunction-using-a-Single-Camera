@@ -48,15 +48,10 @@ type Stage =
   "ready" | "countdown" | "recording" | "posting" | "leg_result" | "support" | "finishing";
 
 const COUNTDOWN_START_SEC = 5;
-// UAT remediation (Stage R9): "ready" no longer waits for a manual Start Hold click
-// -- the camera setup step already confirmed full-body visibility once, so this is a
-// quick re-check (shorter than CameraSetup's own 5s) before auto-advancing to the
-// countdown. Leg 2 re-arms this the same way (see useAutoStartGate's `enabled`
-// re-arm-on-true semantics).
+// Quick full-body re-check before auto-advancing from ready to countdown.
 const SLS_AUTO_START_STABLE_MS = 2000;
 
-// UAT remediation (Stage R4): full-page corrective cue for the wrong-leg-lift signal
-// from liveGeometry.ts, mirroring the squat page's LiveCue shape.
+// Full-page corrective cue for the wrong-leg-lift signal from liveGeometry.ts.
 interface LiveCue {
   title: string;
   subheading?: string;
@@ -93,9 +88,7 @@ export default function SlsLiveSessionPage() {
   const [supportSubmitting, setSupportSubmitting] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(COUNTDOWN_START_SEC);
   const countdownTimerRef = useRef<number | null>(null);
-  // UAT remediation (Stage R8, S6 "summary first, per-leg detail second"): the
-  // technical detail (stability score, stop reason) under each leg's headline
-  // result is collapsed by default -- reset per leg in finalizeLeg().
+  // Per-leg technical detail is collapsed by default and reset in finalizeLeg().
   const [showLegDetail, setShowLegDetail] = useState(false);
 
   const { videoRef, setVideoRef, ready: webcamReady, error: webcamError } = useWebcam();
@@ -116,9 +109,7 @@ export default function SlsLiveSessionPage() {
   function startHold() {
     trackerRef.current = createSlsLiveTracker(leg);
     recorder.start();
-    // UAT remediation (Stage R6): announces which leg this hold is FOR -- reuses the
-    // exact same prompt text already shown on screen (sls.legPromptRight/Left, e.g.
-    // "Lift your RIGHT leg"), so the spoken and visual instructions can never drift.
+    // Speak the same leg prompt shown on screen.
     speech.speakSession(
       "sls_leg_start",
       t(leg === "right" ? "sls.legPromptRight" : "sls.legPromptLeft"),
@@ -145,11 +136,7 @@ export default function SlsLiveSessionPage() {
     setStage("ready");
   }
 
-  // UAT remediation (Stage R9, HY's call): no more manual "Start Hold" button --
-  // once the camera re-confirms the full body is in frame for a short stable
-  // window, the countdown begins automatically, exactly like CameraSetup's own
-  // auto-start gate. Re-arms every time `stage` returns to "ready" (leg 2, or a
-  // retry), per useAutoStartGate's enabled-transition semantics.
+  // Re-arm auto-start whenever the flow returns to ready.
   const { progress: readyProgress, active: readyActive } = useAutoStartGate(
     bodyQuality,
     FULL_BODY_QUALITY_THRESHOLD,
@@ -214,9 +201,7 @@ export default function SlsLiveSessionPage() {
       captureQuality,
     );
     if (worldLandmarks) {
-      // UAT remediation (Stage R8): 2D image-space landmarks feed the on-video
-      // lift-line height (lineYImgNorm) -- see liveGeometry.ts. The world landmarks
-      // above remain the sole source for the timer/hold FSM; this is display-only.
+      // 2D landmarks feed the display-only video lift-line; world landmarks drive the FSM.
       const update = trackerRef.current.update(worldLandmarks, now, landmarks);
       setLiveUpdate(update);
       if (update.wrongLegLifted && !wasWrongLegLiftedRef.current) {
@@ -231,8 +216,7 @@ export default function SlsLiveSessionPage() {
           }),
           tone: "warn",
         });
-        // UAT remediation (Stage R6, HY's note): the wrong-leg signal is a fault like
-        // any other and must be spoken too, not just shown.
+        // Wrong-leg lift is spoken as a fault, not only shown.
         speech.speakFault("wrong_leg", t("sls.cueWrongLeg"));
       } else if (!update.wrongLegLifted && wasWrongLegLiftedRef.current) {
         setLiveCue(null);
@@ -272,7 +256,7 @@ export default function SlsLiveSessionPage() {
         capture_quality: avg(samples.map((s) => s.score)),
         valid_frame_ratio: avg(samples.map((s) => s.validFrameRatio)),
       });
-      // Stage R13 (UAT): scoped to the reminder that launched THIS session.
+      // Complete only the reminder that launched this session.
       reminderService.completeIfLaunched(reminderId);
       setReminderId(null);
       speech.speakSession("sls_end", t("live.speakSessionComplete"));
@@ -408,8 +392,7 @@ export default function SlsLiveSessionPage() {
             <div className="hud-card reveal">
               <div className="hl2">{t("live.timer")}</div>
               <div className="hv">{liveUpdate.holdSeconds.toFixed(1)}s</div>
-              {/* UAT remediation (Stage R8, T1 "the 45s cap is not communicated"):
-                  a visible, ticking countdown to the hold's auto-stop cap. */}
+              {/* Visible countdown to the hold auto-stop cap. */}
               {stage === "recording" && (
                 <div className="hud-sub">
                   {t("sls.autoStopsIn", {
@@ -434,9 +417,7 @@ export default function SlsLiveSessionPage() {
                 {t("common." + currentLegResult.band)} ({currentLegResult.combinedScore.toFixed(1)}
                 /10)
               </p>
-              {/* UAT remediation (Stage R8, S6 "summary first, per-leg detail
-                  second"): the headline above is now the whole story by default --
-                  the technical detail is opt-in, not always-on. */}
+              {/* Technical detail is opt-in below the headline result. */}
               <button
                 type="button"
                 className="btn-linklike"
@@ -468,9 +449,7 @@ export default function SlsLiveSessionPage() {
               <div className="sls-live-status-box">
                 <span className="sls-live-status-text">{liveMessage}</span>
               </div>
-              {/* UAT remediation (Stage R9): replaces the manual "Start Hold"
-                  button -- shows the same auto-start ring CameraSetup uses once the
-                  full body has been steadily re-detected. */}
+              {/* Auto-start ring appears once the full body is steadily re-detected. */}
               {stage === "ready" && readyActive && (
                 <AutoStartCountdown
                   progress={readyProgress}

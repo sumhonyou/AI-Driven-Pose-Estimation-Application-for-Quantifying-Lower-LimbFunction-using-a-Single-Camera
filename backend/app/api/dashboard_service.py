@@ -72,8 +72,7 @@ def build_trends(sessions: Iterable[Any]) -> dict[str, ExerciseTrend]:
     grouped: dict[str, list[TrendPoint]] = {}
     for s in sessions:
         mb = getattr(s, "module_b_result", None)
-        # Stage R12: the per-exercise raw-metric series come off the Module A
-        # result -- a queryable column for STS finish time, JSON for the rest.
+        # Raw metric series come from Module A result columns or metrics_json.
         ma = getattr(s, "module_a_result", None)
         ma_metrics = getattr(ma, "metrics_json", None) if ma is not None else None
         point = TrendPoint(

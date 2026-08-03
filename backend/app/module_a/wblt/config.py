@@ -1,4 +1,4 @@
-"""Weight-Bearing Lunge Test (WBLT) config — Stage 2 (guided bracket, both legs).
+"""Weight-Bearing Lunge Test (WBLT) config.
 
 Dual output: official band = user-measured distance -> McBride et al. (2026)
 Table 2 (distance_bands) and Table 1 means (seed_distance_cm, used to seed the
@@ -11,7 +11,7 @@ fetches GET /api/wblt/config) and the official backend analysis.
 """
 
 # Calibration window at the start of each attempt, before the lunge — foot-flat
-# baseline for the heel-lift detector (§5.2). Mirrors sls/config.CALIBRATION_SECONDS
+# baseline for the heel-lift detector. Mirrors sls/config.CALIBRATION_SECONDS
 # in spirit but WBLT calibrates per-attempt, not once per session. Declared here
 # (not inline in the dict below) because analysis.py references it directly as
 # `config.CALIBRATION_SECONDS`; also mirrored into WBLT_CONFIG so GET /api/wblt/config
@@ -46,8 +46,7 @@ WBLT_CONFIG = {
         "80+_female": {"poor_max_cm": 4.7, "good_min_cm": 5.0},
     },
     # === Seed distances for bracketing — McBride Table 1 age/sex mean (cm) ===
-    # Not used by Stage 1 (single attempt, user picks their own target); wired
-    # in from Stage 2 (guided bracket) onward.
+    # Used to seed guided bracket targets.
     "seed_distance_cm": {
         "18-29_male": 11.0,
         "18-29_female": 11.3,

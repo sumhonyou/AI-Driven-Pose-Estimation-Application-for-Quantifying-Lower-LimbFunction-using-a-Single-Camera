@@ -1,5 +1,4 @@
-"""Pydantic request/response models for the WBLT REST endpoints (Stage 2: guided
-bracket, both legs, symmetry).
+"""Pydantic request/response models for WBLT endpoints.
 
 Dedicated shapes because the dual-output (distance + angle) contract differs from
 the shared single-buffer /api/module-a/analyze -- see app/module_a/core/schemas.py.
@@ -77,8 +76,7 @@ class WbltSymmetry(BaseModel):
 
 
 class WbltProfileSnapshot(BaseModel):
-    """§9: the age/sex the band was actually computed from, snapshotted at
-    analysis time -- not re-derived from the account's current profile."""
+    """Age/sex snapshot used for banding at analysis time."""
 
     exact_age: int | None = None
     age_band_resolved: str | None = None
@@ -92,9 +90,10 @@ class WbltAgreementPair(BaseModel):
 
 
 class WbltLegTrend(BaseModel):
-    """§11 Stage 6: vs the account's previous completed WBLT session, per leg.
-    `_meaningful` flags are MDC-suppressed -- a sub-MDC delta is display noise,
-    not a real change (see distance_mdc_cm/angle_mdc_deg in WBLT_CONFIG)."""
+    """Per-leg trend against the previous completed WBLT session.
+
+    `_meaningful` flags suppress sub-MDC deltas that should be treated as display noise.
+    """
 
     distance_delta_cm: float | None = None
     distance_meaningful: bool = False

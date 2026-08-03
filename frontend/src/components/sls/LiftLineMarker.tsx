@@ -1,14 +1,8 @@
-// UAT remediation (Stage R8, T1 "the lift-line reads as an abstract bar rather than a
-// height on the user"): this used to be a tall vertical fill bar anchored to the side
-// of the frame, disconnected from the person. Now it's a transparent horizontal line
-// drawn directly over the video at the calibrated lift height, so the user compares
-// their own visible foot against the line instead of reading an abstract percentage.
+// Transparent lift-height guide drawn directly over the video.
 //
 // `lineYImgNorm` (0=top, 1=bottom of the frame) comes from liveGeometry.ts's IMAGE-
-// space calibration -- the same normalised coordinate system PoseCanvas already uses
-// to draw the skeleton overlay (not a new world->pixel projection), so the line lands
-// in the same place the skeleton does. It's null until calibration has captured at
-// least one usable frame, in which case nothing is rendered yet.
+// space calibration, the same coordinate system PoseCanvas uses for the skeleton.
+// Null means calibration has not captured a usable frame yet.
 import { useTranslation } from "react-i18next";
 
 interface Props {

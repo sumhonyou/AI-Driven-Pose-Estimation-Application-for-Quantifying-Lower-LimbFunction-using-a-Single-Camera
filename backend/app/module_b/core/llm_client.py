@@ -1,25 +1,11 @@
-"""Stage 6.4: the optional LLM rewrite -- last, on purpose (rules.md #12/#13).
+"""Optional after-set LLM rewrite for Module B feedback.
 
-Everything before this file (Stages 6.1-6.3, 6.5) already produces a complete, working
-report with the LLM disabled. This module only adds a readability layer on top: it may
-*rewrite the wording* of the already-graded report, never *decide* the grade, the tags,
-or whether a fault happened. The caller (`core/router.py`) always has a working template
-to fall back to (compose_template, Stage 6.2), and Stage 6.3's `feedback_safety` filter
-sits between this client's output and anything stored or shown -- an LLM failure, a
-timeout, a 429, or a rejected rewrite are all equally harmless: the user sees the
-template either way.
+The LLM may rewrite wording only. It never decides grades, tags, faults, or scores.
+The caller always has deterministic template feedback to fall back to, and every LLM
+response must pass `feedback_safety.check_llm_feedback` before storage.
 
-**After-set only.** This client is only ever called from `core/router.py`'s
-`_build_and_save_feedback`, itself only reachable from `POST /api/module-b/analyze` --
-which runs once, after a full set has already been scored. There is no per-frame/live
-HTTP endpoint anywhere in the backend (MediaPipe runs client-side, rules.md #8), so there
-is no code path during live capture that could reach this client at all (verified by
-`test_module_b_llm_client.py`'s `LiveLoopMakesNoLlmCallTests`, which patches network
-calls and runs the pre-analyze pipeline to prove it).
-
-Provider-agnostic by a small `Protocol` so a future provider only needs the same
-`rewrite_feedback` shape; `GroqClient` is the one implementation (task.md Locked
-Assumption #6).
+This client is reached only from `/api/module-b/analyze`, after the full set has already
+been scored.
 """
 
 from __future__ import annotations
@@ -48,7 +34,7 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 _TIMEOUT_S = 8.0
-_MAX_ATTEMPTS = 2  # one try + one retry, per task.md Stage 6.4
+_MAX_ATTEMPTS = 2  # one try plus one retry
 
 _SYSTEM_PROMPT = (
     "You rewrite a movement-quality coaching report for readability only. "
@@ -131,10 +117,8 @@ class GroqClient:
                 response.raise_for_status()
                 raw_text = _extract_text(response.json())
                 if raw_text:
-                    # Stage 5.17: the model must reply with the {summary, tips} JSON
-                    # contract. A malformed reply is treated exactly like a timeout --
-                    # retried once, then surfaced as a failure so the caller falls back
-                    # to the template (never a partial/garbled rewrite shown to the user).
+                    # Malformed replies are retried once, then treated as a safe
+                    # template fallback.
                     parsed = parse_feedback_contract(raw_text)
                     if parsed is not None:
                         return LlmRewriteResult(
@@ -168,9 +152,7 @@ def _chat_payload(model: str, structured: StructuredFeedback) -> dict:
     """Metrics + tags only -- never raw video, never health records (the app persists
     only metrics anyway; see `StructuredFeedback`, which never carries frames)."""
     user_content = {
-        # Stage 5.17: the DISPLAY label ("Needs Improvement"), not the internal band
-        # value ("Poor") -- otherwise the model has no reason not to write "falls into
-        # the Poor band" verbatim, which then contradicts the UI's own relabelling.
+        # Prompt with the display label, not the internal stored band name.
         "band": band_label(structured.band),
         "score": structured.score,
         "confidence": structured.confidence,

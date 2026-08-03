@@ -1,4 +1,4 @@
-"""Stage 7.2: STS "vs last session" trend -- no MDC, deltas reported plainly."""
+"""STS previous-session trend tests."""
 
 import unittest
 

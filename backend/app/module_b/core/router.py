@@ -95,13 +95,9 @@ def analyze_module_b_session(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="No rule score is available for this set",
         )
-    # Stage 5.8: the registered trained bundle, keyed by the exercise's own
-    # model_key so a future exercise's artifact is picked up without a router change.
+    # Load the exercise's registered trained bundle by model key.
     model = get_model_bundle(exercise.model_key)
-    # Gates run first now: Stage 5.13 folds each rep's gate failures into that rep's own
-    # verdict, instead of Stage 5.12's blanket "any gate fails -> the whole set is Poor"
-    # override (which condemned a long set for one bad rep and left `score` contradicting
-    # the band). Gate-less exercises return None and are unaffected.
+    # Gate-less exercises return None and keep the normal model-only verdict path.
     gate_result = exercise.evaluate_fault_gates(reps, feature_vectors)
     set_score = score_set(
         rule_scores=rule_scores,
@@ -141,7 +137,7 @@ def analyze_module_b_session(
 
 
 def _compute_trend(db: DbSession, session: SessionModel, result) -> dict | None:
-    """Stage 7.4: "vs last session" trend, mirroring Module A's Stage 7.2 helper."""
+    """Compute this result's trend against the user's previous squat session."""
     previous = crud.get_previous_result(
         db, session.user_id, result.exercise_code, session.id, before=result.created_at
     )
@@ -211,21 +207,14 @@ def _fallback_reason_for_client_error(error: str | None) -> str:
 def _build_and_save_feedback(
     db: DbSession, *, session_id: UUID, summary: dict
 ) -> dict | None:
-    """Stage 6.2/6.5/6.4: compose the deterministic template from the just-built result,
-    optionally try a Groq rewrite on top (config-gated, after-set only -- this function is
-    only reachable from `/analyze`, which runs once the whole set is already scored), and
-    persist whichever text survives Stage 6.3's safety filter. Every analyzed set always
-    gets a working report even if the LLM is disabled, times out, or is rejected.
+    """Build, optionally rewrite, safety-check, and store after-set feedback.
 
-    UAT remediation (Stage R3, T11, S5 "keeps showing template fallback"): the client
-    and the safety filter both already computed a precise reason whenever a rewrite
-    wasn't used, but it was only logged, never stored -- `fallback_reason` below is
-    that reason made queryable per row instead of requiring a log-file search.
+    The deterministic template is always available. If LLM rewriting is disabled,
+    fails, or is rejected by the safety filter, the stored feedback falls back to the
+    template and records why in `fallback_reason`.
     """
     structured = build_structured_feedback(summary)
-    # Stage 5.17: template_text is now the canonical `feedback_contract` JSON string,
-    # the same shape an accepted LLM rewrite produces -- the report always renders one
-    # thing regardless of which layer wrote it.
+    # Store the template in the same JSON contract shape as accepted LLM rewrites.
     template_text = serialize_feedback_contract(compose_template(structured))
 
     rewritten_text = template_text
@@ -292,8 +281,7 @@ def _build_and_save_feedback(
 def _build_error_tags(
     exercise, fusion, gate_result, rule_scores
 ) -> list[crud.ErrorTagWrite]:
-    """Prefer an exercise's own taxonomy-driven tag builder (Stage 6.1); fall back to the
-    generic system+gate construction for any exercise that defines no builder."""
+    """Use the exercise taxonomy when available; otherwise build generic tags."""
     tags = exercise.build_error_tags(
         fusion=fusion, gate_result=gate_result, rule_scores=rule_scores
     )
@@ -303,7 +291,7 @@ def _build_error_tags(
 
 
 def _system_error_tags(flags: tuple[str, ...]) -> list[crud.ErrorTagWrite]:
-    """Persist Phase 4 fusion/capture flags until Stage 6 adds movement taxonomy."""
+    """Persist generic fusion and capture-quality flags."""
     severity_by_tag = {
         "low_confidence": "medium",
         "low_capture_quality": "medium",
@@ -320,14 +308,7 @@ def _system_error_tags(flags: tuple[str, ...]) -> list[crud.ErrorTagWrite]:
 
 
 def _fault_gate_tags(gate_result) -> list[crud.ErrorTagWrite]:
-    """Persist Stage 5.12 fault-gate failures as source="rule" tags with reasons.
-
-    Duck-typed (``all_passed``/``failed`` with per-check ``tag``/``message``) so the
-    generic core router stays decoupled from any exercise's gate module. Gate-less
-    exercises pass None and contribute no tags. One tag per failed gate kind — a fault
-    tripped on several reps is surfaced once, not once per rep — kept in a stable order
-    so repeated payloads stay byte-identical (X8).
-    """
+    """Persist fault-gate failures as stable, de-duplicated rule tags."""
     if gate_result is None or gate_result.all_passed:
         return []
     seen: dict[str, str] = {}

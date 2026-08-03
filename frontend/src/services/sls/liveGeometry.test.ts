@@ -1,7 +1,5 @@
-// UAT remediation (T1, S5 "the lifting too sensitive"): regression coverage for the
-// live SLS hold tracker's time-based dwell, mirroring backend
-// tests/test_module_a_sls.py::FsmTests. Uses nowMs=0 on the first update so t0=0 and
-// every later nowMs equals the elapsed seconds * 1000 directly.
+// Regression coverage for the live SLS hold tracker's time-based dwell.
+// nowMs=0 on the first update makes later timestamps equal elapsed seconds * 1000.
 
 import { describe, expect, it } from "vitest";
 import type { Landmark, WorldLandmark } from "../../types/pose";
@@ -91,9 +89,7 @@ describe("createSlsLiveTracker dwell timing", () => {
   });
 });
 
-// UAT remediation (Stage R4): SLS note "user is not aware if they lift the wrong
-// leg" -- coverage for the STANCE ankle crossing its own lift-line while the target
-// leg stays planted, mirroring the real lift/drop dwell debounce above.
+// Coverage for the stance ankle crossing its own lift-line while the target leg stays planted.
 describe("createSlsLiveTracker wrong-leg-lift detection", () => {
   it("does not flag a stance-leg rise shorter than the dwell window", () => {
     const tracker = createSlsLiveTracker("left");
@@ -137,10 +133,8 @@ describe("createSlsLiveTracker wrong-leg-lift detection", () => {
   });
 });
 
-// UAT remediation (Stage R8): the on-video lift-line marker needs an IMAGE-space
-// height (lineYImgNorm), computed from an optional third `img` argument to update().
-// Mirrors the metric lineY calculation exactly, just in normalised image coordinates.
-describe("createSlsLiveTracker lineYImgNorm (Stage R8)", () => {
+// The video lift-line uses image-space height from the optional `img` update argument.
+describe("createSlsLiveTracker lineYImgNorm", () => {
   it("stays null when no image landmarks are ever supplied", () => {
     const tracker = createSlsLiveTracker("left");
     const update = calibrate(tracker);

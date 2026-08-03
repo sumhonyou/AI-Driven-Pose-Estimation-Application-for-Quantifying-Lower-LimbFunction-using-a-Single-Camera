@@ -97,7 +97,7 @@ def save_result(
 
 @dataclass(frozen=True)
 class FeedbackWrite:
-    """One after-set feedback snapshot to store with a Module B session (Stage 6.5)."""
+    """One after-set feedback snapshot to store with a Module B session."""
 
     structured_feedback: str | None
     rewritten_feedback: str | None
@@ -144,11 +144,8 @@ def feedback_summary(feedback: FeedbackText | None) -> dict[str, Any] | None:
     return {
         "structured_feedback": feedback.structured_feedback,
         "rewritten_feedback": feedback.rewritten_feedback,
-        # Stage 5.17: the frontend renders this, not the raw string above. Read-path
-        # guard for rows stored before this stage, which hold a plain sentence rather
-        # than the `feedback_contract` JSON shape -- those parse to None and are wrapped
-        # as a single-line summary with no tips, so old sessions still render (never a
-        # crash on history rows written by an earlier version of this endpoint).
+        # Frontend renders this structured shape. Legacy plain-text rows are wrapped
+        # as a summary with no tips so old history still opens.
         "rewritten_feedback_structured": _parsed_or_legacy_wrap(
             feedback.rewritten_feedback
         ),
@@ -205,9 +202,7 @@ def get_previous_result(
     before: datetime,
     limit: int = 10,
 ) -> ModuleBResult | None:
-    """Stage 7.4: the account's most recent Module B result for this exercise that is
-    chronologically BEFORE `before` (pass the current result's `created_at`) -- the
-    trend comparison target, mirroring Module A's get_previous_completed_result.
+    """Return the user's previous Module B result for this exercise before `before`.
 
     Unlike Module A, Module B has no `session_status` column (a session's `status` is
     unconditionally "completed" once any result is saved -- see save_result), so there
@@ -300,9 +295,7 @@ def _metrics_json(
             }
             for features in feature_vectors
         ],
-        # Stage 5.13: each rep now carries its own verdict, so the report can explain
-        # why a set banded the way it did. `verdicts_by_rep` is empty for exercises that
-        # do not vote, leaving these entries exactly as they were before.
+        # Voting exercises attach per-rep verdict fields; non-voting exercises omit them.
         "per_rep_summaries": [
             {
                 "start_timestamp_s": rep.start_timestamp_s,

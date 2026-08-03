@@ -3,12 +3,8 @@ import { useTranslation } from "react-i18next";
 import type { TrendPoint } from "../../types/api";
 import { formatShortDate } from "./dashboardChartUtils";
 
-// Stage 5.22: replaces the Progress page's old Confidence trend (a model-internal
-// diagnostic a patient cannot act on -- see task.md Stage 5.22). Deliberately NOT a
-// clean-rep-rate line: since Stage 5.18 the squat score already IS
-// `10 * counted / attempts`, so a percentage chart here would just replot the score
-// series a second time. This shows what the score alone can't: how many reps were
-// actually attempted, and whether a low score came from a hard session or a short one.
+// Squat attempts chart. Shows what score alone cannot: attempted reps, counted reps,
+// and rejected reps for each session.
 
 export type AttemptsPoint = {
   date: string;
@@ -18,11 +14,8 @@ export type AttemptsPoint = {
   rejected: number;
 };
 
-// `score`/`rep_count` are the only fields the backend persists for this -- per-rep
-// verdicts aren't stored on the trend endpoint, so `counted` is derived from the two
-// rather than summed from raw verdicts. `score` is exactly `10 * counted / attempts`
-// (Stage 5.18), so this recovers the same integer Report.tsx would show, not an
-// approximation of some other quantity.
+// Trend points do not include per-rep verdicts, so counted reps are derived from
+// score and rep_count.
 export function toAttemptsPoint(point: TrendPoint): AttemptsPoint | null {
   if (point.rep_count == null || point.rep_count <= 0 || point.score == null) return null;
   const counted = Math.round((point.score / 10) * point.rep_count);

@@ -1,9 +1,8 @@
-"""Phase 7 Stage 7.4 — seed a demo account with multi-session, multi-exercise
-history so the dashboard/progress charts have real data to render against.
+"""Seed a demo account with multi-session, multi-exercise history.
 
 Separate from app/seed.py (which seeds the exercise catalog + a single demo
 login from env vars) because this creates *session history*, not account
-scaffolding, and is meant to be run/purged independently during Phase 7 work.
+scaffolding, and is meant to be run/purged independently.
 
 Usage:
     python -m app.seed_demo_progress            # create/refresh demo data
@@ -51,15 +50,10 @@ STS_SESSIONS = [
 ]
 
 # (days_ago, score 0-10, band, capture_quality, confidence, rep_count, tags)
-# Squat is a committed binary Good/Poor classifier (Stage 5.11) -- no "Fair"
-# band is ever emitted, so seed data must not invent one.
+# Squat seed data uses only the real binary Good/Poor bands.
 #
-# ⚠ Stage 5.18 invariant: the squat score is the share of clean reps and the band is a
-# strict majority of the same per-rep verdicts, so `band == "Good"` iff `score > 5.0`.
-# This data is written straight to the DB and bypasses the scoring pipeline, so nothing
-# enforces that for it -- keep every row on the correct side of 5.0 by hand. (The 11-days
-# -ago row was 5.2/"Poor" before this stage, which would render as a contradictory
-# 5.2-with-Needs-Improvement report: exactly the defect Stage 5.18 removed everywhere else.)
+# Invariant: score is the share of clean reps, so band == "Good" iff score > 5.0.
+# This fixture bypasses the scoring pipeline, so keep every row on the correct side.
 SQUAT_SESSIONS = [
     (25, 3.1, "Poor", 0.58, 0.81, 5, ["insufficient_depth", "excessive_forward_lean"]),
     (20, 3.6, "Poor", 0.65, 0.77, 5, ["insufficient_depth"]),
@@ -69,12 +63,11 @@ SQUAT_SESSIONS = [
     (2, 7.5, "Good", 0.93, 0.95, 7, []),
 ]
 
-# Guard: the fixture above is hand-maintained, so assert the Stage 5.18 invariant at import
-# rather than let a future edit reintroduce a contradictory demo report.
+# Guard the hand-maintained fixture against contradictory score/band rows.
 for _row in SQUAT_SESSIONS:
     _score, _band = _row[1], _row[2]
     assert (_band == "Good") == (_score > 5.0), (
-        f"SQUAT_SESSIONS row {_row[0]} days ago violates the Stage 5.18 invariant: "
+        f"SQUAT_SESSIONS row {_row[0]} days ago violates the score/band invariant: "
         f"score={_score} cannot band {_band!r} (Good iff score > 5.0)"
     )
 
@@ -177,9 +170,7 @@ def _make_squat_session(db, user: User, exercise: ExerciseCatalog, row: tuple) -
             feature_schema_version="1.0.0",
             q=Decimal(str(round(min(quality + 0.02, 1.0), 4))),
             metrics_json=_squat_metrics_json(score, quality, reps),
-            # Pin created_at to the session date (not the seeding instant) so the
-            # Stage 7.4 "vs last session" trend has a real chronological order to
-            # compare against -- get_previous_result filters on created_at.
+            # Pin created_at to the session date so trend comparisons are chronological.
             created_at=started,
         )
     )

@@ -48,7 +48,7 @@ class ModuleBExercise(ABC):
         Returns None by default: an exercise that defines no gates is unaffected, so
         Module A keeps its exact behaviour. An exercise that opts in returns a
         FaultGateResult; if it is not ``all_passed``, the router overrides the fused
-        band to Poor with a specific reason (Stage 5.12, squat).
+        band to Poor with a specific reason.
         """
         return None
 
@@ -76,7 +76,7 @@ class ModuleBExercise(ABC):
         """Optional taxonomy-driven error-tag builder for the analyzed set.
 
         Returns None by default so the router falls back to its generic system+gate tag
-        construction. An exercise that owns a tag taxonomy (Stage 6.1, squat) returns the
-        full ErrorTagWrite list, keeping every tag's severity/source in one place.
+        construction. An exercise that owns a tag taxonomy returns the full
+        ErrorTagWrite list, keeping every tag's severity/source in one place.
         """
         return None

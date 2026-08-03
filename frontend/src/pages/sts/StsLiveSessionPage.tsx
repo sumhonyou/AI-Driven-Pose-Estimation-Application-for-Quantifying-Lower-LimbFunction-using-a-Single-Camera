@@ -34,9 +34,7 @@ import goodRepSrc from "../../assets/sound effect/Rep correct sound effect.mp3";
 import wrongRepSrc from "../../assets/sound effect/Wrong sound effect.mp3";
 
 const FAIL_REASON_DISPLAY_MS = 3500;
-// UAT remediation (Stage R5): STS previously auto-recorded on mount with no
-// countdown at all -- the most under-reported instruction/legibility issue in UAT.
-// Standardised on the same 5s "get ready" countdown every other exercise uses.
+// Standard 5s "get ready" countdown before recording starts.
 const COUNTDOWN_START_SEC = 5;
 
 function reasonCodeToI18nKey(code: InvalidReasonCode): string {
@@ -57,9 +55,7 @@ export default function StsLiveSessionPage() {
     useSessionFlow();
   const isSts = exerciseCode === "sit_to_stand";
 
-  // UAT remediation (Stage R5): "countdown" is the 5s get-ready window, only entering
-  // "recording" (and therefore actually buffering frames / running the estimator)
-  // once it completes -- mirrors squat/SLS/WBLT's stage machine.
+  // Recording starts only after the get-ready countdown completes.
   const [stage, setStage] = useState<"countdown" | "recording">("countdown");
   const [countdownSecondsLeft, setCountdownSecondsLeft] = useState(COUNTDOWN_START_SEC);
   const countdownTimerRef = useRef<number | null>(null);
@@ -82,9 +78,7 @@ export default function StsLiveSessionPage() {
   // Optimistic client guess, shown instantly and reconciled once the backend responds.
   const [liveReasonGuess, setLiveReasonGuess] = useState<string | null>(null);
   const failReasonTimeoutRef = useRef<number | null>(null);
-  // UAT remediation (Stage R4): the transient full-viewport corrective-cue pop-out,
-  // shown alongside (not instead of) the persistent "live band" panel below -- same
-  // pattern as squat/SLS. null hides it; a new rejection replaces it outright.
+  // Transient full-viewport corrective cue for rejected reps.
   const [liveCue, setLiveCue] = useState<{ title: string; tone: "warn" } | null>(null);
 
   // Guards against triggering the completion/navigation flow (or a cancel) more than once.
@@ -120,8 +114,7 @@ export default function StsLiveSessionPage() {
   const recorderStarted = useRef(false);
   const speech = useSpeechCues();
 
-  // UAT remediation (Stage R5): recording (and therefore the recorder) now starts
-  // only once the get-ready countdown below completes, not on mount.
+  // Start buffering only after the countdown.
   function startRecording() {
     if (!recorderStarted.current) {
       recorder.start();
@@ -215,7 +208,7 @@ export default function StsLiveSessionPage() {
         } catch (err) {
           console.error("[LiveSession] sessionService.end failed (non-blocking)", err);
         }
-        // Stage R13 (UAT): scoped to the reminder that launched THIS session.
+        // Complete only the reminder that launched this session.
         reminderService.completeIfLaunched(reminderId);
         setReminderId(null);
         speech.speakSession("sts_end", t("live.speakSessionComplete"));
@@ -231,9 +224,7 @@ export default function StsLiveSessionPage() {
     }
   }
 
-  // Record each frame when we have landmarks, run the rep-boundary FSM, and play sounds.
-  // Gated on stage === "recording" (Stage R5) -- nothing is buffered or estimated
-  // during the get-ready countdown.
+  // Record frames and run the rep-boundary FSM only during recording.
   useEffect(() => {
     if (landmarks && stage === "recording") {
       const now = performance.now();
@@ -269,8 +260,7 @@ export default function StsLiveSessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarks, stage]);
 
-  // Session timer — stops immediately once the session is finishing or cancelled, and
-  // (Stage R5) doesn't start ticking until recording actually begins.
+  // Session timer runs only while recording.
   useEffect(() => {
     if (!running || stage !== "recording") return;
     const id = setInterval(() => setSec((s) => s + 1), 1000);

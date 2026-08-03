@@ -1,51 +1,15 @@
-"""Stage 5.8: export the trained squat model as the artifacts the backend loads.
+"""Export the trained squat model artifacts used by the backend.
 
-Trains the final calibrated model exactly as Stage 5.5 defined it
-(`train_squat.build_final_model()` — the same entry point Stage 5.5's own docstring
-named as Stage 5.8's caller), then writes five files to `ml/artifacts/squat/`:
-`model.joblib`, `calibrator.joblib`, `feature_schema.json`, `label_map.json`,
-`model_card.md`. Nothing here re-tunes or re-derives the model; this stage only
-serialises the one Stage 5.5/5.6/5.7 already produced and evaluated.
+Builds the final calibrated model through `train_squat.build_final_model()` and writes:
+`model.joblib`, `calibrator.joblib`, `feature_schema.json`, `label_map.json`, and
+`model_card.md`.
 
-Four decisions this stage makes, each justified rather than asserted:
+Key checks before export:
 
-1. **`model.joblib` and `calibrator.joblib` are genuinely split, not the same object
-   twice.** `CalibratedClassifierCV(ensemble=False)` (Stage 5.5) internally holds one
-   fitted `ExtraTreesClassifier` (`.calibrated_classifiers_[0].estimator`, fit on ALL
-   the training data) and one fitted sigmoid (`.calibrated_classifiers_[0].calibrators[0]`,
-   an `a_`/`b_` pair). `model.joblib` is the forest; `calibrator.joblib` is
-   `{"a": a_, "b": b_}` as a **plain dict**, not sklearn's private
-   `_SigmoidCalibration` object — deliberately, so the calibrator file is inspectable
-   without importing sklearn internals and does not depend on a private class's pickle
-   compatibility surviving a future sklearn upgrade. `model_registry.py` recomposes
-   calibrated probabilities from the two files via the public formula
-   `P(Good) = 1 / (1 + exp(a * raw_p_good + b))` — verified below to be bit-for-bit
-   identical to `calibrated.predict_proba()`, not assumed from reading sklearn's
-   source alone.
-2. **The recomposition is checked empirically before anything is written.** `main()`
-   asserts `np.array_equal` between the full `CalibratedClassifierCV.predict_proba()`
-   and the forest+sigmoid recomposition on the real training matrix. This project has
-   been burned before by an assertion *not* being checked (the `ensemble=True` bug,
-   Stage 5.5) and by one *being* checked and firing (the pooled-AUC assertion, same
-   stage) — both times checking first was what caught the problem. If this assertion
-   ever fails, the exported artifacts would silently behave differently from every
-   metric Stages 5.5–5.7 already reported, so it fails loudly rather than exporting.
-3. **`model_version` is a real, traceable id, not a version string typed by hand.**
-   `squat-1.0.0+rehab246-loso-<git-shorthash>` where `<git-shorthash>` is read from
-   `git rev-parse --short HEAD` at export time (a real fact about the code state, not
-   invented), suffixed `.dirty` if the working tree has uncommitted changes — an honest
-   signal that the artifact was not built from an exact, committed snapshot, rather
-   than silently claiming a precision the build does not have.
-4. **`model_card.md` links to existing figures by relative path; it does not
-   regenerate or duplicate them**, per the checklist. Metrics quoted in the card are
-   **recomputed here** via `train_squat.nested_cv()` (the same seeded, deterministic
-   call Stages 5.5/5.7 use) rather than transcribed from those reports' prose — the
-   `ml/` convention this project has followed since a hand-transcription of Stage 5.4's
-   verdicts into Stage 5.5 was wrong for 7 of 13 features.
-
-Deterministic (X8) except for `model_version`'s git shorthash, which is a real,
-intentionally-varying fact about the code state (not RNG/wall-clock) — the same
-carve-out shape as Stage 5.7's latency section, stated rather than left implicit.
+- split the fitted forest and sigmoid calibrator into separate inspectable files
+- verify recomposed probabilities match the calibrated sklearn wrapper
+- stamp `model_version` with the current git short hash, plus `.dirty` if needed
+- recompute model-card metrics from the training code instead of transcribing prose
 """
 
 from __future__ import annotations
@@ -56,7 +20,6 @@ from pathlib import Path
 
 import joblib
 import numpy as np
-from app.module_b.squat.features import SQUAT_FEATURE_NAMES
 from build_features import LABEL_MAP_JSON, write_label_map
 from train_squat import (
     FIXED_PARAMS,
@@ -70,6 +33,8 @@ from train_squat import (
     nested_cv,
 )
 
+from app.module_b.squat.features import SQUAT_FEATURE_NAMES
+
 ML_ROOT = Path(__file__).resolve().parent.parent
 ARTIFACTS_DIR = ML_ROOT / "artifacts" / "squat"
 FEATURE_SCHEMA_VERSION = (
@@ -81,7 +46,7 @@ MODEL_NAME_VERSION = (
 
 
 def _git_shorthash() -> str:
-    """Real, traceable code-state id — not the feature schema or training-run version.
+    """Return a traceable code-state id for the exported artifact.
 
     `.dirty` is appended (a standard git convention, e.g. `git describe --dirty`) when
     the working tree has uncommitted changes, so the artifact does not silently claim
@@ -109,9 +74,8 @@ def _git_shorthash() -> str:
 def _split_calibrated_model(calibrated) -> tuple[object, dict]:
     """Pull the fitted forest and sigmoid params out of the calibrated wrapper.
 
-    Only valid for `ensemble=False` (Stage 5.5's deliberate choice): exactly one
-    `_CalibratedClassifier` with one forest and one sigmoid calibrator, not the K-pair
-    ensemble the default would have produced.
+    Only valid for `ensemble=False`: one forest and one sigmoid calibrator, not a K-pair
+    ensemble.
     """
     calibrated_classifiers = calibrated.calibrated_classifiers_
     if len(calibrated_classifiers) != 1:
@@ -188,22 +152,13 @@ def _deployed_confidence_check(calibrated, x: np.ndarray, y: np.ndarray) -> dict
 
 
 def _recomputed_metrics(x, y, groups, outer_cv, seed: int) -> dict:
-    """Re-run Stage 5.5's own nested_cv() rather than transcribe its reported numbers
-    (ml/ convention: a transcribed constant in this project has already been wrong 7 of
-    13 times). Byte-identical to what SQUAT_TRAINING_REPORT.md/SQUAT_EVALUATION_REPORT_3BAND.md
-    already quote, since it is the same seeded call."""
+    """Recompute report metrics from `nested_cv()` instead of transcribing them."""
     _prob_uncal, prob_cal, _folds = nested_cv(x, y, groups, outer_cv, seed)
     return _metrics(y, prob_cal)
 
 
 def write_feature_schema(model_version: str) -> Path:
-    """`feature_schema.json`: names + order + schema_version, per the checklist.
-
-    `model_version` is co-located here (not in `label_map.json`) because this file is
-    created fresh by *this* stage's export and is never touched by an earlier one — so
-    there is no risk of one stage's artifact silently gaining a field a different stage
-    owns, the way `label_map.json` (written first at Stage 5.3) would have.
-    """
+    """Write feature names, order, schema version, and model version."""
     path = ARTIFACTS_DIR / "feature_schema.json"
     payload = {
         "schema_version": FEATURE_SCHEMA_VERSION,
@@ -369,7 +324,7 @@ def main() -> None:
     joblib.dump(forest, ARTIFACTS_DIR / "model.joblib")
     joblib.dump(calibration, ARTIFACTS_DIR / "calibrator.joblib")
     write_feature_schema(model_version)
-    write_label_map()  # extended (Stage 5.8) to include label_order; single source (X1)
+    write_label_map()  # includes label_order; single source for labels
     write_model_card(
         model_version=model_version,
         n_reps=len(rows),

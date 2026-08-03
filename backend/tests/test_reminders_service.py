@@ -1,4 +1,4 @@
-"""Stage 7.3: reminders due-ness, .ics export, Google Calendar link -- pure functions."""
+"""Reminder due-ness, .ics export, and Google Calendar helper tests."""
 
 import unittest
 from datetime import UTC, datetime

@@ -3,7 +3,7 @@
 See app/module_a/core/crud.py for the shared STS one-shot writer and the
 exercise-agnostic read/log helpers this reuses. Mirrors app/module_a/sls/crud.py's
 incremental per-leg upsert shape, extended one level further (per-attempt within
-each leg) for the guided bracket (§4.2).
+each leg) for the guided bracket.
 """
 
 from datetime import datetime, timezone
@@ -31,7 +31,7 @@ def save_wblt_session(
     valid_frame_ratio: float,
     confidence_level: str,
 ) -> ModuleAResult:
-    """Upserts the WBLT session's full persisted shape (§9).
+    """Upsert the WBLT session's full persisted shape.
 
     Called after every attempt (not just on completion) so a session in
     progress is always readable -- `session_summary["session_status"]`
@@ -93,10 +93,10 @@ def save_wblt_session(
 def get_previous_wblt_legs(
     db: DbSession, user_id: UUID, exclude_session_id: UUID
 ) -> dict | None:
-    """§11 Stage 6: the account's most recent OTHER completed WBLT session's
-    `legs`, for the trend comparison. "Completed" means both legs finished
-    (`captured_at` stamped) -- an in-progress or abandoned session has nothing
-    honest to compare against.
+    """Return the previous completed WBLT session's `legs` for trend comparison.
+
+    "Completed" means both legs finished (`captured_at` stamped). In-progress or
+    abandoned sessions have nothing honest to compare against.
     """
     history = list_history(db, user_id, WBLT_EXERCISE_CODE, limit=10)
     for result in history:

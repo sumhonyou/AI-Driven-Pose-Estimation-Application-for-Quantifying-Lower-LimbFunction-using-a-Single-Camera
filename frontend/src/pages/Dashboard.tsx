@@ -86,18 +86,10 @@ export default function Dashboard() {
   const [errorTags, setErrorTags] = useState<DashboardErrorTags>({});
   const [activeExercises, setActiveExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
-  // Stage R12 (UAT): drill-down filters for the two account-wide panels below --
-  // both default to "all" (today's pooled-across-everything behaviour) so
-  // nothing changes until the user opts into a single exercise's view.
+  // Drill-down filters for account-wide band and tag panels.
   const [bandFilter, setBandFilter] = useState<string>(ALL_EXERCISES);
   const [tagFilter, setTagFilter] = useState<string>(ALL_EXERCISES);
-  // This page's real content only exists once `loading` flips false (and once
-  // reminders load, for the due-banner/panel) -- DashboardLayout's own
-  // useReveal([pathname]) fires on mount, before any of that async data has
-  // landed, so it never observes these elements. Found live-testing Stage 7.3
-  // (the reminders panel/banner stayed invisible); this was a pre-existing gap
-  // affecting the whole page, not something the reminders work introduced, so
-  // fixed here rather than worked around locally.
+  // Re-run reveal after async dashboard/reminder content is present.
   useReveal([loading, allReminders]);
   const [error, setError] = useState("");
   const completeReminder = (id: string) => reminderService.complete(id).then(refreshReminders);
@@ -138,12 +130,7 @@ export default function Dashboard() {
     return <Activity />;
   };
 
-  // Stage 7.3: real reminders (shared via RemindersContext), due-first then
-  // soonest-first, capped to a small preview -- the full list lives on the
-  // Reminders page. Stage R13: the API's own order changed to newest-created
-  // first (so a fresh reminder is easy to find on the Reminders page itself),
-  // so this preview -- whose job is "what's coming up" -- sorts explicitly
-  // rather than depending on API order.
+  // Reminder preview is due-first, then soonest-first; full list lives on Reminders.
   const upcomingReminders = useMemo(
     () =>
       [...allReminders]
@@ -205,10 +192,7 @@ export default function Dashboard() {
       .sort((a, b) => b.count - a.count);
   }, [errorTags]);
 
-  // Stage R12 (UAT): "drill-down by exercise" for Band distribution -- the panel
-  // pools every exercise type by default (the account-wide view), but a picker
-  // lets it narrow to one. Options are exercises the account actually has trend
-  // data for (mirrors Progress's own "only exercises with data" gate).
+  // Band distribution can pool all exercises or narrow to one with trend data.
   const bandFilterOptions = useMemo(
     () => [
       { value: ALL_EXERCISES, label: t("dash.allExercises") },
@@ -221,9 +205,7 @@ export default function Dashboard() {
   );
   const bandPoints = bandFilter === ALL_EXERCISES ? allPoints : (trends[bandFilter]?.points ?? []);
 
-  // Stage R12 (UAT): "filter by exercise" for Common error tags -- only Module B
-  // exercise types ever carry a key in `errorTags` (Stage 7.0's presence signal),
-  // so the option list is built off that map, not the full exercise catalog.
+  // Error tag filters come from Module B exercise keys only.
   const tagFilterOptions = useMemo(
     () => [
       { value: ALL_EXERCISES, label: t("dash.allExercises") },

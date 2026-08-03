@@ -1,5 +1,5 @@
 // Gate direction, threshold boundaries and the heel-rise tracker's near-leg
-// selection / settle-window / debounce construction (Stage R1/R4).
+// selection, settle-window, and debounce construction.
 // Backend parity of the heel-rise MATH is checked separately, cross-language.
 import { describe, it, expect } from "vitest";
 import {
@@ -84,10 +84,7 @@ describe("evaluateSquatFaultGates", () => {
   });
 });
 
-// UAT remediation (Stage R1/R4): the tracker now selects the camera-side (near) leg
-// per rep by visibility, baselines against a settle-window median, and requires a
-// rise to be sustained across a debounce window -- regression coverage for each part
-// mirrors backend tests/test_module_b_squat_fault_gates.py::HeelRiseGateTests.
+// Regression coverage for near-leg selection, settle-window baseline, and debounce.
 describe("heel-rise tracker", () => {
   it("measures a rise sustained across the debounce window, baselined from the settle window", () => {
     const tracker = createHeelRiseTracker();

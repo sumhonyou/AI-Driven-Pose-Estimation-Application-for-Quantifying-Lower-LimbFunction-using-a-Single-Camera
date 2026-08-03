@@ -1,9 +1,4 @@
-// UAT remediation (Stage R11): "chart the sub-scores" -- replaces a plain grid
-// of static number cards with a horizontal bar chart. Meaningful (bars are
-// colour-coded by the same Good/Fair/Poor band cuts used everywhere else in the
-// app, so a weak sub-score visually stands out) and interactive (hover shows the
-// exact score plus the plain-language definition already written for it,
-// instead of a separate always-visible tooltip icon per row).
+// Horizontal sub-score chart with shared Good/Fair/Poor color bands and hover detail.
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { scoreBandThresholdsFor } from "./dashboardChartUtils";
 

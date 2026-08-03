@@ -1,4 +1,4 @@
-"""Stage 6.1: the deterministic structured-feedback builder."""
+"""Deterministic structured-feedback builder tests."""
 
 from __future__ import annotations
 

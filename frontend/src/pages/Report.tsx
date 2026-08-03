@@ -41,9 +41,7 @@ function fmtDeg(value: number | null | undefined) {
   return value == null ? "—" : `${value.toFixed(0)}°`;
 }
 
-// §11 Stage 6: one-line vs-last-session summary for a WBLT leg. `_meaningful`
-// is already MDC-suppressed server-side -- a sub-MDC delta reads as "no
-// meaningful change" rather than a fabricated up/down signal.
+// WBLT trend text. `_meaningful` is already MDC-suppressed server-side.
 function wbltTrendText(
   t: (key: string, opts?: Record<string, unknown>) => string,
   trend: WbltLegTrend | null | undefined,
@@ -75,11 +73,7 @@ function wbltTrendText(
     : t("wblt.trendNoPrevious");
 }
 
-// Stage 7.2: STS/SLS "vs last session" trend text. Unlike WBLT above, there is
-// no MDC (minimal detectable change) study for STS/SLS, so this never branches
-// on a "meaningful" flag -- the plain delta is shown whenever it's available,
-// with no suppressed "about the same" claim (task.md Stage 7.2: never invent a
-// clinical threshold that doesn't exist).
+// STS/SLS trend text. No MDC threshold exists, so plain deltas are shown directly.
 /** One "vs last session" delta, worded by DIRECTION rather than by a signed number.
  *
  * The previous form interpolated a sign into "score {{sign}}{{value}}/10", so a delta of
@@ -131,9 +125,7 @@ function slsLegTrendText(
     : t("report.trendNoPrevious");
 }
 
-// Stage 7.4: squat "vs last session" trend text. Same no-MDC rule as STS/SLS
-// above; squat compares score and reps completed (Module B has no completion-time
-// field like STS does).
+// Squat trend text: score and completed reps, with no MDC-style claim.
 function squatTrendText(
   t: (key: string, opts?: Record<string, unknown>) => string,
   trend: SquatTrend | null | undefined,
@@ -151,9 +143,7 @@ function squatTrendText(
     : t("report.trendNoPrevious");
 }
 
-// Stage 7.4: one trend line + an info tooltip explaining what "vs last session"
-// compares against. Shared by all four exercises (WBLT/STS/SLS/squat) so the
-// wording and affordance stay identical everywhere.
+// Shared trend line with the same "vs last session" tooltip for every exercise.
 function TrendLine({
   t,
   text,
@@ -174,14 +164,10 @@ function TrendLine({
   );
 }
 
-// Exercise codes graded by Module B's generic registry+plugin pipeline (task.md
-// Stage 4.1's architecture) -- exact-match set, not a substring check, to guard
-// against any future Module B code colliding with a Module A one.
+// Exercise codes graded by Module B's generic registry+plugin pipeline.
 const MODULE_B_EXERCISE_CODES = new Set(["squat"]);
 
-// UAT remediation (Stage R11): severity -> icon, paired with the CSS colour so
-// severity is never colour-only (colour-blind safety) -- each shape is visually
-// distinct (triangle/circle-i/circle-plus), not just a differently-tinted dot.
+// Severity uses both icon shape and colour.
 function severityIcon(severity: string | null) {
   const cls = severityClass(severity);
   if (cls === "high") return Alert;
@@ -218,18 +204,12 @@ export default function Report() {
   const [passMark, setPassMark] = useState<number | null>(null);
   const [loading, setLoading] = useState(!!sessionId);
   const [error, setError] = useState("");
-  // UAT remediation (Stage R11): the "full prediction/probability" figures move
-  // into a collapsed section rather than sitting in the main sub-scores view.
+  // Collapsed technical details: full prediction/probability stays secondary.
   const [detailsOpen, setDetailsOpen] = useState(false);
-  // §11 Stage 6: not part of the persisted metrics_json -- computed live from
-  // the account's previous WBLT session, so it's fetched separately.
+  // WBLT trend is fetched separately from the persisted metrics_json.
   const [wbltTrend, setWbltTrend] = useState<
     Partial<Record<"left" | "right", WbltLegTrend | null>>
   >({});
-
-  // Stage 5.20: no scroll-reveal on the report. The fade-in left sections invisible
-  // until scrolled into view, which reads as "the page has ended" on a long report --
-  // and it is the same animation that made earlier screenshot verification unreliable.
 
   useEffect(() => {
     if (!sessionId) return;
@@ -283,10 +263,7 @@ export default function Report() {
     };
   }, [sessionId, t]);
 
-  // UAT remediation (Stage R11): "Retry exercise" -- explicitly sets the flow's
-  // mode/exerciseCode from THIS session (not whatever the flow context happens
-  // to hold from earlier browsing), since Report can be reached from History
-  // for an old session unrelated to the flow's current selection.
+  // Retry must use this report's session, not whatever the flow context last held.
   function handleRetry() {
     if (!session) return;
     setMode(session.mode === "rehab" ? "rehab" : "functional");
@@ -294,9 +271,7 @@ export default function Report() {
     nav("/instructions");
   }
 
-  // Session's exercise_type decides which of Module A's `result` or Module B's
-  // `moduleBResult` is the live one — the two responses have different shapes
-  // (Phase 3E Stage 2's lesson: a wrong-panel bug was silent before; see the test).
+  // exercise_type decides which result payload is active; Module A/B shapes differ.
   const isModuleB = !!session && MODULE_B_EXERCISE_CODES.has(session.exercise_type);
   const band = isModuleB ? (moduleBResult?.band?.toLowerCase() ?? null) : (result?.band ?? null);
   const score = isModuleB ? (moduleBResult?.score ?? 0) : (result?.score ?? 0);
@@ -307,7 +282,7 @@ export default function Report() {
     c = 2 * Math.PI * r,
     pct = Math.max(0, Math.min(1, score / 10));
 
-  // Stage 5.14 per-rep verdicts: how many reps counted, and why the rest didn't.
+  // Per-rep verdicts: how many reps counted, and why the rest did not.
   const repSummaries = moduleBResult?.metrics.per_rep_summaries ?? [];
   const hasRepVerdicts = repSummaries.some((rep) => rep.counted_good !== undefined);
   const countedReps = repSummaries.filter((rep) => rep.counted_good).length;
@@ -334,32 +309,22 @@ export default function Report() {
   const wbltLegs = result?.metrics.legs;
   const hasWbltLegs = !!(wbltLegs && (wbltLegs.right || wbltLegs.left));
   const symmetry = result?.metrics.symmetry;
-  // Stage 7.2: shape of result.trend depends on exercise_type (StsTrend vs a
-  // per-leg SlsLegTrend map) -- guarded by isSls/isWblt at each render site so
-  // an SLS-shaped trend is never read as if it were STS's, or vice versa.
+  // SLS trend is per-leg; STS trend is a single object.
   const slsTrend = hasPerLeg
     ? (result?.trend as Partial<Record<SlsLeg, SlsLegTrend | null>> | undefined)
     : undefined;
 
-  // Module B: Attempts/rep-target/confidence/capture-quality figures the
-  // checklist asks for. The three rule sub-scores used to live here too as
-  // plain-number cards; Stage R11 moved them into `subScoreChartData` (an
-  // interactive chart) below, and the ML prediction row moved into the
-  // collapsed Technical Details section (P0 redundancy fix -- `ml_score` and
-  // `confidence` are the same underlying number in two formats, see Stage 5.20).
+  // Module B summary rows. Rule sub-scores live in the chart below; ML details
+  // stay in the collapsed technical section.
   const moduleBRows: { label: string; value: string; info?: string }[] = moduleBResult
     ? [
         {
-          // Stage 5.20: "Reps" read as "reps you completed", but this is every rep the
-          // backend segmented — attempts, including the ones that didn't count.
+          // Attempts are all segmented reps, including reps that did not count.
           label: t("report.attempts"),
           value: session?.rep_count != null ? `${session.rep_count}` : "—",
           info: t("report.attemptsMeaning"),
         },
-        // Stage R12 (UAT): "valid reps" -- the reps that actually counted toward the
-        // score. HY asked for this alongside Attempts, since the two together explain
-        // the score directly (score = 10 * valid / attempts, Stage 5.18). Only shown
-        // when per-rep verdicts exist; reuses the shared glossary "valid rep" def.
+        // Valid reps counted toward the score. Only shown when per-rep verdicts exist.
         ...(hasRepVerdicts
           ? [
               {
@@ -392,11 +357,7 @@ export default function Report() {
       ]
     : [];
 
-  // UAT remediation (Stage R11): "chart the sub-scores" -- the 3 rule sub-scores,
-  // fed to <SubScoreBarChart>. Each definition is reused verbatim from what the
-  // static cards showed before (glossary ROM def, or the report's own tempo/
-  // stability text), so the chart's hover tooltip carries the same information,
-  // just interactively instead of via an always-visible icon per row.
+  // Rule sub-scores for the interactive chart and hover tooltips.
   const subScoreChartData: SubScoreDatum[] = moduleBResult
     ? moduleBResult.metrics.rule_subscores.map((s) => ({
         code: s.code,
@@ -413,9 +374,7 @@ export default function Report() {
       }))
     : [];
 
-  // UAT remediation (Stage R11): the collapsed "Technical details" section --
-  // the full prediction/probability figures, moved out of the main sub-scores
-  // view now that the headline ML-prediction/confidence redundancy is gone.
+  // Collapsed technical figures for users who want model details.
   const technicalDetailsRows: { label: string; value: string }[] = moduleBResult
     ? [
         {
@@ -472,8 +431,7 @@ export default function Report() {
             {
               label: t("report.validReps"),
               value: `${result.metrics.rep_count}/${result.metrics.target_rep_count}`,
-              // UAT remediation (Stage R10 follow-up): reuses the shared glossary
-              // "valid rep" definition rather than inventing a second one.
+              // Reuse the shared glossary definition for "valid rep".
               info: t("glossary.validRep.def"),
             },
             ...(result.metrics.client_attempted_reps != null
@@ -520,10 +478,7 @@ export default function Report() {
 
   return (
     <>
-      {/* UAT remediation (Stage R11): Report previously had no way back except the
-          browser button itself -- true history-back rather than a fixed route,
-          since Report is reached from multiple places (History, or straight off
-          a finished live session). */}
+      {/* True history-back because Report can be reached from several routes. */}
       <button type="button" className="back-link" onClick={() => nav(-1)}>
         <ArrowLeft />
         {t("common.back")}
@@ -654,10 +609,7 @@ export default function Report() {
                   {t("report.captureQualityBand")}: {t("common." + captureQualityBandTop)}
                 </span>
                 <GlossaryTerm id="captureQuality" />
-                {/* UAT remediation (Stage R11): "unmissable non-diagnostic badge" --
-                    moved from a banner further down the page (easy to scroll past,
-                    and visually identical to the other stacked .dash-notes above it)
-                    to right beside the band itself, the first thing anyone looks at. */}
+                {/* Prominent non-diagnostic reminder beside the score band. */}
                 <span className="pill non-diagnostic-badge">
                   <Alert width={14} height={14} />
                   {t("report.nonDiagnosticReminder")}
@@ -689,12 +641,7 @@ export default function Report() {
             </div>
           </div>
 
-          {/* UAT remediation (Stage R11): reordered by importance -- band/score (above)
-              -> improvement cues (coaching + error tags, here) -> sub-scores/charted
-              metrics -> comparison -> technical details. Coaching used to render at
-              the very bottom of the page, after every metric; the plan's own +15-net
-              UAT finding was that this IS the app's strongest surface, so it now
-              follows straight after the score instead of being buried below it. */}
+          {/* Coaching and issue tags appear directly after the score. */}
           {isModuleB ? (
             <div className="dash-grid-2" style={{ marginBottom: 18 }}>
               <div className="panel panel--coaching">
@@ -723,11 +670,7 @@ export default function Report() {
                       ? t("report.feedbackSourceLlm")
                       : t("report.feedbackSourceTemplate")}
                   </div>
-                  {/* Stage 5.17: native <p> + <ul>, never a raw string — this is what
-                      replaces the literal "* " asterisks rendering inline. Falls back to
-                      "feedback unavailable" only when the row itself is missing (a fresh
-                      analyze always produces one); a present-but-empty-tips row still
-                      renders its summary with no bullet list. */}
+                  {/* Render structured feedback as summary + tips, never raw markdown. */}
                   {moduleBResult?.feedback?.rewritten_feedback_structured ? (
                     <>
                       <p>{moduleBResult.feedback.rewritten_feedback_structured.summary}</p>
@@ -749,8 +692,7 @@ export default function Report() {
               <div className="panel panel--errors">
                 <div className="panel-head" style={{ marginBottom: 16 }}>
                   <h3>{t("report.errorTags")}</h3>
-                  {/* UAT remediation (Stage R11): count badge -- how many issues at a
-                      glance, without counting tag pills. */}
+                  {/* Issue count badge. */}
                   {!!moduleBResult?.error_tags.length && (
                     <span className="pill">
                       {t("report.tagsCount", { count: moduleBResult.error_tags.length })}
@@ -778,10 +720,7 @@ export default function Report() {
                     );
                   })}
                 </div>
-                {/* UAT remediation (Stage R11): severity legend -- colour-blind safe,
-                    since each severity already pairs a distinct icon shape with its
-                    colour (never colour alone). Only shown once there's something to
-                    explain. */}
+                {/* Severity legend shown only when issue tags exist. */}
                 {!!moduleBResult?.error_tags.length && (
                   <div className="sev-legend">
                     <span className="sev-legend-item">
@@ -870,9 +809,7 @@ export default function Report() {
 
           {isModuleB ? (
             <>
-              {/* UAT remediation (Stage R11): "chart the sub-scores" -- interactive
-                  bar chart (colour-coded by band, hover for exact score + definition)
-                  replaces what used to be 3 more static number cards here. */}
+              {/* Interactive rule sub-score chart. */}
               {subScoreChartData.length > 0 && (
                 <div className="panel" style={{ marginBottom: 14 }}>
                   <SubScoreBarChart
@@ -936,10 +873,7 @@ export default function Report() {
                 text={squatTrendText(t, moduleBResult?.trend)}
                 style={{ marginBottom: 18 }}
               />
-              {/* UAT remediation (Stage R11): collapsed "Technical details" -- the full
-                  prediction/probability figures the ML-prediction row used to show
-                  inline, now tucked away since Confidence above already communicates
-                  the same certainty in plain language. */}
+              {/* Collapsed technical model details. */}
               {technicalDetailsRows.length > 0 && (
                 <div className="tech-details" style={{ marginBottom: 18 }}>
                   <button

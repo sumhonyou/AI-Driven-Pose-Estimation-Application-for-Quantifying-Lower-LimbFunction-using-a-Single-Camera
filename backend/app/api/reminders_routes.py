@@ -1,4 +1,4 @@
-"""Stage 7.3: reminders CRUD + calendar export.
+"""Reminder CRUD plus calendar export.
 
 No email, no push, no background scheduler -- delivery is a Google Calendar link
 and a downloadable .ics file, both computed on read so they always reflect the
@@ -46,8 +46,7 @@ def _to_response(
     # Only surfaced when the linked exercise is still active -- the frontend
     # gates the deep-link on this being present rather than trusting a
     # possibly-retired exercise_code (e.g. the removed Lunge exercise). The same
-    # gate applies to the calendar title (Stage R13): a retired exercise's name
-    # shouldn't show up in a calendar event either.
+    # gate applies to the calendar title too.
     exercise_name = exercise.name if exercise and exercise.is_active else None
     return ReminderResponse(
         id=reminder.id,
@@ -71,11 +70,8 @@ def list_reminders(
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[ReminderResponse]:
-    # Stage R13 (UAT): newest-created first, not soonest-scheduled first -- a
-    # reminder scheduled far out used to get buried mid-list right after being
-    # created (S15/S18: "just made this, can't find it"). Callers that want
-    # "what's coming up soonest" (e.g. Dashboard's preview) sort their own view
-    # of this list rather than relying on the API's order.
+    # Newest-created first keeps a reminder visible immediately after creation.
+    # Callers that need due-soon ordering sort their own view of this list.
     reminders = list(
         db.scalars(
             select(Reminder)

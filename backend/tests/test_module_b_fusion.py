@@ -1,4 +1,4 @@
-"""Stage 4.5/5.8 tests for model bundles, schema guards and fusion gates."""
+"""Model bundle, schema guard, and fusion-gate tests."""
 
 from __future__ import annotations
 

@@ -179,17 +179,10 @@ class TrendPoint(BaseModel):
     band: str | None = None
     capture_quality: float | None = None
     confidence: float | None = None  # Module B only; None for Module A
-    # Denormalized like score/band (sessions.rep_count). None for exercises with no
-    # rep concept (SLS, WBLT). Stage 5.22: lets the frontend chart attempts vs counted
-    # reps per session without a second endpoint -- `score` alone can't distinguish a
-    # hard session from a short one.
+    # Denormalized like score/band. None for exercises without a rep count.
     rep_count: int | None = None
-    # Stage R12 (UAT): per-exercise raw-metric series that replace the rejected
-    # capture-quality trend on the Progress page. Each is populated only for the
-    # exercise type that owns it (all None otherwise), read from the session's
-    # Module A result -- STS finish time / avg rep time, SLS best hold per leg,
-    # WBLT best reach distance per leg. Squat's "valid reps" is derived on the
-    # frontend from score * rep_count (Stage 5.18), so it needs no field here.
+    # Per-exercise raw metrics for the Progress page. Only the owning exercise type
+    # populates each field; all others remain None.
     completion_time_sec: float | None = None  # STS
     avg_rep_time_sec: float | None = None  # STS
     hold_left_sec: float | None = None  # SLS best hold, left leg
@@ -215,9 +208,7 @@ class DashboardErrorTag(BaseModel):
     count: int
 
 
-# Stage 7.3: reminders. Delivery is calendar-link based (Google Calendar URL +
-# downloadable .ics), not email/push -- there is no scheduler or email sender in
-# this project, per task.md's "keep it simple" note for this stage.
+# Reminder delivery is calendar-link based, not email/push.
 ReminderFrequency = Literal["once", "daily", "mwf", "weekly"]
 
 

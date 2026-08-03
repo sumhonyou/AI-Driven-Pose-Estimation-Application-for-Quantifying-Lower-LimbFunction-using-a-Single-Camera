@@ -1,52 +1,18 @@
-"""Stage 5.5: train the binary Good/Poor Extra Trees squat classifier (Option A).
+"""Train the binary Good/Poor Extra Trees squat classifier.
 
-Reads `ml/data/squat_features.csv`, tunes the R8 hyperparameter grid, calibrates the
-resulting probabilities, and writes `ml/reports/SQUAT_TRAINING_REPORT.md` plus the two
-required figures. **No artifact is exported here** — `model.joblib`/`calibrator.joblib`
-are Stage 5.8's deliverable; `build_final_model()` below is the entry point it will
-call, so the model is defined once and Stage 5.8 only has to serialise it.
+Reads `ml/data/squat_features.csv`, tunes the hyperparameter grid, calibrates
+probabilities, and writes `ml/reports/SQUAT_TRAINING_REPORT.md` plus figures. Artifacts
+are exported separately by `export_squat_model.py`.
 
-Four decisions are made here that the report must justify rather than assert:
+Training choices:
 
-1. **CV scheme — the plan's fallback, and it is data-triggered, not chosen.** `task.md`
-   asks for Leave-One-Subject-Out, with a written fallback: "if a subject has only one
-   class, or a fold loses a class -> stratified group k-fold (5-fold)". Subjects 2, 4
-   and 9 are Good-only, so LOSO would produce three test folds containing no Poor rep
-   at all — every fold-level metric that needs both classes (ROC AUC, Poor recall) is
-   undefined there. `_choose_cv()` detects that condition from the data rather than
-   hardcoding the answer, so the reason in the report is evidence, not memory.
+- use stratified group k-fold when LOSO folds cannot contain both classes
+- tune ROC AUC because later banding uses calibrated probability ranking
+- keep all frozen feature columns, then report model importances
+- use sigmoid calibration because the minority class is small
 
-2. **Tuning metric = ROC AUC, not F1/precision.** Threshold-dependent metrics score a
-   decision rule fixed at p=0.5 — but Stage 5.6 exists precisely to *replace* that
-   threshold (the Fair band). Tuning on F1@0.5 would optimise a rule this project is
-   about to discard. ROC AUC scores the probability *ranking*, which is what both the
-   calibration below and Stage 5.6's sweep actually consume. `f1_macro` is recorded
-   alongside every combination anyway so the choice is inspectable, not just claimed.
-
-3. **All 13 features are trained on; the Stage 5.4 DROP verdicts are not executed.**
-   Two reasons. (a) Scope: dropping a feature edits `SQUAT_FEATURE_NAMES`, which bumps
-   `feature_schema_version` and invalidates Phase 4's contract tests — outside this
-   stage's checklist. (b) Statistics: FEATURE_VALIDITY.md's own caveat is that those
-   verdicts were computed on all 98 reps *including* the subjects held out below, so
-   acting on them and then quoting a held-out score would be selection bias. Training
-   on all 13 and reporting the model's own importances is the option that report named
-   as honest, and it is the one taken. The importance table is the answer to it.
-
-4. **Calibration = sigmoid, not isotonic.** `task.md` says "isotonic if N allows, else
-   sigmoid". N does not allow: 26 Poor reps across 9 subjects. Isotonic fits a
-   free-form step function and needs on the order of a thousand samples before it stops
-   memorising; on 26 minority samples it would produce a curve that looks perfect
-   in-fold and generalises to nothing. Sigmoid fits two parameters. That is the whole
-   justification, and it is a limitation, not a preference.
-
-Nested, so the tuning never sees its own test fold: the outer split produces the
-out-of-fold probabilities the report quotes, and a *separate* `GridSearchCV` runs
-inside each outer training fold. `GridSearchCV.best_score_` is deliberately NOT quoted
-as a generalisation estimate anywhere — it is the maximum over 180 combinations and is
-optimistically biased by that selection alone.
-
-Deterministic (X8): fixed seeds from `config.yaml`, `shuffle=False` splitters, sorted
-iteration, no wall-clock.
+The nested CV design keeps tuning inside each outer training fold, so reported
+out-of-fold probabilities never come from a model that saw that rep.
 """
 
 from __future__ import annotations
@@ -58,11 +24,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-# X1: the feature order is the backend's frozen contract, not a local list.
-from app.module_b.squat.features import SQUAT_FEATURE_NAMES
-
-# Stage 5.4's per-feature verdicts are recomputed by calling its own analyser rather
-# than transcribed into a table here — a copy would go stale silently.
+# Recompute per-feature validity instead of copying a stale table.
 from check_feature_validity import analyse_feature
 from plotting import save_fig
 from scipy.stats import spearmanr
@@ -70,6 +32,9 @@ from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.metrics import brier_score_loss, f1_score, roc_auc_score
 from sklearn.model_selection import GridSearchCV, LeaveOneGroupOut, StratifiedGroupKFold
+
+# X1: the feature order is the backend's frozen contract, not a local list.
+from app.module_b.squat.features import SQUAT_FEATURE_NAMES
 
 ML_ROOT = Path(__file__).resolve().parent.parent
 FEATURES_CSV = ML_ROOT / "data" / "squat_features.csv"
@@ -99,7 +64,7 @@ TUNING_METRIC = "roc_auc"
 SECONDARY_METRIC = "f1_macro"
 
 # label_map.json's contract: correctness 1 -> Good, 0 -> Poor. y follows it exactly
-# rather than inverting to "Poor is positive", so Stage 5.8's backend load cannot
+# rather than inverting to "Poor is positive", so backend loading cannot
 # silently disagree about which column of predict_proba means what. Consequence:
 # predict_proba[:, 1] is P(Good). Poor is the minority class -> its recall is the
 # number to watch, and it is reported per-class below.
@@ -192,7 +157,7 @@ def _calibrate(params: dict, x, y, cv_splits, seed: int) -> CalibratedClassifier
        sigmoid is fitted on `cross_val_predict` out-of-fold scores, so calibration is
        a genuinely monotone rescaling and AUC is preserved *exactly*. `main()` asserts
        that, which turns the claim into a check rather than a hope.
-    2. **Stage 5.8's artifact spec presupposes it.** It asks for `model.joblib` *and*
+    2. **Artifact export presupposes it.** It asks for `model.joblib` *and*
        `calibrator.joblib` — one model, one calibrator. An averaged K-pair ensemble
        cannot be split into those two files.
     """
@@ -207,7 +172,7 @@ def _calibrate(params: dict, x, y, cv_splits, seed: int) -> CalibratedClassifier
 
 
 def build_final_model(x, y, groups, seed: int) -> tuple[CalibratedClassifierCV, dict]:
-    """Tune on all data, then fit the calibrated model Stage 5.8 will export.
+    """Tune on all data, then fit the calibrated model exported later.
 
     The returned model is the deliverable; the honest performance estimate for it comes
     from `nested_cv()`, not from the search's own best_score_.
@@ -905,10 +870,7 @@ def write_report(
         "| ------- | ---------- | ------------- | ------ | --------- | ----------------- |",
     ]
 
-    # Stage 5.4's verdicts are recomputed by calling its own analyser rather than
-    # transcribed from FEATURE_VALIDITY.md — same discipline as X1 elsewhere in ml/.
-    # A copied table silently goes stale the first time the feature set or the CSV
-    # changes; this cannot.
+    # Recompute validity verdicts instead of copying a table that can go stale.
     stage_54 = {f: analyse_feature(rows, f) for f in SQUAT_FEATURE_NAMES}
     for name, importance in importances:
         v = stage_54[name]

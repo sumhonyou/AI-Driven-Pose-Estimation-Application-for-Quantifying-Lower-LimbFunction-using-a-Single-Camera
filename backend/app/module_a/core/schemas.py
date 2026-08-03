@@ -54,9 +54,5 @@ class ModuleAResultResponse(BaseModel):
     is_partial_score: bool = False
     # True only when this specific call actually wrote to the database.
     persisted: bool = True
-    # Stage 7.2: vs the account's previous completed session of the same
-    # exercise. Populated only by GET /sessions/{id} (the report-read-back
-    # point, mirroring WBLT's pattern) for sit_to_stand/supported_single_leg_stance;
-    # None for WBLT (which has its own dedicated trend field via /api/wblt/*) and
-    # for any session with no previous completed session to compare against.
+    # Previous-session trend for STS/SLS report read-back. WBLT uses /api/wblt/*.
     trend: dict | None = None

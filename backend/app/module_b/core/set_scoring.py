@@ -1,46 +1,14 @@
-"""Stage 5.13: score every rep in a set, then aggregate one band from the verdicts.
+"""Score Module B sets and aggregate per-rep verdicts.
 
-Replaces the long-standing "the ML only ever scores `feature_vectors[0]`" behaviour
-(flagged at Stage 5.12 and deferred there). A user's whole set is now graded, not its
-first rep.
+Voting is applied per rep because the ML threshold was calibrated on individual reps,
+not on averaged set scores. Fault gates also apply per rep, so one failed gate affects
+that rep before the set-level vote is calculated.
 
-**Why a vote and not a mean of the reps.** `decision_threshold` was tuned on *individual*
-reps (`ml/scripts/tune_squat_binary_band.py`, max macro-F1 over the out-of-fold
-predictions). Averaging the reps first and then applying that same cut silently changes
-what the cut means, because a mean over N reps has a far narrower spread than one rep.
-Voting applies the threshold exactly where it was calibrated and only then combines, so
-**no re-calibration is required** -- which matters, because the labels are per-rep and no
-set-level ground truth exists to re-tune against.
+For voting policies, the headline score is the share of clean reps:
+`10 * clean_reps / total_reps`. Mean ML score and mean confidence are still stored as
+secondary report values.
 
-It is also the noise-robust choice at this model's operating point. Stage 5.11 knowingly
-accepted flagging ~31% of Good reps as Poor. Over a 10-rep set that means a spurious flag
-is near-certain, so the aggregation rule decides everything: "any rep Poor -> Poor" would
-wrongly fail ~98% of clean sets, a majority vote ~5.5%, and the old rep-0-only logic 31%.
-(The ~5.5% assumes per-rep errors are independent; they are not -- same subject, camera
-and lighting -- so the true rate is higher, though still far below 98%.)
-
-**Gates fold in per rep, not per set.** Stage 5.12 forced the whole set to Poor if any
-gate failed on any rep, which condemned a 30-rep set for one heel lift and left
-`fusion.score` untouched -- the visible "8.0/10 + Needs Improvement" contradiction. Here a
-gate failure invalidates *its own rep*, and the vote decides the set. Note the two signals
-genuinely measure different things: `heel_rise_peak_norm` is rule-only and is NOT in the
-frozen ML feature vector, so the model cannot see a heel lift at all.
-
-**Stage 5.18 -- the headline score is the share of clean reps, not the mean model
-probability.** Stage 5.13 reported `mean(10 * P(Good))` as the score while the band came
-from the vote, so the two measured different quantities and could still disagree. Live
-capture then showed the mean is not merely uninformative but *anti-correlated* with the
-faults the system detects (gate-failing reps 8.845 vs 8.807 for clean reps; the
-highest-scoring rep in a set was a depth failure), and that it compresses the whole
-0%-100% quality range into 8.02-9.27. `final_score` is now `10 * good / total`, reusing
-the vote's own count, which makes `band == "Good"` exactly equivalent to `score > 5.0`.
-`mean_ml_score` / `mean_confidence` are unchanged and still populate `FusionResult` for the
-report's secondary cards -- the model's opinion is demoted, not discarded, and it still
-decides `counted_good` for every rep.
-
-Exercise-agnostic on purpose: everything is driven by `band_policy`. An exercise with no
-`aggregation` key keeps the exact single-vector behaviour it shipped with, so Module A is
-untouched by construction (same additive pattern as `band_policy` and the gate hook).
+Exercises without a voting policy keep the legacy first-vector scoring path.
 """
 
 from __future__ import annotations
@@ -140,9 +108,7 @@ def score_set(
         )
 
     good = sum(1 for verdict in verdicts if verdict.counted_good)
-    # Strict majority: an exact 5/5 split is NOT a pass. Ties break toward Poor, which
-    # keeps the safety-first posture Stage 5.11 chose when it accepted the false-alarm
-    # rate in exchange for never calling a poor-form rep fine.
+    # Strict majority: an exact split is not a pass.
     band = "Good" if good * 2 > len(verdicts) else "Poor"
 
     # Kept for the report's secondary "ML prediction" / "Confidence" cards -- they are no
@@ -150,19 +116,8 @@ def score_set(
     mean_ml_score = sum(v.ml_score for v in verdicts) / len(verdicts)
     mean_confidence = sum(v.confidence for v in verdicts) / len(verdicts)
 
-    # Stage 5.18: the headline score is the SHARE OF CLEAN REPS, not the mean model
-    # probability. The mean was measured to be anti-correlated with the faults this system
-    # detects -- on live capture, gate-failing reps averaged 8.845 against 8.807 for clean
-    # reps, and a set's highest-scoring rep (9.458) was a depth failure. That is the EC3D
-    # construct inversion reproduced in deployment, so a mean of it cannot carry a quality
-    # scale: recorded sessions spanned only 8.02-9.27 while real performance spanned
-    # 0%-100% clean.
-    #
-    # `good` is the same count the band vote above already uses, so this introduces no new
-    # arithmetic -- and it makes band a deterministic function of score:
-    #     band == "Good"  <=>  good * 2 > total  <=>  score > 5.0
-    # which is why the two can no longer contradict each other (the defect that started
-    # this work: 8.0 displayed beside "Needs Improvement").
+    # The headline score uses the same clean-rep count as the band vote, so score and
+    # band cannot disagree.
     final_score = 10.0 * good / len(verdicts)
 
     config = MODULE_B_CORE_CONFIG
@@ -192,11 +147,9 @@ def score_set(
 def failed_gates_by_rep(gate_result) -> dict[int, tuple[str, ...]]:
     """Group a gate result's failures by the rep they fired on.
 
-    Lives here rather than in `core/router.py` so the router and the replay harness
-    share one implementation (X1) — a forked copy is exactly how the pre-Stage-5.11
-    harness drifted out of step with the endpoint. Duck-typed on
-    ``all_passed``/``failed``/``rep_index``/``tag`` so this core module stays decoupled
-    from any one exercise's gate types; gate-less exercises pass None.
+    Kept in core so the router and replay harness share one implementation. Duck-typed
+    on ``all_passed``/``failed``/``rep_index``/``tag`` so this module stays decoupled
+    from exercise-specific gate classes; gate-less exercises pass None.
     """
     if gate_result is None or gate_result.all_passed:
         return {}

@@ -1,16 +1,7 @@
-"""Stage 5.7 determinism gate for the Module B squat replay harness.
+"""Module B squat replay determinism tests.
 
-Mirrors `WbltDeterminismTests` (Module A Stage 7): re-running the official analysis on
-the same stored frames must reproduce an identical result, which is the property that
-makes `replay_squat_session.py` a meaningful proof rather than a demo.
-
-Runs against the **committed** corpus (`app/module_b/replay_corpus/squat/`), not
-fixtures built inside this file, for two reasons. It is the same data the harness and
-`labels.json` use, so the three cannot drift apart; and the corpus spans every band the
-committed binary policy actually reaches (Good and Poor — Stage 5.11 made Poor reachable
-by replacing the Fair abstention with a score-threshold cut) plus a low-capture-quality
-sample, so determinism is checked on every band the pipeline can currently produce
-rather than on one happy path.
+Runs against the committed corpus so the harness, labels manifest, and tests stay in
+sync. The corpus covers reachable squat bands plus a low-capture-quality sample.
 """
 
 from __future__ import annotations

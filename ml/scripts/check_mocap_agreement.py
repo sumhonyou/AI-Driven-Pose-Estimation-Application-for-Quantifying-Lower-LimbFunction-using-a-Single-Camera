@@ -1,4 +1,4 @@
-"""Stage 5.4: MediaPipe knee flexion vs OptiTrack mocap ground truth.
+"""Compare MediaPipe knee flexion against OptiTrack mocap ground truth.
 
 Answers "does our single-camera pipeline actually measure the knee angle it claims
 to?" by comparing, on the same frames, the knee flexion our pipeline derives from
@@ -32,10 +32,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-# Reused, never forked: the same stats module Module A's SLS/WBLT evaluations use.
-from app.module_a.core.evaluation.agreement import bland_altman, icc_2_1
-from app.module_b.core.geometry import knee_flexion_deg
 from build_features import (
     SIDE_VIEW_ORIENTATION,
     TARGET_EXERCISE_ID,
@@ -44,6 +40,10 @@ from build_features import (
     _read_segmentation,
 )
 from plotting import save_fig
+
+# Reused, never forked: the same stats module Module A's SLS/WBLT evaluations use.
+from app.module_a.core.evaluation.agreement import bland_altman, icc_2_1
+from app.module_b.core.geometry import knee_flexion_deg
 
 ML_ROOT = Path(__file__).resolve().parent.parent
 REPORT_MD = ML_ROOT / "reports" / "MOCAP_AGREEMENT.md"
@@ -55,7 +55,7 @@ MOCAP_DIR = Path("/Users/sumhonyou/fypDataset/3d_joints/Ex6")
 MOCAP_LEGS = {"left": (16, 17, 18), "right": (21, 22, 23)}
 # MediaPipe pose landmarks, same (hip, knee, ankle) roles.
 MP_LEGS = {"left": (23, 25, 27), "right": (24, 26, 28)}
-# Stage 5.3 measured the RIGHT leg as the far/occluded one in every subject.
+# Dataset audit found the right leg is the far/occluded side in every subject.
 FAR_LEG = "right"
 
 OFFSET_SCAN = range(-5, 6)

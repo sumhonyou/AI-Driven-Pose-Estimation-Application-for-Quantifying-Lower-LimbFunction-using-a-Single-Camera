@@ -6,18 +6,13 @@
 // and the faulty rep does not advance their target.
 //
 // Thresholds are NEVER hardcoded here -- they arrive from GET /api/module-b/squat/config
-// (which serves the whole SQUAT_CONFIG, fault_gates block included). See X7: the Phase 3E
-// lesson was that hand-synced constants drift silently.
+// (which serves the whole SQUAT_CONFIG, fault_gates block included).
 import { LM, type WorldLandmark } from "../../types/pose";
 import { LIVE_MIN_VISIBILITY } from "../../config/moduleAThresholds";
 
 /** Mirrors backend app/module_a/core/config.py's MIN_VISIBILITY (0.6). */
 const MIN_VISIBILITY = LIVE_MIN_VISIBILITY;
-// UAT remediation (Stage R1/R4): mirrors backend squat/fault_gates.py's Stage R1
-// construction. A short settle window at rep start (median baseline instead of the
-// first frame alone) and a debounce window (a rise must be sustained, not a single
-// spiky frame) -- kept numerically identical to the backend's constants of the same
-// name.
+// Heel-rise measurement uses a short settle baseline and debounce window.
 const SETTLE_WINDOW_FRAMES = 3;
 const DEBOUNCE_FRAMES = 3;
 
@@ -104,15 +99,8 @@ function median(values: number[]): number {
 
 /** Accumulates one rep's heel-rise measurement frame by frame.
  *
- * UAT remediation (Stage R1/R4): mirrors backend squat/fault_gates.py's corrected
- * construction -- picks the camera-side (near) leg per rep by mean landmark
- * visibility instead of averaging both (a side view's far foot is frequently
- * occluded and noisy), baselines against the median of a short settle window
- * instead of the first frame alone, and requires a rise to be sustained across a
- * debounce window instead of a single-frame peak. Built incrementally because the
- * live path sees one frame at a time and never holds the rep's raw landmark frames
- * -- but small per-frame numeric arrays (not landmark data) are cheap to buffer for
- * one rep, so the near-leg decision can still be made once, at `result()` time. */
+ * Mirrors the backend construction: choose the better-tracked leg, use a median
+ * settle baseline, and require a sustained rise across the debounce window. */
 export function createHeelRiseTracker() {
   const leftLifts: number[] = [];
   const rightLifts: number[] = [];

@@ -77,8 +77,7 @@ def get_trends(
         select(SessionModel)
         .options(
             selectinload(SessionModel.module_b_result),
-            # Stage R12: per-exercise raw-metric series (STS time, SLS hold,
-            # WBLT distance) are read off the Module A result / its metrics_json.
+            # Raw metric series read STS time, SLS hold, and WBLT distance.
             selectinload(SessionModel.module_a_result),
         )
         .where(SessionModel.user_id == current_user.id)

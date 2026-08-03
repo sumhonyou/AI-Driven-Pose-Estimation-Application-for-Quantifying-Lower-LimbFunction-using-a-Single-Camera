@@ -1,5 +1,5 @@
-// REST client for Stage 7.3 reminders. Delivery is calendar-link based (Google
-// Calendar URL + downloadable .ics computed server-side) -- no email, no push.
+// REST client for reminders. Delivery is calendar-link based: Google Calendar URL
+// plus downloadable .ics, both computed server-side.
 import { apiRequest, API_BASE_URL, TOKEN_KEY } from "./apiClient";
 
 export type ReminderFrequency = "once" | "daily" | "mwf" | "weekly";
@@ -47,11 +47,7 @@ export const reminderService = {
   remove(id: string) {
     return apiRequest<void>(`/api/reminders/${id}`, { method: "DELETE" });
   },
-  /** Stage R13 (UAT): fire-and-forget complete, scoped to the reminder that
-   * launched the just-finished session (`session.tsx`'s `reminderId`) -- a
-   * no-op when null (every other entry point). Mirrors the existing
-   * `enqueueCancel` non-blocking pattern: a failure here shouldn't stop the
-   * user from reaching their report. */
+  /** Fire-and-forget completion for the reminder that launched the session. */
   completeIfLaunched(reminderId: string | null) {
     if (!reminderId) return;
     reminderService

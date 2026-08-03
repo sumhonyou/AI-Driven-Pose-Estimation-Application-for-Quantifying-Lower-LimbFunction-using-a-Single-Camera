@@ -1,7 +1,7 @@
-"""Stage 5.0 data audit for REHAB24-6.
+"""Audit the REHAB24-6 squat data used by the ML pipeline.
 
-Loads Segmentation.csv, filters to exercise_id == 6 (Squats), and reports every
-number the Stage 5.0 hard gate requires. Never mutates the dataset; read-only.
+Loads Segmentation.csv, filters to exercise_id == 6 (Squats), and reports the dataset
+counts and view checks. Never mutates the dataset.
 
 Usage: python audit_rehab246.py [--config ../config.yaml]
 """
@@ -28,7 +28,7 @@ def load_segmentation(csv_path: Path) -> list[dict]:
 
 
 def audit(rows: list[dict]) -> dict:
-    """Compute every Stage 5.0 number. Returns a plain dict, printable and reusable."""
+    """Compute dataset audit numbers as a plain reusable dictionary."""
     report: dict = {}
 
     for ex_id in (6,):

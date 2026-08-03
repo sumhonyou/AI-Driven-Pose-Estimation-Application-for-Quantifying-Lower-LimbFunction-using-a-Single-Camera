@@ -1,10 +1,4 @@
-// UAT remediation (Stage R5): a generic, full-viewport "get ready" countdown, reusing
-// the shared `.countdown-overlay` CSS and portal pattern already used by
-// squat/StartSetCountdown, sls/StartHoldCountdown, and wblt/WbltGetReadyCountdown --
-// those three are exercise-specific wrappers (fixed labels), this is the shared base
-// for anything new (currently: STS, which previously had no countdown at all and
-// auto-recorded on mount). Deliberately not a "5th near-identical component" per the
-// R5 plan -- STS renders this directly instead of a new StsGetReadyCountdown wrapper.
+// Generic full-viewport "get ready" countdown shared by live exercise flows.
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";

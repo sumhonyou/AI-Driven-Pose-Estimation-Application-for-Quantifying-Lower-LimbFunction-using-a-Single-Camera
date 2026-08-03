@@ -1,5 +1,4 @@
-"""Weight-Bearing Lunge Test (WBLT) REST endpoints — Stage 2 (guided bracket,
-both legs, symmetry).
+"""Weight-Bearing Lunge Test (WBLT) REST endpoints.
 
 Dedicated /api/wblt/* routes because the dual-output (distance + angle) contract
 differs from the shared single-buffer /api/module-a/analyze -- built on the same
@@ -55,7 +54,7 @@ def _existing_legs(session: SessionModel) -> dict:
 
 @router.get("/config", response_model=WbltConfigResponse)
 def get_config() -> WbltConfigResponse:
-    """Serves WBLT_CONFIG so live frontend feedback matches the official analysis (§10)."""
+    """Serve WBLT_CONFIG so live frontend feedback matches backend analysis."""
     return WbltConfigResponse(**config.WBLT_CONFIG)
 
 

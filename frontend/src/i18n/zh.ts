@@ -237,7 +237,7 @@ const zh: Dict = {
     repVolumeTrendSub: "每次训练计入与未计入的次数",
     repsCounted: "计入",
     repsRejected: "未计入",
-    // Stage R12：每个动作的第二个趋势图（取代采集质量趋势）。
+    // 每个动作的第二个趋势图。
     stsTimeTrend: "完成与单次用时",
     stsTimeTrendSub: "每次训练测试总用时与单次用时",
     slsHoldTrend: "各腿最佳保持时间",

@@ -1,4 +1,4 @@
-"""Stage 5.6: Fair threshold + fusion weight sweep.
+"""Sweep the Fair threshold and fusion weights for squat.
 
 Two 1-D sweeps over the same out-of-fold data, each earning one config value Phase 4
 shipped as a placeholder — but run as an **iterated joint search**, not a single
@@ -88,12 +88,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from app.module_b.core.config import MODULE_B_CORE_CONFIG
-from app.module_b.core.features import FeatureVector
-from app.module_b.core.fusion import fuse_scores
-from app.module_b.core.quality import assess_capture_quality
-from app.module_b.squat.features import SQUAT_FEATURE_NAMES
-from app.module_b.squat.rules import score_squat_rep
 from build_features import (
     SIDE_VIEW_ORIENTATION,
     TARGET_EXERCISE_ID,
@@ -104,19 +98,24 @@ from build_features import (
 from plotting import save_fig
 from train_squat import _build_xy, _choose_cv, _read_rows, nested_cv
 
+from app.module_b.core.config import MODULE_B_CORE_CONFIG
+from app.module_b.core.features import FeatureVector
+from app.module_b.core.fusion import fuse_scores
+from app.module_b.core.quality import assess_capture_quality
+from app.module_b.squat.features import SQUAT_FEATURE_NAMES
+from app.module_b.squat.rules import score_squat_rep
+
 ML_ROOT = Path(__file__).resolve().parent.parent
 REPORT_MD = ML_ROOT / "reports" / "SQUAT_FUSION_SWEEP.md"
 
 # R7 default is 0.65; "strictly above 0.5" per the checklist, including candidates
 # above 0.65 so the sweep can confirm or move past the heuristic.
 CONFIDENCE_CANDIDATES = [0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95]
-# "0.2 -> 0.8 in 0.1 steps" per the checklist; 0.4 is the current Stage 4.0 placeholder,
-# included so the sweep directly shows whether it was already a reasonable choice.
+# Include the current 0.4 default so the sweep can compare it with nearby weights.
 FUSION_WEIGHT_CANDIDATES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
 
-# Pre-declared confidence-threshold selection rule (fixed before results were seen,
-# matching Stage 5.4's practice): the smallest threshold reaching this precision bar on
-# BOTH confidently-classified classes, so no more abstention is bought than necessary.
+# Pre-declared selection rule: use the smallest threshold that reaches this precision
+# bar on both confidently classified classes.
 CONFIDENCE_PRECISION_BAR = 0.90
 
 # Coordinate-ascent bound for the joint (threshold, weight) search below. 2-3 rounds is
@@ -380,12 +379,10 @@ def _pick_confidence_threshold(results: list[dict]) -> tuple[float, str]:
 
 
 def _pick_fusion_weight(results: list[dict]) -> tuple[float, str]:
-    """HY's explicit priority: Poor->Good ("telling a poor-form user they're fine") is
-    named as the one failure mode that matters most — so it is the PRIMARY key, on its
-    own, not summed with Good->Poor into a single "severe rate" that would let a rise in
-    the worse failure mode hide behind a fall in the milder one. Good->Poor breaks ties,
-    then macro-F1. At n=98 (26 Poor) a single event either way is within sampling noise,
-    so "tied" allows a within-1 margin at each step rather than requiring exact equality.
+    """Pick the weight that minimises Poor->Good errors first.
+
+    Good->Poor breaks ties, then macro-F1. With this small dataset, a within-1 margin
+    is treated as tied rather than requiring exact equality.
     """
     min_poor_to_good = min(r["poor_to_good"] for r in results)
     tier1 = [r for r in results if r["poor_to_good"] <= min_poor_to_good + 1]

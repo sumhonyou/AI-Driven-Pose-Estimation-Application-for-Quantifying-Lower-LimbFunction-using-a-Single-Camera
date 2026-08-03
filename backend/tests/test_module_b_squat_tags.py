@@ -1,4 +1,4 @@
-"""Stage 6.1: the reconciled squat tag taxonomy and its tag builder."""
+"""Squat tag taxonomy and tag-builder tests."""
 
 from __future__ import annotations
 

@@ -1,16 +1,8 @@
-"""Stage 6.3: the safety filter applied to LLM output before it is stored or shown.
+"""Safety checks for LLM-rewritten Module B feedback.
 
-`StructuredFeedback` (Stage 6.1) is the trusted source; any LLM rewrite (Stage 6.4) is
-only a readability layer over it. This module is the gate between the two: it never lets
-a rewrite past that could change what the user believes about their grade, mention a
-fault that was never detected, make a forbidden clinical claim, or run unbounded length.
-Any single failed check discards the whole candidate — the caller falls back to
-`feedback_templates.compose_template` (X5: the grade shown to the user must always match
-what was actually computed).
-
-This module has no dependency on Stage 6.4's `llm_client` — it only checks plain text
-against a `StructuredFeedback`, so it is fully testable (and was fully built) before any
-LLM code exists.
+`StructuredFeedback` is the trusted source. A rewrite is accepted only if it keeps the
+same grade, avoids invented faults, avoids forbidden clinical wording, and stays within
+the length and formatting limits.
 """
 
 from __future__ import annotations
@@ -24,21 +16,14 @@ from app.module_b.core.feedback_contract import joined_text
 from app.module_b.core.feedback_contract import parse as parse_feedback_contract
 from app.module_b.squat.tags import SQUAT_TAG_TAXONOMY
 
-# Stage 5.17: reject any markdown formatting the model added despite being told not to
-# (asterisk/underscore emphasis, headings, code spans) plus a leading bullet/number on
-# any individual tip -- the concrete symptom that motivated this stage was literal "* "
-# characters rendering inline in the report.
+# Reject markdown formatting and leading bullets in generated prose.
 _MARKDOWN_CHARS_RE = re.compile(r"[*_#`]")
 _LEADING_BULLET_RE = re.compile(r"^\s*(?:[-*+•]|\d+[.)])\s+")
 
-# Generous enough for a short coaching paragraph, tight enough to block a runaway or
-# injected wall of text. Matches the "Length cap" bullet in task.md Stage 6.3.
+# Long enough for short coaching text; short enough to block runaway output.
 MAX_REWRITE_LENGTH = 600
 
-# Band words the model could plausibly use, including the squat UI's Stage 5.11 relabel
-# ("Poor" is displayed and could be rewritten as "Needs Improvement"). Matched
-# case-insensitively as whole words/phrases so "good form overall" doesn't false-positive
-# on "form".
+# Band words matched as whole words so unrelated wording does not false-positive.
 _BAND_WORDS: dict[str, tuple[str, ...]] = {
     "Good": ("good",),
     "Fair": ("fair",),
@@ -60,13 +45,7 @@ class SafetyCheckResult:
 def check_llm_feedback(
     candidate: str, *, structured: StructuredFeedback
 ) -> SafetyCheckResult:
-    """Run every Stage 6.3 (+5.17) check; the first failure rejects the whole candidate.
-
-    `candidate` is the `feedback_contract` JSON string (see that module) -- this function
-    parses it independently of `llm_client`'s own parse, rather than trusting a pre-parsed
-    object, so this remains a standalone gate any candidate string must pass regardless of
-    which layer produced it (unchanged from Stage 6.3's original design intent).
-    """
+    """Run all safety checks; the first failure rejects the whole candidate."""
     if not candidate or not candidate.strip():
         return SafetyCheckResult(accepted=False, reason="empty")
 
@@ -152,7 +131,7 @@ def _find_invented_tag(lowered_text: str, structured: StructuredFeedback) -> str
 
     Only checks tags the taxonomy knows about (so it can compare against their message/
     tag-code text); this is what "a tag not in the structured input" concretely means for
-    a closed, small taxonomy (Stage 6.1) rather than open-ended hallucination detection.
+    a closed, small taxonomy rather than open-ended hallucination detection.
     """
     present = {tag.tag for tag in structured.tags}
     for tag_code, spec in SQUAT_TAG_TAXONOMY.items():

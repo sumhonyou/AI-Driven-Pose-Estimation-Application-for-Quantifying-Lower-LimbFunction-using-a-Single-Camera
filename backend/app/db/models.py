@@ -183,16 +183,9 @@ class Reminder(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="true"
     )
-    # Stage 7.3: which exercise this reminder deep-links to when clicked (nullable --
-    # a reminder can be generic, e.g. "log how you're feeling"). Not a FK to
-    # exercise_catalog.code on purpose: a reminder must survive an exercise being
-    # retired (e.g. lunge) rather than cascade-delete or dangle a broken FK; the
-    # frontend gates the deep-link itself if the code is no longer active.
+    # Optional exercise deep-link. Not a FK so reminders survive retired exercises.
     exercise_code: Mapped[str | None] = mapped_column(String(100))
-    # Stage 7.3: when the user last marked this reminder done. For a one-time
-    # reminder, any value means complete. For a recurring one, only "done for
-    # today's occurrence" if the date component matches today (see
-    # reminders_service.is_due) -- the column itself just stores the last tap.
+    # Last completion tap. Recurring due logic compares only the date component.
     last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -341,19 +334,13 @@ class FeedbackText(Base):
     feedback_source: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default="template"
     )
-    # Distinct from feedback_source: True even when the LLM was called but Stage 6.3's
-    # safety filter rejected its output and fell back to the template (Phase 6 Stage 6.5).
+    # True when an LLM call was attempted, even if the safety filter rejected it.
     llm_attempted: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
     provider: Mapped[str | None] = mapped_column(String(50))
     model_version: Mapped[str | None] = mapped_column(String(100))
-    # UAT remediation (T11, S5 "keeps showing template fallback"): `llm_attempted`
-    # alone says a call happened, not what became of it. One of "none" (never
-    # attempted), "llm_used" (rewrite accepted), "rate_limited", "timeout",
-    # "api_error", "invalid_json", "empty_response", or "guard_rejected:<reason>"
-    # (Stage 6.3's safety filter rejected an otherwise-successful reply, with its own
-    # rejection reason appended). Diagnostic only -- never rendered to the user.
+    # Diagnostic fallback reason; never rendered to the user.
     fallback_reason: Mapped[str | None] = mapped_column(String(80))
     # Versioned id for the disclaimer copy shown alongside this report (the disclaimer
     # text itself always comes from the current i18n render, never stored here).

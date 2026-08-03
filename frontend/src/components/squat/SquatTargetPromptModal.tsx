@@ -1,6 +1,4 @@
-// UAT remediation (Stage R9): the rep-target picker used to sit in the sidebar
-// panel during "setup". Moved into a popup overlay, same pattern as WBLT's
-// WbltTargetPromptModal -- the webcam feed and HUD underneath never change layout.
+// Rep-target picker shown as an overlay so the camera and HUD layout stay stable.
 import { useTranslation } from "react-i18next";
 import { Target } from "../Icons";
 

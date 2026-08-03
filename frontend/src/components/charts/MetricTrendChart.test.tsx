@@ -1,9 +1,5 @@
-// Stage R12 (UAT): the per-exercise trend that replaces the capture-quality trend
-// on Progress. jsdom has no layout, so recharts' <ResponsiveContainer> renders at
-// 0x0 and draws no <path> for the lines -- this test therefore verifies the parts
-// that DO render without a viewport: the legend (per-leg labels), the empty state,
-// and that a mount with real data never throws. The series-to-field mapping and
-// axis labels are compile-time-checked by the MetricSeries union + tsc.
+// Progress trend coverage. jsdom has no layout, so this verifies the rendered
+// legend, empty state, and safe mount path rather than chart line geometry.
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import "../../i18n";

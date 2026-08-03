@@ -10,10 +10,7 @@ import type { Exercise, SessionDTO } from "../types/api";
 
 const ALL_EXERCISES = "all";
 
-// Stage R12 (UAT): date-range filter, same 5 buckets + wording as Progress's
-// range picker for a consistent mental model across the two history surfaces.
-// All sessions are already fetched in one request (no server-side range param
-// on GET /api/sessions), so this filters the already-loaded list client-side.
+// Client-side date-range filter shared conceptually with the Progress range picker.
 type Range = "7d" | "14d" | "30d" | "90d" | "all";
 const RANGE_DAYS: Record<Exclude<Range, "all">, number> = {
   "7d": 7,
@@ -145,10 +142,7 @@ export default function SessionHistory() {
             ariaLabel={t("progress.exercisePicker")}
           />
         )}
-        {/* UAT remediation (Stage R12): date-range filter, same 5 buckets as
-            Progress's range picker. All sessions are already loaded client-side
-            (no server-side range param on this endpoint), so this filters `rows`
-            directly rather than refetching. */}
+        {/* Date-range filter over the already-loaded session rows. */}
         <div className="seg" style={{ marginLeft: "auto" }}>
           <button className={range === "7d" ? "on" : ""} onClick={() => setRange("7d")}>
             {t("progress.range7d")}

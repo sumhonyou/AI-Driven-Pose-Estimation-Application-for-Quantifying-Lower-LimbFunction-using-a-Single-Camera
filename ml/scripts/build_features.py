@@ -1,26 +1,18 @@
-"""Stage 5.3: build the per-rep squat feature table from extracted world landmarks.
+"""Build the squat feature table from extracted world landmarks.
 
-For every side-view (`cam17_orientation == "front"` → Camera18 sees profile, verified
-in Stage 5.0) squat rep: preprocess the **entire** video's landmark stream through the
-live backend's confidence-filter → gap-fill → One-Euro pipeline (X1/X3 — the
-cross-cutting preprocessing change, `app.module_b.core.preprocessing.
-preprocess_world_landmarks`, wired into `POST /api/module-b/analyze` ahead of
-`segment()`/`extract_features()`), then window the *preprocessed* stream by
-Segmentation.csv's physio-verified `first_frame`/`last_frame` (NOT our FSM — the
-dataset boundaries are ground truth here) and call the **backend's**
-`extract_squat_features()`. Emits `ml/data/squat_features.csv`, one row per rep.
+For each side-view squat rep, this script:
 
-Preprocessing is run **once per video, over the full chronological stream, before
-windowing** — OneEuroFilter is stateful, so preprocessing a rep's window in isolation
-would reset its history at every rep boundary and diverge from what the live capture
-(a whole-session buffer) actually produces. This mirrors `router.py`'s single call
-site exactly.
+1. Loads the full video landmark stream.
+2. Runs the same preprocessing pipeline used by the backend.
+3. Windows the preprocessed stream with the dataset's verified rep boundaries.
+4. Writes one feature row per rep to `ml/data/squat_features.csv`.
 
-As a free, honest validation (Stage 5.3), our own squat FSM is also run over the same
-preprocessed full clips and its rep boundaries are compared against the dataset's —
-written to `ml/reports/FEATURE_TABLE.md`. This is a report, not a gate.
+Preprocessing runs once per full video before windowing because OneEuroFilter keeps
+state across frames. Reprocessing isolated rep windows would not match live capture.
 
-Deterministic (X8): videos/reps iterated in sorted order, no RNG, no wall-clock.
+The script also compares backend FSM boundaries against the dataset boundaries in
+`ml/reports/FEATURE_TABLE.md`. That check is informative only; dataset boundaries remain
+the source of truth for feature extraction.
 """
 
 from __future__ import annotations
@@ -32,15 +24,13 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-# X1: import the SAME feature extractor, segmenter, and preprocessing the live
-# backend uses — never re-implemented.
+# Use the backend preprocessing, segmenter, and feature extractor directly.
 from app.module_b.core.preprocessing import preprocess_world_landmarks
 from app.module_b.squat.features import SQUAT_FEATURE_NAMES, extract_squat_features
 from app.module_b.squat.segmentation import segment_squat_frames
 
 TARGET_EXERCISE_ID = "6"  # Ex6 = Squats
-# Stage 5.0 (option a): side-view only. cam17_orientation == "front" is the cohort
-# whose Camera18 recording is the true sagittal view (verified in DATA_AUDIT.md).
+# Side-view cohort: Camera18 is sagittal when cam17_orientation is "front".
 SIDE_VIEW_ORIENTATION = "front"
 
 # Option A label map (also written to ml/artifacts/label_map.json). No Fair in training.
@@ -229,14 +219,7 @@ def write_features_csv(feature_rows: list[dict]) -> list[str]:
 
 
 def write_label_map() -> None:
-    """Write the Option A label map, recording explicitly that there is no Fair class.
-
-    `label_order` was added in Stage 5.8: `model_registry.load_joblib_model_bundle()`
-    reads it to build `JoblibModelBundle.label_order`, and `validate_model_bundle()`
-    requires it to be exactly `("Poor", "Good")` for Option A. Fixed independent of any
-    trained model (it is the labelling convention, not a training result), so it is
-    safe to write here at Stage 5.3 time rather than only once a model exists.
-    """
+    """Write the binary Good/Poor label map used by training and backend loading."""
     LABEL_MAP_JSON.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "scheme": "Option A (binary Good/Poor)",
@@ -255,7 +238,7 @@ def write_label_map() -> None:
         f.write("\n")
 
 
-# --- FSM-vs-dataset segmentation agreement (free validation, Stage 5.3) ---------------
+# --- FSM vs dataset segmentation agreement ----------------------------------------
 
 
 def _rep_frame_bounds(rep) -> tuple[int, int]:

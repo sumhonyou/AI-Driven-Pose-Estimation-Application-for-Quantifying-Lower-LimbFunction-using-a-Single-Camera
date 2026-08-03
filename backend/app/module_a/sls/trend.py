@@ -1,4 +1,4 @@
-"""Stage 7.2: SLS per-leg trend vs the account's previous completed SLS session.
+"""SLS per-leg trend against the user's previous completed SLS session.
 
 Mirrors WBLT's app/module_a/wblt/analysis.compute_trend shape (per-leg dict,
 None for a leg with no comparable data) but reads SLS's camelCase per-leg keys

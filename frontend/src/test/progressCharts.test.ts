@@ -1,5 +1,4 @@
-// Stage 5.22: the Progress page's replacement for the Confidence trend, and the
-// per-exercise score-band thresholds fix.
+// Coverage for Progress chart data and per-exercise score-band thresholds.
 import { describe, it, expect } from "vitest";
 import { toAttemptsPoint } from "../components/charts/RepAttemptsBarChart";
 import {
@@ -23,7 +22,7 @@ function point(overrides: Partial<TrendPoint> = {}): TrendPoint {
 
 describe("toAttemptsPoint", () => {
   it("recovers the exact counted/rejected split Report.tsx would show", () => {
-    // The real Stage 5.18 session: 8 of 16 clean -> score 5.0.
+    // Real sample shape: 8 of 16 clean attempts -> score 5.0.
     const result = toAttemptsPoint(point({ score: 5.0, rep_count: 16 }));
     expect(result).toEqual({
       date: "2026-07-20T00:00:00Z",

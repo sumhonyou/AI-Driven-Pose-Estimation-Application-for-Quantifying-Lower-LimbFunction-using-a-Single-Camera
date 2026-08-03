@@ -42,9 +42,7 @@ const en = {
     themeHint: "Switch between light and dark mode.",
     audioCuesHint: "Turn spoken coaching cues on or off during live sessions.",
     languageHint: "Change the app language.",
-    // UAT remediation (Stage R6): mute toggle for spoken live cues, shown in the
-    // shared DashTopbar (out-of-session discoverability) and every live page's own
-    // topbar (components/AudioCueToggle.tsx).
+    // Spoken live-cue toggle labels.
     audioCuesOn: "Voice cues on",
     audioCuesOff: "Voice cues off",
   },
@@ -248,7 +246,7 @@ const en = {
     repVolumeTrendSub: "Reps that counted vs didn't, per session",
     repsCounted: "Counted",
     repsRejected: "Didn't count",
-    // Stage R12: per-exercise second trend chart (replaces capture-quality trend).
+    // Per-exercise secondary trend charts.
     stsTimeTrend: "Completion & rep time",
     stsTimeTrendSub: "How long the test and each rep took, per session",
     slsHoldTrend: "Best hold per leg",
@@ -324,9 +322,7 @@ const en = {
     selectExerciseFirst: "Please select an exercise before starting a session.",
     startError: "Could not start the session.",
   },
-  // UAT remediation (Stage R9): shared chrome strings for the reusable
-  // ExerciseInstructions template (pages/ExerciseInstructions.tsx). Per-exercise
-  // step/caption text lives under each exercise's own namespace instead.
+  // Shared chrome strings for the ExerciseInstructions template.
   instr: {
     eyebrow: "Before you begin",
     demoEyebrow: "Watch demo",
@@ -345,13 +341,10 @@ const en = {
     viewFront: "Front view",
     continueButton: "Understand",
     continueCaption: "You'll move to camera setup next.",
-    // UAT remediation (Stage R10): heading for the new "why this exercise" block.
+    // Purpose/benefit block heading.
     whyTitle: "Why this exercise?",
   },
-  // UAT remediation (Stage R10): shared glossary terms, rendered via
-  // <GlossaryTerm id="..."/> next to a metric/label wherever it's used (Report,
-  // camera/instructions, and future dashboard work) -- one definition per term,
-  // reused everywhere instead of each page inventing its own explanation text.
+  // Shared glossary terms rendered through <GlossaryTerm id="..."/>.
   glossary: {
     rom: {
       term: "ROM (Range of Motion)",
@@ -406,12 +399,10 @@ const en = {
     repTarget: "of 5",
     // Same format as squat.repsOfTargetValue -- used by STS Reps HUD card.
     repsOfTargetValue: "{{rep}} / {{target}}",
-    // UAT remediation (Stage R6): spoken (TTS) session-boundary cues, shared across
-    // all 4 live pages via useSpeechCues -- highest priority, never throttled.
+    // Spoken session-boundary cues shared across live pages.
     speakStarting: "Starting",
     speakSessionComplete: "Session complete",
-    // UAT remediation (Stage R5): STS's 5s get-ready countdown (it previously
-    // auto-recorded on mount with no countdown at all).
+    // Get-ready countdown caption.
     getReadyCaption: "Get into position — recording starts automatically.",
     noSession: "No active session was found. Please start again from Camera Setup.",
     endError: "Could not end the session.",
@@ -459,15 +450,14 @@ const en = {
     subScores: "Rule-based sub-scores",
     mlPred: "ML prediction",
     mlConf: "model confidence",
-    // UAT remediation (Stage R11): collapsed "Technical details" section.
+    // Collapsible technical details section.
     ruleScore: "Rule score",
     fusionWeights: "Fusion weights",
     fusionWeightsValue: "{{rule}}% rule · {{ml}}% ML",
     modelVersion: "Model version",
     technicalDetailsShow: "Show technical details",
     technicalDetailsHide: "Hide technical details",
-    // UAT remediation (Stage R11): "Retry exercise" action + severity legend/count
-    // badge for the error-tags panel.
+    // Error-tags panel actions and count label.
     retryExercise: "Retry exercise",
     tagsCount: "{{count}} tag(s)",
     severityHigh: "High — needs attention",
@@ -542,8 +532,7 @@ const en = {
     warn_landmarks_missing: "Body wasn't tracked reliably enough during this leg",
     warn_foot_dropped_below_line: "Foot dropped below the line before it could be scored",
     warn_unknown: "This leg's hold ended for an unspecified reason",
-    // Stage 6.x: actionable tip paired with each warn_ tag above, so the merged
-    // "Things to check" panel gives per-flag guidance instead of one arbitrary tip.
+    // Actionable tips paired with warn_ tags.
     tip_incomplete_reps:
       "Try to complete all reps in one steady session — pause and restart if you need a break.",
     tip_poor_capture_quality:
@@ -561,9 +550,7 @@ const en = {
       "Stay fully in frame with good lighting so your whole leg can be tracked.",
     tip_foot_dropped_below_line: "Keep your foot above the line until the attempt is scored.",
     tip_unknown: "Review your setup (lighting, framing) and try the hold again.",
-    // Stage 7.2: STS/SLS "vs last session" trend row. No MDC claim, unlike WBLT's
-    // wblt.trend* keys -- always shows the plain delta, never a suppressed
-    // "no change" branch (no published measurement-error study exists for these).
+    // STS/SLS "vs last session" trend row; always shows the plain delta.
     trendVsLast: "Vs last session",
     trendNoPrevious: "No previous session to compare yet.",
     trendScoreUp: "score up {{value}} pts",
@@ -678,8 +665,7 @@ const en = {
     focusTagUnset: "Focus: Not set",
   },
   sls: {
-    // UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb —
-    // purpose + benefit, never "tells you whether you have X".
+    // Non-diagnostic purpose and benefit blurb.
     whyThisExercise:
       "The Single-Leg Stance test is commonly used to check standing balance and postural control. Better steadiness and a longer hold time generally reflect stronger balance.",
     // Setup guidance
@@ -700,15 +686,12 @@ const en = {
     legRight: "Right leg",
     legLeft: "Left leg",
     standBothFeet: "Stand on both feet to begin.",
-    // UAT remediation (Stage R9): replaces the old "Press Start Hold" copy -- there
-    // is no button anymore, the countdown starts automatically once framed.
+    // Ready-state copy for auto-starting the countdown once framed.
     readyAutoMessage: "Stand on both feet, fully in frame — the countdown starts automatically.",
     liftAboveLine: "Lift your foot above the line to start timing.",
     holdSteady: "Hold steady — keep the ball in the circle to get more points!",
     footDropped: "Foot dropped below the line. Hold stopped.",
-    // UAT remediation (Stage R4): full-page corrective cue when the STANCE leg lifts
-    // instead of the prompted one — leg is interpolated so it always names the leg
-    // that should actually stay planted, not a generic message.
+    // Corrective cue when the stance leg lifts instead of the prompted leg.
     cueWrongLeg: "Wrong leg!",
     cueWrongLegDetail: "Keep your {{leg}} on the ground",
     notVisible: "Body not fully visible. Please adjust your camera.",
@@ -720,7 +703,7 @@ const en = {
     continueNextLeg: "Continue to next leg",
     finishTest: "Finish test",
     liftLine: "Lift line",
-    // UAT remediation (Stage R8): the 45s hold cap as a visible, ticking countdown.
+    // Visible countdown to the hold cap.
     autoStopsIn: "Auto-stops in {{sec}}s",
     // Combo / gamified score
     comboPoints: "Points",
@@ -734,8 +717,7 @@ const en = {
     supportNone: "No",
     supportSlight: "Yes, a little",
     supportFull: "Yes, for support",
-    // UAT remediation (Stage R8, S6 "summary first, per-leg detail second"): toggle
-    // for the collapsed technical detail under each leg's headline result.
+    // Toggle for collapsed technical detail under each leg result.
     showDetails: "Show details",
     hideDetails: "Hide details",
     // Report
@@ -755,8 +737,7 @@ const en = {
     stopReason_unknown: "ended",
     disclaimer:
       "This is a functional self-check, not a clinical diagnosis. It does not tell you whether your balance or ankles are healthy. Stop immediately if you feel pain, dizziness, or unsafe.",
-    // UAT remediation (Stage R9): instruction-page content. Steps describe the new
-    // auto-start flow (no Start Hold button) -- see SlsLiveSessionPage.tsx.
+    // Instruction-page content for the auto-start flow.
     instrTitle: "Single-Leg Stance — how to perform",
     instrStep1: "Stand on both feet, facing the camera, with your whole body in frame.",
     instrStep2: "Once your body is detected, a short countdown begins automatically.",
@@ -771,7 +752,7 @@ const en = {
       "A ring shows your balance — keep the ball centred. A line marks the height your foot must stay above.",
   },
   wblt: {
-    // UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb.
+    // Non-diagnostic purpose and benefit blurb.
     whyThisExercise:
       "The Weight-Bearing Lunge Test is commonly used to check ankle flexibility — how far your knee can travel over your toes without your heel lifting. A greater distance generally reflects better ankle mobility.",
     setupGuidanceSide:
@@ -862,7 +843,7 @@ const en = {
     trendDistanceNoChange: "distance about the same",
     trendAngleChanged: "angle {{sign}}{{value}}°",
     trendAngleNoChange: "angle about the same",
-    // UAT remediation (Stage R9): instruction-page content.
+    // Instruction-page content.
     instrTitle: "Weight-Bearing Lunge Test — how to perform",
     instrStep1: "Stand side-on to the camera so your knee, ankle, heel, and foot are all visible.",
     instrStep2: "Stand at the shown distance from the wall, then lunge forward when ready.",
@@ -870,14 +851,12 @@ const en = {
     instrStep4:
       "If your heel lifts off the floor, that attempt won't count — you'll get another try (3 attempts per leg, plus a bonus if needed).",
     instrCameraCaption: "Side view — keep your knee, ankle, heel, and foot facing the lens.",
-    // UAT remediation (Stage R9): shortened, uniform framing guidance for the
-    // positioning stage — replaces the long setupGuidanceSide reuse there (still
-    // used as-is on the instruction page, where reading distance isn't a problem).
+    // Short positioning guidance for reading at exercise distance.
     positionGuidanceShort: "Keep your body from shoulder to ankle (both legs) in frame.",
     instrEquipment: "You'll need a wall to lunge toward.",
   },
   squat: {
-    // UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb.
+    // Non-diagnostic purpose and benefit blurb.
     whyThisExercise:
       "The Squat is commonly used to check lower-limb movement quality — depth, control, and posture. Good form across depth, trunk position, and heel contact generally reflects better movement quality.",
     reportTitle: "Squat",
@@ -908,9 +887,7 @@ const en = {
       "Guidance only, based on webcam pose estimation — not a clinical measurement.",
     getReadyEyebrow: "Squat",
     getReadyCaption: "Get into position — the set starts automatically.",
-    // UAT remediation (Stage R4): short, corrective (not descriptive) phrasing for
-    // the big pop-out cue — "Go deeper" beats "Knee: 87°" at a 2-3m viewing
-    // distance. The fuller explanation stays available via moduleB.tag_* below it.
+    // Short corrective phrases for the large live cue.
     cueInsufficientDepth: "Go deeper",
     cueInsufficientDepthDetail: "Aim for at least {{deg}}° knee bend",
     cueExcessiveForwardLean: "Chest up",
@@ -918,7 +895,7 @@ const en = {
     cueHeelLift: "Heels down",
     cueHeelLiftDetail: "You're lifting your heels up",
     cueRepCounted: "Nice rep!",
-    // UAT remediation (Stage R9): instruction-page content.
+    // Instruction-page content.
     instrTitle: "Squat — how to perform",
     instrStep1: "Stand side-on to the camera so your hip, knee, and ankle are visible.",
     instrStep2: "Make sure your full body stays in frame throughout each squat.",
@@ -926,15 +903,12 @@ const en = {
     instrStep4:
       "A rep only counts if it clears the depth, lean, and heel checks — a rep that doesn't will be flagged and won't count toward your target, so just try again.",
     instrCameraCaption: "Side view — keep your working hip, knee, and ankle facing the lens.",
-    // UAT remediation (Stage R9): target-rep prompt moved from an inline sidebar
-    // panel into a popup, shown after camera setup, before the countdown.
+    // Target-rep prompt shown after camera setup, before the countdown.
     targetPromptTitle: "How many reps?",
   },
-  // UAT remediation (Stage R9): Sit-to-Stand previously had no dedicated i18n
-  // namespace (its live page reuses the generic `live.*` strings) -- this holds
-  // only the new instruction-page content, so it doesn't need one either.
+  // Sit-to-Stand instruction-page content; live page copy uses generic `live.*` keys.
   sts: {
-    // UAT remediation (Stage R10): non-diagnostic "why this exercise" blurb.
+    // Non-diagnostic purpose and benefit blurb.
     whyThisExercise:
       "The Sit-to-Stand test is commonly used to check lower-limb strength and functional mobility. It reflects how easily you can rise from a seated position, a movement used throughout daily life.",
     instrTitle: "Sit to Stand — how to perform",

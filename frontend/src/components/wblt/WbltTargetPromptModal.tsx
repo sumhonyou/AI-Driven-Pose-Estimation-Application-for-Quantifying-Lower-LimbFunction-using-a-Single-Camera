@@ -1,7 +1,4 @@
-// UAT remediation (Stage R9): the per-attempt target distance + instructions used to
-// sit in the sidebar panel, replacing the Leg/Attempt HUD and camera-adjacent content
-// every time a new attempt began. Moved into a popup overlay instead -- the webcam
-// feed and HUD underneath never change layout when this opens or closes.
+// Per-attempt target and instructions shown as an overlay to keep the live layout stable.
 import { useTranslation } from "react-i18next";
 
 interface Props {

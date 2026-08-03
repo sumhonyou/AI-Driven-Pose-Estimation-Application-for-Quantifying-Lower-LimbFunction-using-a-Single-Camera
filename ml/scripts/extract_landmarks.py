@@ -1,4 +1,4 @@
-"""Stage 5.2 landmark extraction: RGB video -> world landmarks (.npz per video).
+"""Extract MediaPipe world landmarks from RGB videos into .npz files.
 
 Runs the *same* pose_landmarker_full.task the frontend self-hosts (X3), with the
 exact same detection config as useMediaPipePose.ts: CPU delegate (GPU delegate is
@@ -6,15 +6,13 @@ Ubuntu-only, errors on macOS/Apple Silicon), VIDEO running mode, num_poses=1,
 confidence thresholds 0.5. Extracts pose_world_landmarks only, never image
 landmarks.
 
-No confidence-filter / gap-fill / One-Euro preprocessing is applied here. Stage
-5.2 decision (HY, 2026-07-16): the live squat pipeline (SquatExercise.segment /
-extract_squat_features, called from POST /api/module-b/analyze) receives raw
+No confidence-filter / gap-fill / One-Euro preprocessing is applied here. The live
+squat pipeline (SquatExercise.segment / extract_squat_features) receives raw
 MediaPipe world landmarks straight from the frontend with zero smoothing applied
 anywhere — confirmed by reading useMediaPipePose.ts (worldLandmarks bypass the
 2D-only landmark smoother) and squat/segmentation.py /squat/features.py (no
 filtering before use). So offline extraction matches runtime *as it actually is*
-(X1), not as X3's aspirational "confidence filter -> gap fill -> One Euro"
-pipeline describes it — that pipeline exists for Module A, not Module B squat.
+(X1), not the separate confidence-filter -> gap-fill -> One-Euro path.
 """
 
 import argparse
@@ -39,8 +37,7 @@ DETECTION_CONFIG = {
 }
 
 TARGET_EXERCISE_ID = "6"  # Ex6 = Squats (Locked Assumption #2, squat-first)
-# Verified visually in Stage 5.0 (DATA_AUDIT.md): cam17_orientation == "front" rows
-# get their true sagittal/profile view from Camera18, the only usable side view.
+# For front-facing cam17 rows, Camera18 provides the usable side/profile view.
 SIDE_VIEW_CAMERA = "Camera18"
 
 

@@ -1,4 +1,4 @@
-"""Stage 5.7: evaluation of the shipped squat pipeline.
+"""Evaluate the shipped squat pipeline.
 
 Scores the **fused 3-band output the user actually sees** (Good/Fair/Poor), not just
 the binary classifier underneath it, at the exact configuration Stage 5.6 wrote into
@@ -71,23 +71,35 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from app.module_b.core.config import MODULE_B_CORE_CONFIG
-from app.module_b.squat.features import extract_squat_features
 from build_features import _preprocessed_stream
 from plotting import save_fig
-# Stage 5.6's helpers are imported, not re-derived: `_fuse_all` calls the real
-# `fuse_scores()`, `_raw_capture_quality` reproduces `router.py`'s raw-buffer
-# semantics, and `_confusion`/`_metrics` already encode the "no ground-truth Fair
-# label" position this stage inherits unchanged.
-from sweep_fusion_weights import (PREDICTED_BANDS, TRUE_LABELS, _confusion,
-                                  _fuse_all, _metrics, _raw_capture_quality,
-                                  _rule_score, _segmentation_bounds)
-from train_squat import (_build_xy, _choose_cv, _load_config, _read_rows,
-                         build_final_model, nested_cv)
+
+# Import the production fusion helpers rather than re-deriving evaluation behavior.
+from sweep_fusion_weights import (
+    PREDICTED_BANDS,
+    TRUE_LABELS,
+    _confusion,
+    _fuse_all,
+    _metrics,
+    _raw_capture_quality,
+    _rule_score,
+    _segmentation_bounds,
+)
+from train_squat import (
+    _build_xy,
+    _choose_cv,
+    _load_config,
+    _read_rows,
+    build_final_model,
+    nested_cv,
+)
+
+from app.module_b.core.config import MODULE_B_CORE_CONFIG
+from app.module_b.squat.features import extract_squat_features
 
 ML_ROOT = Path(__file__).resolve().parent.parent
-# Renamed in Stage 5.11: this is the historical 3-band abstention evaluation. Squat now
-# ships a committed binary Good/Poor policy, evaluated in SQUAT_EVALUATION_REPORT_2BAND.md.
+# Historical 3-band abstention evaluation. Deployed squat now uses the binary
+# Good/Poor policy evaluated in SQUAT_EVALUATION_REPORT_2BAND.md.
 # This report still documents the 3-band fusion that Module A uses.
 REPORT_MD = ML_ROOT / "reports" / "SQUAT_EVALUATION_REPORT_3BAND.md"
 
@@ -95,13 +107,10 @@ REPORT_MD = ML_ROOT / "reports" / "SQUAT_EVALUATION_REPORT_3BAND.md"
 # the median of this many repeats is what the distribution is built from.
 LATENCY_REPEATS = 5
 
-# The real-time feasibility claim this stage exists to support. 33.3 ms is one frame
-# at the dataset's 30 FPS: per-rep inference costing less than a single frame's budget
-# is the bar that makes "analyse while capturing" credible.
+# One 30 FPS frame. Per-rep inference should stay below this for live analysis.
 FRAME_BUDGET_MS = 1000.0 / 30.0
 
-# [S13], as supplied by task.md's own Stage 5.7 checklist. Quoted with its protocol
-# caveat attached everywhere it appears, including inside the figure.
+# Prior-work baseline, always shown with its protocol caveat.
 BASELINE_S13 = {
     "label": "Prior work [S13]\n(Random Forest, squat)",
     "accuracy": 0.93,
@@ -142,7 +151,7 @@ def _binary_summary(y: np.ndarray, prob_good: np.ndarray, threshold: float) -> d
 
 
 def _evaluation_metrics(true_labels: list[str], bands: list[str]) -> dict:
-    """Stage 5.6's `_metrics` plus the two accuracy conventions defined above.
+    """Return shared metrics plus the two accuracy conventions defined above.
 
     `_metrics` is reused rather than re-derived so the precision/recall/F1 definitions
     here are provably the same ones the operating point was selected against.
@@ -436,9 +445,9 @@ def _visibility_breakdown(rows: list[dict], config: dict) -> dict:
     The sampled repetition is the first in sorted order — an arbitrary but *fixed* and
     stated choice (X8), not one picked because it made the point best.
     """
-    from app.module_b.core.quality import (REQUIRED_LANDMARKS,
-                                           assess_capture_quality)
     from build_features import _raw_full_stream
+
+    from app.module_b.core.quality import REQUIRED_LANDMARKS, assess_capture_quality
 
     landmark_names = {
         11: "Left (near) shoulder",
@@ -487,8 +496,9 @@ def _low_confidence_frame_frequency(rows: list[dict], config: dict) -> list[floa
     Measured on raw frames for the same reason `router.py` does: it reflects what the
     camera actually captured, before gap-filling papers over it.
     """
-    from app.module_b.core.quality import assess_capture_quality
     from build_features import _raw_full_stream
+
+    from app.module_b.core.quality import assess_capture_quality
 
     bounds = _segmentation_bounds(config)
     raw_cache: dict[str, list[dict]] = {}
@@ -522,8 +532,7 @@ def main() -> None:
     rule_scores = [_rule_score(row) for row in rows]
     qs = _raw_capture_quality(rows, config)
 
-    # Evaluate the config as shipped -- read live, not restated. If Stage 5.6's values
-    # are ever changed, this report changes with them instead of going quietly stale.
+    # Read shipped config values live so the report changes with the app.
     w_rule = MODULE_B_CORE_CONFIG["w_rule_default"]
     w_ml = MODULE_B_CORE_CONFIG["w_ml_default"]
     threshold = MODULE_B_CORE_CONFIG["confidence_low_threshold"]

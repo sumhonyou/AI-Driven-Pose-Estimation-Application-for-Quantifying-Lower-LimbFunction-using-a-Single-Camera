@@ -5,10 +5,8 @@ harness (no HTTP dependency here). Deterministic: same frames -> same metrics.
 This is the single source of truth for the stored per-attempt result; the
 frontend's live numbers are only a helper that should agree closely.
 
-Stage 4 scope (blueprint §9) adds the persisted audit trail (profile snapshot,
-agreement pairs) on top of Stage 3's capture-quality gate Q = min(
-lateral_alignment, leg_visibility, landmark_conf), Stage 2's guided bracket
-(§4.2), both legs, and symmetry (§4.4).
+The result includes the guided bracket, both legs, symmetry, capture quality, profile
+snapshot, and agreement pairs for later analysis.
 """
 
 from app.module_a.core.banding import score_to_band
@@ -56,7 +54,7 @@ def _average_visibility(world: list[dict], leg: str) -> float:
 def compute_score_0_10(
     distance_cm: float, poor_max_cm: float, good_min_cm: float
 ) -> float:
-    """Anchors 4.0 at poor_max_cm and 7.0 at good_min_cm; display only (§4.3)."""
+    """Display score: 4.0 at poor_max_cm and 7.0 at good_min_cm."""
     span = good_min_cm - poor_max_cm
     if abs(span) < 1e-9:
         score = 7.0 if distance_cm >= good_min_cm else 4.0
@@ -67,7 +65,7 @@ def compute_score_0_10(
 
 
 def compute_distance_band(distance_cm: float, ageband_sex: str) -> dict | None:
-    """§4.3: Poor/Fair/Good from McBride Table 2, plus the display-only 0-10 score."""
+    """Poor/Fair/Good from McBride Table 2 plus the display-only 0-10 score."""
     bands = _CFG["distance_bands"].get(ageband_sex)
     if bands is None:
         return None
@@ -307,7 +305,7 @@ def resolve_seed_cm(exact_age: int | None, gender: str | None) -> float | None:
 
 
 def bracket_state(attempts: list[dict], seed_cm: float | None) -> dict:
-    """§4.2 guided bracket, as a pure function over the leg's attempts so far.
+    """Guided bracket as a pure function over the leg's attempts so far.
 
     `attempts` are prior stored attempt dicts for this leg, oldest first (each
     needs `target_distance_cm` and `valid_touch`). Returns the next target and
@@ -363,10 +361,9 @@ def bracket_state(attempts: list[dict], seed_cm: float | None) -> dict:
 
 
 def summarize_leg(attempts: list[dict]) -> dict:
-    """§4.2/§4.4: leg distance score (largest valid-touch distance) + leg angle
-    (max theta_peak over heel-down-valid attempts, regardless of touch outcome).
+    """Leg distance score plus the best heel-down-valid angle.
 
-    `floor_flag` marks "every attempt failed" (§4.2 edge case) -- distance is
+    `floor_flag` marks "every attempt failed" -- distance is
     below the smallest distance tested, not a real Poor-band measurement.
     """
     valid_touches = [a for a in attempts if a["valid_touch"]]
@@ -428,9 +425,7 @@ def resolve_profile_snapshot(exact_age: int | None, gender: str | None) -> dict:
 
 
 def compute_agreement_pairs(legs: dict) -> list[dict]:
-    """§9: per-leg (distance, angle) pairs for the angle-vs-distance Bland-Altman
-    export (Stage 7). Only legs with BOTH a resolved distance and angle qualify
-    -- a floor-flagged or unbanded leg has nothing to pair."""
+    """Per-leg distance/angle pairs for the angle-vs-distance agreement export."""
     pairs = []
     for leg in _CFG["leg_order"]:
         summary = legs.get(leg)
@@ -481,11 +476,11 @@ def compute_session_summary(legs: dict) -> dict:
 
 
 def compute_trend(current_legs: dict, previous_legs: dict | None) -> dict:
-    """§11 Stage 6: per-leg distance/angle delta vs the account's previous
-    completed WBLT session (fetched by the router). Sub-MDC changes are
-    real-signal noise, not a real change -- Powden et al. (2015) puts distance
-    MDC ~1.0-1.5cm, hence `_meaningful` suppression using the same
-    `distance_mdc_cm`/`angle_mdc_deg` config values as elsewhere (§4.3/§4.4).
+    """Per-leg distance/angle delta against the previous completed WBLT session.
+
+    Sub-MDC changes are treated as display noise, not meaningful change. Distance and
+    angle suppression use the same `distance_mdc_cm` / `angle_mdc_deg` config values as
+    the rest of WBLT.
 
     A leg with no previous session, or missing a distance/angle in either
     session (e.g. floor_flag), gets `None` -- there's nothing honest to compare.
