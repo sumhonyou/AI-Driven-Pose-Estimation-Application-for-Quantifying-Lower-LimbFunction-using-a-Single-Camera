@@ -42,8 +42,7 @@ dist/
 .vscode/
 .DS_Store
 
-# EC3D validation script — EC3D external check is not compatible with REHAB24-6 training claim
-ml/scripts/validate_ec3d.py
+
 
 # Local diagram sources / exports (not for version control)
 docs/diagrams/
