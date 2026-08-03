@@ -286,4 +286,4 @@ Only needed if you want to rebuild the squat model from the public dataset:
 
 1. Download **REHAB24-6** from the Zenodo link above and unpack it locally.
 2. Edit `ml/config.yaml` so `dataset_paths.rehab246` points at your local videos / segmentation / joints folders (replace the developer machine paths).
-3. Follow the setup and pipeline steps in [`ml/README.md`](./ml/README.md) (`extract_landmarks.py` → `build_features.py` → `train_squat.py` → `export_squat_model.py`).
+3. Follow the setup and pipeline steps in `[ml/README.md](./ml/README.md)` (`extract_landmarks.py` → `build_features.py` → `train_squat.py` → `export_squat_model.py`).
