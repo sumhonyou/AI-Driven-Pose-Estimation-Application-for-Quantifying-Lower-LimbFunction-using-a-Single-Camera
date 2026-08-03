@@ -28,10 +28,18 @@ import json
 import random
 from pathlib import Path
 
+from app.module_a.wblt.config import CALIBRATION_SECONDS
+
 CORPUS_DIR = Path(__file__).resolve().parents[1] / "replay_corpus" / "wblt"
 SEED = 20260713  # fixed seed -> reproducible corpus
-CALIBRATION_SEC = 1.0  # mirrors wblt/config.py CALIBRATION_SECONDS
-N_CALIBRATION = 30
+FRAME_STEP_MS = 33.0  # ~30fps, matches SLS/squat corpus convention
+# Read live from wblt/config.py rather than a hardcoded mirror -- a prior version of
+# this constant drifted out of sync with a CALIBRATION_SECONDS bump (1.0 -> 2.0) and
+# silently invalidated the entire corpus: every frame fell inside the calibration
+# window, so no frame ever reached theta computation and every sample returned
+# distance_cm=None. Importing the real value makes that class of drift impossible.
+CALIBRATION_SEC = CALIBRATION_SECONDS
+N_CALIBRATION = int(CALIBRATION_SEC * 1000 / FRAME_STEP_MS) + 1  # +1 margin of safety
 N_HOLD = 15
 MANUAL_TAPE_NOISE_SD = 0.4  # cm; independent repeat tape measurement imprecision
 AGEBAND_SEX = "30-39_male"  # fixed profile so every sample bands the same way
@@ -97,12 +105,16 @@ def _make_frames(
         )
         t += step_ms
 
-    t = 1200.0
+    # Start the hold phase just past the calibration window boundary (t = last
+    # calibration frame + one step), not a hardcoded offset -- otherwise a future
+    # CALIBRATION_SECONDS increase silently swallows the hold frames into
+    # calibration again, exactly as happened before this fix.
+    t = CALIBRATION_SEC * 1000.0 + FRAME_STEP_MS
     knee_hold = _landmark(knee_xy_offset, 0.0)
     heel_hold = _landmark(0.0, 0.5 - heel_rise)
     for _ in range(N_HOLD):
         frames.append(_frame(t, leg, knee_hold, ankle, heel_hold, foot_index))
-        t += 33.0
+        t += FRAME_STEP_MS
     return frames
 
 

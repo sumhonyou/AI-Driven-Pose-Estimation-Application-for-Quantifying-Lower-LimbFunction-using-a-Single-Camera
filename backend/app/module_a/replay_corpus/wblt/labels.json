@@ -5,7 +5,7 @@
     "frames_file": "good_right_1.json",
     "target_distance_cm": 10.0,
     "touched": true,
-    "manual_distance_cm": 9.645,
+    "manual_distance_cm": 9.888,
     "target_band_hint": "Good",
     "exact_age": 33,
     "gender": "male"
@@ -16,7 +16,7 @@
     "frames_file": "good_left_1.json",
     "target_distance_cm": 9.5,
     "touched": true,
-    "manual_distance_cm": 10.145,
+    "manual_distance_cm": 9.902,
     "target_band_hint": "Good",
     "exact_age": 33,
     "gender": "male"
@@ -27,7 +27,7 @@
     "frames_file": "good_right_2.json",
     "target_distance_cm": 11.0,
     "touched": true,
-    "manual_distance_cm": 11.177,
+    "manual_distance_cm": 11.042,
     "target_band_hint": "Good",
     "exact_age": 33,
     "gender": "male"
@@ -38,7 +38,7 @@
     "frames_file": "fair_right_1.json",
     "target_distance_cm": 8.0,
     "touched": true,
-    "manual_distance_cm": 8.564,
+    "manual_distance_cm": 8.024,
     "target_band_hint": "Fair",
     "exact_age": 33,
     "gender": "male"
@@ -49,7 +49,7 @@
     "frames_file": "fair_left_1.json",
     "target_distance_cm": 7.8,
     "touched": true,
-    "manual_distance_cm": 7.417,
+    "manual_distance_cm": 8.251,
     "target_band_hint": "Fair",
     "exact_age": 33,
     "gender": "male"
@@ -60,7 +60,7 @@
     "frames_file": "fair_right_2.json",
     "target_distance_cm": 8.5,
     "touched": true,
-    "manual_distance_cm": 9.442,
+    "manual_distance_cm": 8.807,
     "target_band_hint": "Fair",
     "exact_age": 33,
     "gender": "male"
@@ -71,7 +71,7 @@
     "frames_file": "poor_right_1.json",
     "target_distance_cm": 6.0,
     "touched": true,
-    "manual_distance_cm": 6.037,
+    "manual_distance_cm": 6.209,
     "target_band_hint": "Poor",
     "exact_age": 33,
     "gender": "male"
@@ -82,7 +82,7 @@
     "frames_file": "poor_left_1.json",
     "target_distance_cm": 5.5,
     "touched": true,
-    "manual_distance_cm": 5.431,
+    "manual_distance_cm": 5.688,
     "target_band_hint": "Poor",
     "exact_age": 33,
     "gender": "male"
@@ -93,7 +93,7 @@
     "frames_file": "poor_left_2.json",
     "target_distance_cm": 4.0,
     "touched": true,
-    "manual_distance_cm": 4.498,
+    "manual_distance_cm": 3.998,
     "target_band_hint": "Poor",
     "exact_age": 33,
     "gender": "male"
@@ -104,7 +104,7 @@
     "frames_file": "invalid_heel_lift_right_1.json",
     "target_distance_cm": 9.0,
     "touched": true,
-    "manual_distance_cm": 8.437,
+    "manual_distance_cm": 8.325,
     "target_band_hint": "Invalid",
     "exact_age": 33,
     "gender": "male"
