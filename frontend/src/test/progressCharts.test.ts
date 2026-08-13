@@ -16,6 +16,12 @@ function point(overrides: Partial<TrendPoint> = {}): TrendPoint {
     capture_quality: null,
     confidence: null,
     rep_count: null,
+    completion_time_sec: null,
+    avg_rep_time_sec: null,
+    hold_left_sec: null,
+    hold_right_sec: null,
+    distance_left_cm: null,
+    distance_right_cm: null,
     ...overrides,
   };
 }

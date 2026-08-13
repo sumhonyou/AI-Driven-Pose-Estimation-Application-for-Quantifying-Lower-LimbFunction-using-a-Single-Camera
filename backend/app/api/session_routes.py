@@ -124,6 +124,23 @@ def end_session(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
+
+    # Every analysis endpoint (Module A sts/sls/wblt, Module B) already marks the
+    # session completed when it persists the graded result, so the live page's
+    # follow-up end call arrives after the session has legitimately finished.
+    # Treating that as a conflict used to strand the user on the live page with a
+    # graded set already saved, so it is accepted as a no-op instead: the quality
+    # numbers stay the server-computed ones from the analysis (never overwritten by
+    # the client's estimate), and only a missing `ended_at` is filled in.
+    if session.status == "completed":
+        if session.ended_at is None:
+            session.ended_at = datetime.now(UTC)
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+        return _session_response(session)
+
+    # A cancelled session must still never be resurrected as completed.
     _require_in_progress(session, "ended")
 
     session.ended_at = datetime.now(UTC)

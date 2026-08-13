@@ -111,7 +111,7 @@ export default function SquatLiveSessionPage() {
   const [trunkLeanDeg, setTrunkLeanDeg] = useState(0);
   const [repPeakFlexionDeg, setRepPeakFlexionDeg] = useState<number | null>(null);
   const [lastRepPeakDeg, setLastRepPeakDeg] = useState<number | null>(null);
-  const [lastRepPeakTrunkLeanDeg, setLastRepPeakTrunkLeanDeg] = useState<number | null>(null);
+  const [, setLastRepPeakTrunkLeanDeg] = useState<number | null>(null);
   const [lastRepBand, setLastRepBand] = useState<SquatBandEstimate>(null);
   // Live thresholds for the depth gauge's zone boundaries — state (not a ref) so
   // the gauge re-renders once the real backend config arrives (X7).
@@ -341,11 +341,18 @@ export default function SquatLiveSessionPage() {
     setStage("posting");
     try {
       const { frames, score, validFrameRatio } = recorder.summary();
+      // Analyze is the call that matters: it grades AND completes the session
+      // server-side. Once it returns, the report exists, so the follow-up end call
+      // (session metadata only) must never be what keeps the user off it.
       await moduleBService.analyze(sessionId, "squat", frames, targetReps);
-      await sessionService.end(sessionId, {
-        capture_quality: score,
-        valid_frame_ratio: validFrameRatio,
-      });
+      try {
+        await sessionService.end(sessionId, {
+          capture_quality: score,
+          valid_frame_ratio: validFrameRatio,
+        });
+      } catch (err) {
+        console.error("[SquatLiveSessionPage] sessionService.end failed (non-blocking)", err);
+      }
       // Complete only the reminder that launched this session.
       reminderService.completeIfLaunched(reminderId);
       setReminderId(null);
