@@ -6,7 +6,7 @@ import PoseCanvas from "../components/PoseCanvas";
 import CaptureQualityBadge from "../components/CaptureQualityBadge";
 import AutoStartCountdown from "../components/AutoStartCountdown";
 import StartingSessionOverlay from "../components/StartingSessionOverlay";
-import { ArrowLeft, ArrowRight, Check, Alert, Lightbulb, Info } from "../components/Icons";
+import { ArrowLeft, Check, Alert, Lightbulb, Info } from "../components/Icons";
 import { sessionService, enqueueCancel } from "../services/sessionService";
 import { useSessionFlow } from "../session";
 import { useWebcam } from "../hooks/useWebcam";
@@ -70,7 +70,7 @@ export default function CameraSetup() {
     if (poseReady) console.log(`[CameraSetup] Pose model ready — FPS: ${fps}`);
   }, [poseReady, fps]);
 
-  // Guards duplicate session starts from the manual button and the auto-start gate racing each other.
+  // Guards duplicate session starts if the auto-start gate fires more than once.
   const startedRef = useRef(false);
 
   // Stop pose before leaving so Back is not blocked by CPU detectForVideo.
@@ -248,17 +248,6 @@ export default function CameraSetup() {
             <Info />
             <span>{t("camera.autoStartWaiting")}</span>
           </div>
-
-          {/* Temporary QA shortcut for bypassing the auto-start wait. Remove before handoff. */}
-          <button
-            type="button"
-            className="btn btn-primary btn-lg btn-block"
-            onClick={beginSession}
-            disabled={hasAutoStarted}
-          >
-            {t("camera.startSession")}
-            <ArrowRight />
-          </button>
         </div>
 
         <div className="stack" style={{ gap: 14 }}>

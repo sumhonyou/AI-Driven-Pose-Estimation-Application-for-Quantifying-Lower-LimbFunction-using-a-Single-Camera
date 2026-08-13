@@ -2,9 +2,9 @@
 // Kept here so the footer, the landing page, and the contact modal all read the
 // same values instead of hardcoding the URL/emails in three places.
 
-/** Pre-use user-requirements survey (Google Form) linked from the footer + landing page. */
+/** Post-use feedback form (Google Form) linked from the sidebar, footer, and landing page. */
 export const FEEDBACK_FORM_URL =
-  "https://docs.google.com/forms/d/e/1FAIpQLScJI1URnl5VbreUEoNEjY_oXObP6KgmzYm15-MGGm2_UHjPgQ/viewform?usp=header";
+  "https://docs.google.com/forms/d/e/1FAIpQLSdaxw8K22DHLhOt5UU7nAKxV_d16NwNKIRicqcI3BQ0FZH05A/viewform?usp=header";
 
 export interface ProjectPerson {
   /** i18n key for the row label (Student / Supervisor). */

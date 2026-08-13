@@ -213,7 +213,7 @@ const en = {
     navReminders: "Reminders",
     navProfile: "Profile",
     feedbackCardTitle: "Give feedback",
-    feedbackCardLead: "Help shape what PhysioFit builds next.",
+    feedbackCardLead: "What's your overall experience?",
     note: "These results describe movement quality only and are not a medical diagnosis. Consult a healthcare professional for pain, injury, or clinical decisions.",
     tagRom: "Limited range of motion",
     tagTempo: "Unstable tempo",

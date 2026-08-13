@@ -216,7 +216,7 @@ const ms: Dict = {
     navReminders: "Peringatan",
     navProfile: "Profil",
     feedbackCardTitle: "Beri maklum balas",
-    feedbackCardLead: "Bantu bentuk ciri seterusnya PhysioFit.",
+    feedbackCardLead: "Apakah pengalaman keseluruhan anda?",
     note: "Keputusan ini hanya menerangkan kualiti pergerakan dan bukan diagnosis perubatan. Rujuk profesional kesihatan untuk kesakitan, kecederaan atau keputusan klinikal.",
     tagRom: "Julat pergerakan terhad",
     tagTempo: "Tempo tidak stabil",

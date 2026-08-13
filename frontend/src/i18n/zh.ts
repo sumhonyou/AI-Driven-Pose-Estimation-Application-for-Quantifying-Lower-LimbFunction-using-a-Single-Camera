@@ -204,7 +204,7 @@ const zh: Dict = {
     navReminders: "提醒",
     navProfile: "个人资料",
     feedbackCardTitle: "提交反馈",
-    feedbackCardLead: "帮助我们决定 PhysioFit 的下一步。",
+    feedbackCardLead: "您的整体体验如何？",
     note: "这些结果仅描述动作质量，并非医学诊断。如有疼痛、损伤或临床决策，请咨询医疗专业人员。",
     tagRom: "活动范围受限",
     tagTempo: "节奏不稳",
